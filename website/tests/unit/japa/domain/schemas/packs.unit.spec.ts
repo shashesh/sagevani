@@ -8,7 +8,6 @@ import type {
   IndexPack,
   LanguagePack,
   Manifest,
-  ManifestSignature,
   ProgramsPack,
   ScriptPack,
 } from '@/japa/domain/types'
@@ -21,12 +20,7 @@ import {
   navaratri,
   SHA,
 } from '@/japa/domain/schemas/catalog.fixtures'
-import {
-  manifestSchema,
-  manifestSignatureSchema,
-  packIdSchema,
-  packSchemas,
-} from '@/japa/domain/schemas/packs'
+import { manifestSchema, packIdSchema, packSchemas } from '@/japa/domain/schemas/packs'
 
 // Both directions, so no schema can drift from its type.
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
@@ -39,8 +33,7 @@ const contract: [
   Same<Output<typeof packSchemas.language>, LanguagePack>,
   Same<Output<typeof packSchemas.core>, CorePack>,
   Same<Output<typeof manifestSchema>, Manifest>,
-  Same<Output<typeof manifestSignatureSchema>, ManifestSignature>,
-] = [true, true, true, true, true, true, true, true]
+] = [true, true, true, true, true, true, true]
 void contract
 
 const V = PACK_SCHEMA_VERSION
@@ -149,12 +142,6 @@ function manifest(): Record<string, unknown> {
     release: 3,
     packs: [entry('core'), entry('deity/shiva'), entry('deity/shiva/lang/pt-BR'), entry('index')],
   }
-}
-
-const SIGNATURE = `${'A'.repeat(85)}g==`
-
-function signature(): Record<string, unknown> {
-  return { algorithm: 'ed25519', key_id: '0123456789abcdef', signature: SIGNATURE }
 }
 
 const kinds = [
@@ -382,24 +369,5 @@ describe('manifestSchema', () => {
 
   test('accepts release 0, which development builds use', () => {
     expect(manifestSchema.safeParse({ ...manifest(), release: 0 }).success).toBe(true)
-  })
-})
-
-describe('manifestSignatureSchema', () => {
-  test('accepts an Ed25519 signature', () => {
-    expect(manifestSignatureSchema.safeParse(signature()).success).toBe(true)
-  })
-
-  test.each([
-    ['algorithm', 'rsa'],
-    ['key_id', '0123456789ABCDEF'],
-    ['key_id', '0123'],
-    ['signature', 'A'.repeat(88)],
-    ['signature', `${'A'.repeat(84)}g===`],
-    ['signature', `${'!'.repeat(86)}==`],
-  ])('rejects %s = %j', (field, value) => {
-    expect(manifestSignatureSchema.safeParse({ ...signature(), [field]: value }).success).toBe(
-      false,
-    )
   })
 })

@@ -256,10 +256,3 @@ export const manifestSchema = z
       }
     })
   })
-
-/** `manifest.sig.json`. A 64-byte signature is 86 base64 digits and `==`. */
-export const manifestSignatureSchema = z.object({
-  algorithm: z.literal('ed25519'),
-  key_id: z.string().regex(/^[0-9a-f]{16}$/, 'Not 16 lowercase hex digits'),
-  signature: z.string().regex(/^[A-Za-z0-9+/]{85}[AQgw]==$/, 'Not a base64 Ed25519 signature'),
-})

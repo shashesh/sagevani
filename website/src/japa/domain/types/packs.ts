@@ -1,5 +1,5 @@
 /**
- * How the catalog reaches devices: packs, and the signed manifest that lists
+ * How the catalog reaches devices: packs, and the manifest that lists
  * them. The content build writes them and the app reads them, both through
  * the schemas in `../schemas/packs`. See
  * docs/japa/architecture/content-pipeline.md#packs.
@@ -134,24 +134,15 @@ export interface ManifestEntry {
   sha256: string
 }
 
-/** The list of packs a release is made of. Signed; see {@link ManifestSignature}. */
+/** The list of packs a release is made of. */
 export interface Manifest {
   schema_version: typeof PACK_SCHEMA_VERSION
   channel: Channel
   /**
    * Only goes up. The app rejects a manifest older than one it has accepted,
-   * so an old but validly signed manifest can't roll content back.
+   * so a stale cached manifest can't roll content back.
    */
   release: number
   /** Sorted by id, each once. */
   packs: readonly ManifestEntry[]
-}
-
-/** `manifest.sig.json`: the signature over the exact bytes of `manifest.json`. */
-export interface ManifestSignature {
-  algorithm: 'ed25519'
-  /** First 16 hex digits of the SHA-256 of the raw 32-byte public key. */
-  key_id: string
-  /** Base64 of the 64-byte signature. */
-  signature: string
 }

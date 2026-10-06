@@ -3,7 +3,7 @@ import type { Practice } from '../types'
 /**
  * **Development fixtures only — delete in M6.**
  *
- * Catalog content belongs in `content/` and reaches the app as signed packs
+ * Catalog content belongs in `content/` and reaches the app as packs
  * ([content-pipeline](../../../../docs/japa/architecture/content-pipeline.md)).
  * Until the pipeline (M2) and the on-device catalog (M3) exist, the app needs
  * something to chant, so these few practices stand in. They are unreviewed
