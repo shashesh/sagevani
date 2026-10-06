@@ -19,15 +19,12 @@ export type ChantMode =
   | 'likhita_typing' // P1
   | 'silent_pace' // P1 - estimated
   | 'silent_breath' // P1 - estimated
-  | 'volume_button' // P1
   | 'manual' // P1 - practice done elsewhere, logged by hand
   | 'correction' // P1 - adjusts a session, may be negative
   | 'voice' // P2
-  | 'watch' // P2
   | 'chant_along' // P2
   | 'listening' // P2 - counted separately, never in the chanted total
   | 'handwriting' // P3
-  | 'ring' // P4 - Bluetooth rings / smart malas
 
 /**
  * A mode the devotee can choose to chant in, and so the chant screen can open
