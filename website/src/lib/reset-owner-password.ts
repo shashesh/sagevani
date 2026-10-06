@@ -22,17 +22,18 @@ export async function resetOwnerPassword(
   }
   checkOwnerPassword({ email: owner.email, name: owner.name, password })
 
-  // Setting a password with no signed-in user also empties the owner's sessions.
+  // Setting a password with no signed-in user also empties the owner's sessions; the API key is
+  // removed too, so a leaked key cannot outlive the recovery.
   await payload.update({
     collection: USERS_SLUG,
     id: owner.id,
-    data: { password },
+    data: { password, enableAPIKey: false, apiKey: null },
     overrideAccess: true,
   })
-  // Unlocking looks the account up by email only; the generated type also asks for a password.
+  // Unlocking looks the account up by email only; the generated type also asks for a password, so pass an empty one.
   await payload.unlock({
     collection: USERS_SLUG,
-    data: { email: owner.email, password },
+    data: { email: owner.email, password: '' },
     overrideAccess: true,
   })
   return { email: owner.email }

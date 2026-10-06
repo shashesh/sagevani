@@ -21,7 +21,8 @@ const runCli = (script: string, env: Record<string, string | undefined>) => {
   return { status: result.status, output: `${result.stdout}${result.stderr}` }
 }
 
-describe('owner:create command', () => {
+// Each spawn can take up to 90s, so the suite timeout must sit above that.
+describe('owner:create command', { timeout: 120_000 }, () => {
   const run = (env: Record<string, string | undefined>) => runCli('scripts/create-owner.ts', env)
 
   it('exits 1 with a clear message when the owner details are missing', () => {
@@ -34,9 +35,9 @@ describe('owner:create command', () => {
     expect(output).toContain('Set OWNER_EMAIL, OWNER_NAME and OWNER_PASSWORD for this command.')
   })
 
-  it('never prints the database password or the owner password when it fails', () => {
+  it('never prints the database password or the owner password when the database refuses the connection', () => {
     const { status, output } = run({
-      DATABASE_URL: 'postgres://owner:db-sekret-123@db.invalid:99999/sagevani',
+      DATABASE_URL: 'postgres://owner:db-sekret-123@127.0.0.1:1/sagevani',
       OWNER_EMAIL: 'owner@example.com',
       OWNER_NAME: 'Owner',
       OWNER_PASSWORD: 'zq-sekret-4567-x',
@@ -46,7 +47,7 @@ describe('owner:create command', () => {
   })
 })
 
-describe('owner:reset-password command', () => {
+describe('owner:reset-password command', { timeout: 120_000 }, () => {
   const run = (env: Record<string, string | undefined>) =>
     runCli('scripts/reset-owner-password.ts', env)
   let payload: Payload
@@ -78,9 +79,9 @@ describe('owner:reset-password command', () => {
     expect(output).toContain('Set OWNER_PASSWORD to the new owner password for this command.')
   })
 
-  it('never prints the database password or the new password when it fails', () => {
+  it('never prints the database password or the new password when the database refuses the connection', () => {
     const { status, output } = run({
-      DATABASE_URL: 'postgres://owner:db-sekret-123@db.invalid:99999/sagevani',
+      DATABASE_URL: 'postgres://owner:db-sekret-123@127.0.0.1:1/sagevani',
       OWNER_PASSWORD: 'zq-sekret-4567-x',
     })
     expect(status).toBe(1)
@@ -98,7 +99,7 @@ describe('owner:reset-password command', () => {
 
     expect(status).toBe(0)
     expect(output).toContain(
-      'Password reset for owner@example.com. Every session was signed out and any login lock was cleared.',
+      'Password reset for owner@example.com. Every session was signed out, any API key was removed, and any login lock was cleared.',
     )
     const login = await payload.login({
       collection: 'users',

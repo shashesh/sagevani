@@ -113,4 +113,22 @@ describe('resetOwnerPassword', () => {
     expect(docs).toHaveLength(1)
     expect(docs[0]).toMatchObject({ email: EMAIL, role: 'owner', name: 'Owner' })
   })
+
+  it('removes an owner API key', async () => {
+    const owner = await createTestOwner()
+    const apiKey = 'owner-api-key-0123456789abcdef'
+    await payload.update({
+      collection: 'users',
+      id: owner.id,
+      data: { enableAPIKey: true, apiKey },
+      overrideAccess: true,
+      context: allowOwnerChange(),
+    })
+    const headers = new Headers({ Authorization: `users API-Key ${apiKey}` })
+    expect((await payload.auth({ headers })).user?.email).toBe(EMAIL)
+
+    await resetOwnerPassword(payload, NEW_PASSWORD)
+
+    expect((await payload.auth({ headers })).user).toBeNull()
+  })
 })

@@ -17,7 +17,7 @@ async function main(): Promise<number> {
     payload = await getPayload({ config })
     const owner = await resetOwnerPassword(payload, OWNER_PASSWORD)
     console.log(
-      `Password reset for ${owner.email}. Every session was signed out and any login lock was cleared.`,
+      `Password reset for ${owner.email}. Every session was signed out, any API key was removed, and any login lock was cleared.`,
     )
     return 0
   } catch (error) {
