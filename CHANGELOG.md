@@ -1,5 +1,12 @@
 # Change log
 
+## 2026-10-06 — JapaDhyan joins the website
+
+- Recorded [D-006](docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa): JapaDhyan, the owner's naam japam app, becomes the website's `/japa` section, for browsers only, with its own offline storage and sync.
+- Added the [design spec](website/docs/specs/2026-10-06-japadhyan-in-sagevani-design.md), the [move plan](website/docs/plans/2026-10-06-japadhyan-move.md), and JapaDhyan's documents in [`website/docs/japa/`](website/docs/japa/README.md).
+- Added Q-11 (sign-in for JapaDhyan) and Q-12 (web-push reminders). Updated the project brief, the website design spec, `AGENTS.md` and the README.
+- No JapaDhyan code is in the website yet.
+
 ## 2026-10-06 — Website stage 1 merged
 
 - The owner merged [pull request #1](https://github.com/shashesh/sagevani/pull/1) into `main`. Nothing is deployed yet.

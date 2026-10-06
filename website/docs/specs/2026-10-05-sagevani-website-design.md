@@ -537,3 +537,10 @@ Each stage ends in something that can be reviewed. Implementation plans may be w
 5. **Comment guidelines.** A short policy readers can see.
 6. **Region, domain and sender address.** The audience is worldwide, and the database is in East US (Ohio) (D-005). A domain and a "from" address are to be chosen.
 7. **Paid database plan.** Confirmed (D-005). Production moves to Supabase Pro when the site is launch-ready, and uses the free plan until then.
+
+## 19. JapaDhyan at `/japa`
+
+JapaDhyan, the naam japam app, joins the site as `/japa` ([D-006](../../../docs/governance/decisions.md), [design](2026-10-06-japadhyan-in-sagevani-design.md), [its documents](../japa/README.md)). It is built after stage 3 and works offline in the browser. Two rules bind the rest of the site now:
+
+- Google Analytics never records a `/japa` page, even after a reader has accepted cookies on the blog and moves to `/japa` without a full page load. Which practice someone chants is religious data.
+- The reader accounts excluded in section 3 stay excluded for the blog. JapaDhyan's optional account is decided separately (Q-11).

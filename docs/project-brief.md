@@ -10,6 +10,7 @@
 | Scope | Documentation, research, ideas, drafts, published work, publication records, website code, design assets |
 | Visibility | Public repository during setup; the owner plans to make it private once the website is live |
 | Website | Database-backed blog: Payload CMS in Next.js, Supabase, Netlify ([D-004](governance/decisions.md), [design spec](../website/docs/specs/2026-10-05-sagevani-website-design.md)) |
+| JapaDhyan | The owner's naam japam app, joining the website as its `/japa` section ([D-006](governance/decisions.md)) |
 | Ownership | Solo project; owner makes final approvals |
 | Assistance | Assistant may help across the project and draft without separate permission; owner approval is required before publication |
 | Readers | Novice through advanced |
@@ -24,7 +25,7 @@
 
 ## Unresolved
 
-Domain, maintenance system, voice-guide adoption, privacy for other personal material, difficulty labels, licensing, citation presentation, and assistant disclosure remain open. Indian and Nepali regional languages are possibilities, not commitments.
+Domain, maintenance system, voice-guide adoption, privacy for other personal material, difficulty labels, licensing, citation presentation, assistant disclosure, and JapaDhyan's sign-in and reminders remain open. Indian and Nepali regional languages are possibilities, not commitments.
 
 The owner clarified that draft privacy means keeping unfinished writing off the website. Article drafts live in the CMS; anything kept in this public repository remains readable there.
 
