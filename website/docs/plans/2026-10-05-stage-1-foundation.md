@@ -2344,6 +2344,93 @@ describe('createOwner', () => {
       createOwner(payload, { email: 'owner@example.com', name: 'Owner', password: 'short' }),
     ).rejects.toThrow('The owner password must be at least 12 characters.')
   })
+
+  it('counts characters, not UTF-16 units, toward the minimum length', async () => {
+    await expect(
+      createOwner(payload, {
+        email: 'owner@example.com',
+        name: 'Owner',
+        password: '🙂🙃'.repeat(3),
+      }),
+    ).rejects.toThrow('The owner password must be at least 12 characters.')
+  })
+
+  it('refuses a password that is one repeated character or built from the email or name', async () => {
+    const weak = [
+      { email: 'owner@example.com', name: 'Owner', password: 'aaaaaaaaaaaaaa' },
+      { email: 'lantern@example.com', name: 'Owner', password: 'my-LANTERN-password' },
+      { email: 'owner@example.com', name: 'Marigold', password: 'marigold-garden-2026' },
+    ]
+    for (const input of weak) {
+      await expect(createOwner(payload, input)).rejects.toThrow(
+        'Choose an owner password that is not a repeated character or based on your email or name.',
+      )
+    }
+  })
+
+  it('normalises the email and trims the name', async () => {
+    const owner = await createOwner(payload, {
+      email: '  Owner@Example.COM ',
+      name: '  Owner  ',
+      password: 'long-enough-password',
+    })
+    expect(owner).toMatchObject({ email: 'owner@example.com', name: 'Owner' })
+  })
+
+  it('refuses an empty name', async () => {
+    await expect(
+      createOwner(payload, {
+        email: 'owner@example.com',
+        name: '   ',
+        password: 'long-enough-password',
+      }),
+    ).rejects.toThrow('The owner name must not be empty.')
+  })
+})
+```
+
+Also create `website/tests/int/create-owner-cli.int.spec.ts`. It runs the real command in a child process and proves that no secret is ever printed, even when the database URL is invalid:
+
+```ts
+import { spawnSync } from 'node:child_process'
+import { describe, expect, it } from 'vitest'
+
+// Runs scripts/create-owner.ts the way `npm run owner:create` does, and returns everything it printed.
+const runCli = (env: Record<string, string | undefined>) => {
+  const result = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/create-owner.ts'], {
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      DOTENV_CONFIG_PATH: 'tests/no-such-env-file',
+      ...env,
+    },
+    encoding: 'utf-8',
+    timeout: 90_000,
+  })
+  return { status: result.status, output: `${result.stdout}${result.stderr}` }
+}
+
+describe('owner:create command', () => {
+  it('exits 1 with a clear message when the owner details are missing', () => {
+    const { status, output } = runCli({
+      OWNER_EMAIL: undefined,
+      OWNER_NAME: undefined,
+      OWNER_PASSWORD: undefined,
+    })
+    expect(status).toBe(1)
+    expect(output).toContain('Set OWNER_EMAIL, OWNER_NAME and OWNER_PASSWORD for this command.')
+  })
+
+  it('never prints the database password or the owner password when it fails', () => {
+    const { status, output } = runCli({
+      DATABASE_URL: 'postgres://owner:db-sekret-123@db.invalid:99999/sagevani',
+      OWNER_EMAIL: 'owner@example.com',
+      OWNER_NAME: 'Owner',
+      OWNER_PASSWORD: 'zq-sekret-4567-x',
+    })
+    expect(status).toBe(1)
+    expect(output).not.toMatch(/db-sekret-123|zq-sekret-4567-x/)
+  })
 })
 ```
 
@@ -2363,23 +2450,46 @@ import type { Payload } from 'payload'
 import { allowOwnerChange } from '../collections/Users'
 
 export const MIN_OWNER_PASSWORD_LENGTH = 12
+const MIN_IDENTIFIER_LENGTH = 4
 
 export type OwnerInput = { email: string; name: string; password: string }
 
-// Creates the single owner account on a fresh database, before the site is reachable. Outside
-// development and tests the Users collection refuses first sign-ups, so this deliberate server-side
-// path carries the owner-maintenance flag. It creates one document; never bulk-write with the flag.
-export async function createOwner(payload: Payload, input: OwnerInput) {
-  if (input.password.length < MIN_OWNER_PASSWORD_LENGTH) {
+// Rejects passwords that are short (counted in characters, not UTF-16 units), one repeated
+// character, or built from the owner's email name or display name.
+export function checkOwnerPassword({ email, name, password }: OwnerInput): void {
+  if ([...password].length < MIN_OWNER_PASSWORD_LENGTH) {
     throw new Error(`The owner password must be at least ${MIN_OWNER_PASSWORD_LENGTH} characters.`)
   }
+  const lower = password.toLowerCase()
+  const identifiers = [email.split('@')[0], name].map((part) => part.trim().toLowerCase())
+  const basedOnIdentity = identifiers.some(
+    (part) => part.length >= MIN_IDENTIFIER_LENGTH && lower.includes(part),
+  )
+  if (/^(.)\1+$/u.test(password) || basedOnIdentity) {
+    throw new Error(
+      'Choose an owner password that is not a repeated character or based on your email or name.',
+    )
+  }
+}
+
+// Creates the single owner account on a fresh database, before the site is reachable. Outside
+// development and tests the Users collection refuses first sign-ups, so this deliberate server-side
+// path carries the owner-maintenance flag. The flag also skips the single-owner hook, so the
+// database's unique index is what prevents a second owner here. It creates one document; never
+// bulk-write with the flag.
+export async function createOwner(payload: Payload, input: OwnerInput) {
+  const email = input.email.trim().toLowerCase()
+  const name = input.name.trim()
+  if (!name) throw new Error('The owner name must not be empty.')
+  checkOwnerPassword({ email, name, password: input.password })
+
   const { totalDocs } = await payload.count({ collection: 'users', overrideAccess: true })
   if (totalDocs > 0) {
     throw new Error('Refusing to create an owner: this database already has user accounts.')
   }
   return payload.create({
     collection: 'users',
-    data: { ...input, role: 'owner' },
+    data: { email, name, password: input.password, role: 'owner' },
     overrideAccess: true,
     context: allowOwnerChange(),
   })
@@ -2392,40 +2502,54 @@ export async function createOwner(payload: Payload, input: OwnerInput) {
 npm run test:int
 ```
 
-Expected: PASS, `36 passed`.
+Expected: PASS, `42 passed` (7 database + 25 users + 8 create-owner + 2 CLI).
 
 - [ ] **Step 5: Add the command-line entry point** — `website/scripts/create-owner.ts`
 
 ```ts
 import 'dotenv/config'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 
-import config from '../src/payload.config'
 import { createOwner } from '../src/lib/create-owner'
 
-const { OWNER_EMAIL, OWNER_NAME, OWNER_PASSWORD } = process.env
-if (!OWNER_EMAIL || !OWNER_NAME || !OWNER_PASSWORD) {
-  console.error('Set OWNER_EMAIL, OWNER_NAME and OWNER_PASSWORD for this command.')
-  process.exit(1)
+// Never print secrets: errors are reduced to their first line, with the database URL and the owner
+// password removed, and no stack traces are shown.
+const secrets = [process.env.DATABASE_URL, process.env.OWNER_PASSWORD].filter(
+  (value): value is string => Boolean(value),
+)
+const describeError = (error: unknown): string => {
+  const firstLine = (error instanceof Error ? error.message : String(error)).split('\n')[0]
+  return secrets.reduce((text, secret) => text.split(secret).join('[redacted]'), firstLine)
 }
 
-const payload = await getPayload({ config })
-try {
-  const owner = await createOwner(payload, {
-    email: OWNER_EMAIL,
-    name: OWNER_NAME,
-    password: OWNER_PASSWORD,
-  })
-  console.log(`Owner account created for ${owner.email}.`)
-  process.exitCode = 0
-} catch (error) {
-  console.error(error instanceof Error ? error.message : error)
-  process.exitCode = 1
-} finally {
-  await payload.destroy()
-  // Payload keeps background handles open after destroy(); exit explicitly so the command ends.
-  process.exit()
+async function main(): Promise<number> {
+  const { OWNER_EMAIL, OWNER_NAME, OWNER_PASSWORD } = process.env
+  if (!OWNER_EMAIL || !OWNER_NAME || !OWNER_PASSWORD) {
+    console.error('Set OWNER_EMAIL, OWNER_NAME and OWNER_PASSWORD for this command.')
+    return 1
+  }
+
+  let payload: Payload | undefined
+  try {
+    const { default: config } = await import('../src/payload.config')
+    payload = await getPayload({ config })
+    const owner = await createOwner(payload, {
+      email: OWNER_EMAIL,
+      name: OWNER_NAME,
+      password: OWNER_PASSWORD,
+    })
+    console.log(`Owner account created for ${owner.email}.`)
+    return 0
+  } catch (error) {
+    console.error(`Could not create the owner: ${describeError(error)}`)
+    return 1
+  } finally {
+    await payload?.destroy().catch(() => undefined)
+  }
 }
+
+// Payload keeps background handles open after destroy(); exit explicitly so the command ends.
+process.exit(await main())
 ```
 
 ```bash
@@ -2449,7 +2573,7 @@ docker compose exec -T db psql -U postgres -c "DROP DATABASE sagevani_owner_chec
 Expected:
 
 1. First run: `Owner account created for me@example.com.` and `exit 0`, within a few seconds.
-2. Second run: `Refusing to create an owner: this database already has user accounts.` and a non-zero exit code.
+2. Second run: `Could not create the owner: Refusing to create an owner: this database already has user accounts.` and exit code 1.
 
 - [ ] **Step 7: Verify and commit**
 
@@ -2519,7 +2643,7 @@ npm run test:coverage
 
 Expected:
 
-- `Tests  104 passed (104)` (68 unit + 36 integration)
+- `Tests  110 passed (110)` (68 unit + 42 integration)
 - The coverage table shows 100% for `access/roles.ts`, `collections/Users.ts`, `lib/env.ts`, `lib/db-schema.ts`, `lib/harden-database.ts` and `lib/create-owner.ts`.
 - No threshold errors.
 
@@ -2704,8 +2828,19 @@ Do these steps in order. Step 4 must happen before step 5, so that nobody can cl
 2. **Supabase web API:** in each project's API settings, check that `payload` is **not** in the list of exposed schemas. The site never uses Supabase's web API, so you can also turn it off. After step 3, run `select * from pg_default_acl` in each project's SQL editor and note any entries for `anon` or `authenticated`. The hardening step revokes schema-level defaults, and revoking schema USAGE is the primary lock either way.
 3. **Migrate each database from your machine** (in `website/`, Git Bash):
    `DATABASE_URL="<session pooler URL>" npm run deploy:migrate`
-4. **Create your owner account in each database:**
-   `DATABASE_URL="<session pooler URL>" OWNER_EMAIL="you@…" OWNER_NAME="…" OWNER_PASSWORD="<12+ characters>" npm run owner:create`
+4. **Create your owner account in each database.** Enter the password with `read -rs`, so it never appears on screen or in your shell history:
+
+   ```bash
+   read -rs OWNER_PASSWORD; export OWNER_PASSWORD
+   DATABASE_URL="<session pooler URL>" OWNER_EMAIL="you@…" OWNER_NAME="…" npm run owner:create
+   unset OWNER_PASSWORD
+   ```
+
+   The password needs at least 12 characters. It can't be a single repeated character, and it can't contain the part of your email before the `@`, or your name.
+
+   - Never put `OWNER_PASSWORD` in `.env`.
+   - The Supabase URL contains your database password. If that password has special characters, URL-encode them.
+   - Afterwards, remove any history lines that contain the URL.
 5. **Netlify:**
    - Add a new site from the GitHub repository `shashesh/sagevani`. Build settings come from `netlify.toml`.
    - Under environment variables, set `DATABASE_URL`, `DATABASE_MIGRATION_URL` and `PAYLOAD_SECRET` with production values for the **Production** context, and staging values for **Deploy Previews** and **Branch deploys**.
