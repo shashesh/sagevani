@@ -1,7 +1,8 @@
 import type { PayloadRequest } from 'payload'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { isOwner, ownerOnly, ownerOnlyField, ownerOrOwnAccount } from '@/access/roles'
+import { isOwner, ownerOnly, ownerOnlyField, ownerOrOwnAccount, type Role } from '@/access/roles'
+import type { User } from '@/payload-types'
 
 const reqWith = (user: unknown) => ({ req: { user } as unknown as PayloadRequest })
 
@@ -75,5 +76,12 @@ describe('ownerOrOwnAccount', () => {
 
   it.each(untrusted)('denies %s outright', (_label, user) => {
     expect(ownerOrOwnAccount(reqWith(user))).toBe(false)
+  })
+})
+
+describe('ROLES', () => {
+  // Checked by `npm run typecheck`: fails if the roles and Payload's generated User type drift apart.
+  it('stays in step with the role type Payload generates for users', () => {
+    expectTypeOf<User['role']>().toEqualTypeOf<Role>()
   })
 })
