@@ -20,7 +20,7 @@ export async function hardenSchema(pool: Pool, schema: string): Promise<boolean>
     await client.query('COMMIT')
     return hardened
   } catch (error) {
-    await client.query('ROLLBACK')
+    await client.query('ROLLBACK').catch(() => undefined)
     throw error
   } finally {
     client.release()
