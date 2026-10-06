@@ -17,3 +17,7 @@ Home for the SageVani website code and its design documents. No implementation h
 - The website reads only published content from its database. It never reads this repository's workspace folders.
 
 These requirements will be tested once the website exists.
+
+## Develop
+
+The app is a Payload CMS 3 + Next.js 16 project in this folder. See [environments](docs/environments.md) for local setup, variables, and staging/production setup.
