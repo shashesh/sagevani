@@ -504,9 +504,11 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: process.env.CI ? 'github' : 'list',
+  timeout: 60_000,
   use: {
     baseURL,
     trace: 'on-first-retry',
+    navigationTimeout: 45_000,
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
@@ -2644,7 +2646,7 @@ npm run test:coverage
 Expected:
 
 - `Tests  110 passed (110)` (68 unit + 42 integration)
-- The coverage table shows 100% for `access/roles.ts`, `collections/Users.ts`, `lib/env.ts`, `lib/db-schema.ts`, `lib/harden-database.ts` and `lib/create-owner.ts`.
+- The coverage table shows about 97% overall, well above the 80% thresholds. The few uncovered lines are the rollback-failure path in `lib/harden-database.ts` and two fallback branches in `collections/Users.ts`.
 - No threshold errors.
 
 - [ ] **Step 2: Lint, typecheck, production build**
@@ -2700,7 +2702,7 @@ jobs:
           POSTGRES_DB: sagevani_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d sagevani_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
