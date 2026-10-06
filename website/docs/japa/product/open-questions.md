@@ -1,6 +1,6 @@
 ---
 status: active
-updated: 2026-09-23
+updated: 2026-10-06
 ---
 
 # Open questions
@@ -25,13 +25,11 @@ Proposed: accounts for 18+ in India (DPDP Act) and 16+ elsewhere, confirmed by t
 
 ## Sync engine
 
-PowerSync or our own Supabase sync. Decided by spike S4 before local storage is built, against the criteria in [data-model](../architecture/data-model.md#sync-engine).
-
-**PowerSync is accepted** ([decision](../decisions/2026-09-22-sync-engine-powersync.md)): four of the seven criteria are closed on the vendor's documentation, and the question stays open until a prototype closes the other three — the guest-to-account move on React Native, two devices converging offline, and offline persistence in the web export. If it fails one, we fall back to our own sync.
+Our own sync against Supabase ([D-006](../../../../docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa)), designed in part 3: browser storage, sign-in (Q-11 in [SageVani's open questions](../../../../docs/governance/open-questions.md)), upload and download, against the [requirements in data-model](../architecture/data-model.md#sync-engine). PowerSync was accepted first and dropped with the native apps.
 
 ## Content hosting
 
-Where packs and audio are hosted: Supabase Storage or Cloudflare R2. Decided in the content pipeline milestone ([content-pipeline](../architecture/content-pipeline.md)).
+Packs are static files served with the website. Where audio is hosted is decided when audio arrives: Supabase Storage, which the website already uses, or Cloudflare R2 ([content-pipeline](../architecture/content-pipeline.md)).
 
 The transliteration library, once part of this question, is decided: vidyut-lipi ([decision](../decisions/2026-09-23-transliteration-library.md)), with our own rules and a hand-written override for `latin`.
 

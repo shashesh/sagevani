@@ -1,13 +1,13 @@
 ---
 status: draft
-updated: 2026-09-22
+updated: 2026-10-06
 ---
 
 # Vision
 
 ## One line
 
-**JapaDhyan** is a one-stop companion for naam japam and mantra sadhana — for everyone who practises name chanting in the Dharmic traditions of India and Indo-Asia, on web, Android and iOS.
+**JapaDhyan** is a one-stop companion for naam japam and mantra sadhana — for everyone who practises name chanting in the Dharmic traditions of India and Indo-Asia, in the browser, as part of [SageVani](../../../../README.md).
 
 ## Who it is for
 
@@ -30,11 +30,11 @@ Everything in the app supports this loop. Nothing is allowed to get in its way.
 
 | Principle                       | What it means in practice                                                                                                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **One count, many inputs**      | Tap, type, voice, silent, watch — all feed the same total. Switch modes mid-session.                                                                          |
+| **One count, many inputs**      | Tap, type, voice, silent — all feed the same total. Switch modes mid-session.                                                                          |
 | **Chanting in seconds**         | No feed, no article, no upsell between opening the app and chanting.                                                                                          |
 | **Forgiving, not guilt-driven** | Grace days, warm reminders, no streak shaming.                                                                                                                |
 | **Free flow, nothing locked**   | Every mala, mantra and mode is open from day one. Nothing is unlocked by counts or streaks ([decision](../decisions/2026-09-21-free-flow-nothing-locked.md)). |
-| **Private by design**           | Voice audio never leaves the phone. Guru mantras can be counted without their words being stored.                                                             |
+| **Private by design**           | Voice audio never leaves the device. Guru mantras can be counted without their words being stored.                                                             |
 | **Collective, not competitive** | Shared goals instead of leaderboards ([decision](../decisions/2026-09-21-collective-not-competitive.md)).                                                     |
 | **No ads during sadhana**       | Ever.                                                                                                                                                         |
 | **Respect every tradition**     | Content for each faith reviewed by someone from that faith.                                                                                                   |
