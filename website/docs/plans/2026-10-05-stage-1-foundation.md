@@ -1048,33 +1048,50 @@ import { Pool } from 'pg'
 import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { parseServerEnv } from '@/lib/env'
 import config from '@/payload.config'
 
 const DB_SCHEMA = 'payload'
 
-let payload: Payload
-let pool: Pool
+let payload: Payload | undefined
+let pool: Pool | undefined
+
+const db = (): Pool => {
+  if (!pool) throw new Error('The database pool was not created.')
+  return pool
+}
 
 describe('database layout', () => {
   beforeAll(async () => {
     payload = await getPayload({ config: await config })
-    pool = new Pool({ connectionString: process.env.DATABASE_URL })
+    pool = new Pool({ connectionString: parseServerEnv(process.env).DATABASE_URL })
   })
 
   afterAll(async () => {
-    await pool.end()
-    await payload.destroy()
+    await pool?.end()
+    await payload?.destroy()
   })
 
-  it('keeps every Payload table in the dedicated schema, none in public', async () => {
-    const { rows } = await pool.query<{ schemaname: string; tablename: string }>(
-      `SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ('public', $1)`,
+  // Covers the schema Payload pushes in development. The migration path is checked separately
+  // (Task 9) by migrating a fresh database.
+  it('keeps every Payload table, sequence, view and enum in the dedicated schema, none in public', async () => {
+    const { rows: tables } = await db().query<{ tablename: string }>(
+      'SELECT tablename FROM pg_tables WHERE schemaname = $1',
       [DB_SCHEMA],
     )
-    const inSchema = rows.filter((r) => r.schemaname === DB_SCHEMA).map((r) => r.tablename)
-    const inPublic = rows.filter((r) => r.schemaname === 'public').map((r) => r.tablename)
+    expect(tables.map((t) => t.tablename)).toEqual(
+      expect.arrayContaining(['users', 'payload_migrations', 'payload_preferences', 'payload_kv']),
+    )
 
-    expect(inSchema).toContain('users')
+    const { rows: inPublic } = await db().query<{ name: string; kind: string }>(
+      `SELECT c.relname AS name, c.relkind::text AS kind
+         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'S', 'v', 'm')
+       UNION ALL
+       SELECT t.typname AS name, 'enum' AS kind
+         FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE n.nspname = 'public' AND t.typtype = 'e'`,
+    )
     expect(inPublic).toEqual([])
   })
 })
@@ -1139,10 +1156,12 @@ export default buildConfig({
 })
 ```
 
-In the test, replace `const DB_SCHEMA = 'payload'` with the shared constant:
+In the test, delete the line `const DB_SCHEMA = 'payload'` and the blank line before it, and import the shared constant as the first `@/` import instead:
 
 ```ts
 import { DB_SCHEMA } from '@/lib/db-schema'
+import { parseServerEnv } from '@/lib/env'
+import config from '@/payload.config'
 ```
 
 - [ ] **Step 5: Clear the tables the failing run left in `public`, then run again**
@@ -1571,39 +1590,61 @@ import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { ALLOW_OWNER_CHANGE } from '@/collections/Users'
-import config from '@/payload.config'
 import { DB_SCHEMA } from '@/lib/db-schema'
+import { parseServerEnv } from '@/lib/env'
 import { hardenSchema } from '@/lib/harden-database'
+import config from '@/payload.config'
 
-let payload: Payload
-let pool: Pool
+let payload: Payload | undefined
+let pool: Pool | undefined
+
+const db = (): Pool => {
+  if (!pool) throw new Error('The database pool was not created.')
+  return pool
+}
+
+const cms = (): Payload => {
+  if (!payload) throw new Error('Payload was not initialised.')
+  return payload
+}
 
 describe('database layout', () => {
   beforeAll(async () => {
     payload = await getPayload({ config: await config })
-    pool = new Pool({ connectionString: process.env.DATABASE_URL })
+    pool = new Pool({ connectionString: parseServerEnv(process.env).DATABASE_URL })
   })
 
   afterAll(async () => {
-    await pool.end()
-    await payload.destroy()
+    await pool?.end()
+    await payload?.destroy()
   })
 
-  it('keeps every Payload table in the dedicated schema, none in public', async () => {
-    const { rows } = await pool.query<{ schemaname: string; tablename: string }>(
-      `SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ('public', $1)`,
+  // Covers the schema Payload pushes in development. The migration path is checked separately
+  // (Task 9) by migrating a fresh database.
+  it('keeps every Payload table, sequence, view and enum in the dedicated schema, none in public', async () => {
+    const { rows: tables } = await db().query<{ tablename: string }>(
+      'SELECT tablename FROM pg_tables WHERE schemaname = $1',
       [DB_SCHEMA],
     )
-    const inSchema = rows.filter((r) => r.schemaname === DB_SCHEMA).map((r) => r.tablename)
-    const inPublic = rows.filter((r) => r.schemaname === 'public').map((r) => r.tablename)
+    expect(tables.map((t) => t.tablename)).toEqual(
+      expect.arrayContaining(['users', 'payload_migrations', 'payload_preferences', 'payload_kv']),
+    )
 
-    expect(inSchema).toContain('users')
+    const { rows: inPublic } = await db().query<{ name: string; kind: string }>(
+      `SELECT c.relname AS name, c.relkind::text AS kind
+         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'S', 'v', 'm')
+       UNION ALL
+       SELECT t.typname AS name, 'enum' AS kind
+         FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE n.nspname = 'public' AND t.typtype = 'e'`,
+    )
     expect(inPublic).toEqual([])
   })
 
   it('enables row-level security on every table after hardening', async () => {
-    await hardenSchema(pool, DB_SCHEMA)
-    const { rows } = await pool.query<{ relname: string; relrowsecurity: boolean }>(
+    await hardenSchema(db(), DB_SCHEMA)
+    const { rows } = await db().query<{ relname: string; relrowsecurity: boolean }>(
       `SELECT c.relname, c.relrowsecurity
          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = $1 AND c.relkind = 'r'`,
@@ -1615,20 +1656,20 @@ describe('database layout', () => {
 
   it("revokes Supabase's API roles from the schema when they exist", async () => {
     for (const role of ['anon', 'authenticated']) {
-      await pool.query(
+      await db().query(
         `DO $$ BEGIN
            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
              CREATE ROLE ${role} NOLOGIN;
            END IF;
          END $$`,
       )
-      await pool.query(`GRANT USAGE ON SCHEMA "${DB_SCHEMA}" TO ${role}`)
-      await pool.query(`GRANT SELECT ON ALL TABLES IN SCHEMA "${DB_SCHEMA}" TO ${role}`)
+      await db().query(`GRANT USAGE ON SCHEMA "${DB_SCHEMA}" TO ${role}`)
+      await db().query(`GRANT SELECT ON ALL TABLES IN SCHEMA "${DB_SCHEMA}" TO ${role}`)
     }
 
-    await hardenSchema(pool, DB_SCHEMA)
+    await hardenSchema(db(), DB_SCHEMA)
 
-    const { rows } = await pool.query<{ rolname: string; usage: boolean; can_select: boolean }>(
+    const { rows } = await db().query<{ rolname: string; usage: boolean; can_select: boolean }>(
       `SELECT rolname,
               has_schema_privilege(rolname, $1, 'USAGE') AS usage,
               has_table_privilege(rolname, $2, 'SELECT') AS can_select
@@ -1640,8 +1681,8 @@ describe('database layout', () => {
   })
 
   it('still lets Payload read and write after hardening', async () => {
-    await hardenSchema(pool, DB_SCHEMA)
-    const created = await payload.create({
+    await hardenSchema(db(), DB_SCHEMA)
+    const created = await cms().create({
       collection: 'users',
       data: {
         email: 'after-rls@example.com',
@@ -1651,14 +1692,10 @@ describe('database layout', () => {
       },
       overrideAccess: true,
     })
-    const found = await payload.findByID({
-      collection: 'users',
-      id: created.id,
-      overrideAccess: true,
-    })
+    const found = await cms().findByID({ collection: 'users', id: created.id, overrideAccess: true })
     expect(found.email).toBe('after-rls@example.com')
     // On an empty database this user becomes the owner, which may only be removed deliberately.
-    await payload.delete({
+    await cms().delete({
       collection: 'users',
       id: created.id,
       overrideAccess: true,
