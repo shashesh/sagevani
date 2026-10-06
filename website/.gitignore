@@ -45,3 +45,6 @@ next-env.d.ts
 # AI-agent notes that `next dev` regenerates on every start; not project instructions
 /AGENTS.md
 /CLAUDE.md
+
+# JapaDhyan packs, built by npm run japa:content:build
+/japa-catalog/dist/
