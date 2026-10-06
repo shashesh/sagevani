@@ -30,7 +30,8 @@ export async function resetOwnerPassword(
     data: { password, enableAPIKey: false, apiKey: null },
     overrideAccess: true,
   })
-  // Unlocking looks the account up by email only; the generated type also asks for a password, so pass an empty one.
+  // Unlocking looks the account up by email only; the generated type also asks for a password, so
+  // pass an empty one.
   await payload.unlock({
     collection: USERS_SLUG,
     data: { email: owner.email, password: '' },

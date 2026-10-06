@@ -181,6 +181,65 @@ describe('users and roles', () => {
     expect(updated).toMatchObject({ name: 'Renamed', role: 'owner' })
   })
 
+  describe('owner API key', () => {
+    const OWNER_KEY_ERROR = 'The owner account cannot have an API key.'
+    const ownerKey = 'owner-key-0123456789abcdef'
+    const assistantKey = 'assistant-key-0123456789abcdef'
+    const authWithKey = (key: string) =>
+      payload.auth({ headers: new Headers({ Authorization: `users API-Key ${key}` }) })
+
+    it('refuses to let the owner give their own account an API key', async () => {
+      const owner = await createOwner()
+      await expect(
+        payload.update({
+          collection: 'users',
+          id: owner.id,
+          data: { enableAPIKey: true, apiKey: ownerKey },
+          overrideAccess: false,
+          user: owner,
+        }),
+      ).rejects.toThrow(OWNER_KEY_ERROR)
+    })
+
+    it('refuses an owner API key even with access overridden', async () => {
+      const owner = await createOwner()
+      await expect(
+        payload.update({
+          collection: 'users',
+          id: owner.id,
+          data: { enableAPIKey: true, apiKey: ownerKey },
+          overrideAccess: true,
+        }),
+      ).rejects.toThrow(OWNER_KEY_ERROR)
+    })
+
+    it('refuses an apiKey on its own, because Payload authenticates by the key alone', async () => {
+      const owner = await createOwner()
+      await expect(
+        payload.update({
+          collection: 'users',
+          id: owner.id,
+          data: { apiKey: ownerKey },
+          overrideAccess: true,
+        }),
+      ).rejects.toThrow(OWNER_KEY_ERROR)
+      expect((await authWithKey(ownerKey)).user).toBeNull()
+    })
+
+    it('still lets the owner give the assistant an API key', async () => {
+      const owner = await createOwner()
+      const assistant = await createAssistant()
+      await payload.update({
+        collection: 'users',
+        id: assistant.id,
+        data: { enableAPIKey: true, apiKey: assistantKey },
+        overrideAccess: false,
+        user: owner,
+      })
+      expect((await authWithKey(assistantKey)).user?.email).toBe('assistant@example.com')
+    })
+  })
+
   it('does not let an assistant change their own password or API key', async () => {
     await createOwner()
     const assistant = await createAssistant()

@@ -83,6 +83,19 @@ const keepSingleOwner: CollectionBeforeChangeHook = async ({
   return data
 }
 
+// The owner signs in with a password only, so a leaked key cannot bypass the login lock and the
+// session limit. Payload authenticates by the key alone and ignores enableAPIKey, so refuse both.
+const ownerHasNoAPIKey: CollectionBeforeChangeHook = ({ context, data, originalDoc }) => {
+  if (ownerChangeAllowed(context)) return data
+  const willBeOwner = (data.role ?? originalDoc?.role) === 'owner'
+  const hasKey =
+    (typeof data.apiKey === 'string' && data.apiKey !== '') || data.enableAPIKey === true
+  if (willBeOwner && hasKey) {
+    throw new APIError('The owner account cannot have an API key.', 400, undefined, true)
+  }
+  return data
+}
+
 const ownerCannotBeDeleted: CollectionBeforeDeleteHook = async ({ context, id, req }) => {
   if (ownerChangeAllowed(context)) return
   const user = await req.payload.findByID({
@@ -124,7 +137,7 @@ export const Users: CollectionConfig = {
     unlock: ownerOnly,
   },
   hooks: {
-    beforeChange: [firstUserIsOwner, keepSingleOwner],
+    beforeChange: [firstUserIsOwner, keepSingleOwner, ownerHasNoAPIKey],
     beforeDelete: [ownerCannotBeDeleted],
   },
   fields: [
