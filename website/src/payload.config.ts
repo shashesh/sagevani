@@ -26,6 +26,9 @@ export default buildConfig({
   },
   collections: [Users],
   editor: lexicalEditor(),
+  // The site only uses the REST and Local APIs; GraphQL would add query-depth, introspection and
+  // playground surface for no benefit.
+  graphQL: { disable: true },
   secret: env.PAYLOAD_SECRET,
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),

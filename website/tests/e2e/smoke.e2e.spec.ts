@@ -11,3 +11,10 @@ test('admin asks for an email to sign in or create the first account', async ({ 
   await expect(page).toHaveURL(/\/admin\/(login|create-first-user)/)
   await expect(page.locator('input[name="email"]')).toBeVisible()
 })
+
+test('the GraphQL API and its playground are not served', async ({ request }) => {
+  const query = await request.post('/api/graphql', { data: { query: '{ __typename }' } })
+  expect(query.status()).toBe(404)
+  const playground = await request.get('/api/graphql-playground')
+  expect(playground.status()).toBe(404)
+})
