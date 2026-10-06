@@ -31,6 +31,8 @@ This Markdown task list is a proposed maintenance method.
 - [ ] Begin Phase 1 unpublished practice when the foundation is ready.
 
 - [x] Plan the first website build stage: [stage 1 plan](../../website/docs/plans/2026-10-05-stage-1-foundation.md).
-- [ ] Build website stage 1 (foundation).
+- [x] Build website stage 1 (foundation): [pull request #1](https://github.com/shashesh/sagevani/pull/1).
+- [ ] Owner: create the Supabase projects, connect Netlify, and merge pull request #1. See the [environments guide](../../website/docs/environments.md).
+- [ ] Plan website stage 2 (content model and admin).
 
-The website platform is decided (D-004), but no implementation has started. No publishing schedule or series commitment has been made.
+The website platform is decided (D-004). Stage 1 (foundation) is built and awaits the owner's setup and merge. Nothing is deployed or published. No publishing schedule or series commitment has been made.

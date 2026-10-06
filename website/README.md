@@ -1,6 +1,6 @@
 # Website
 
-Home for the SageVani website code and its design documents. No implementation has started yet.
+Home for the SageVani website code and its design documents. Build stage 1 (foundation) is done: the Payload app, owner and assistant accounts, database hardening, CI and the deploy settings. Nothing is deployed yet.
 
 - **Design:** [website design spec](docs/specs/2026-10-05-sagevani-website-design.md), approved by the owner on 2026-10-05.
 - **Build plans:** [stage 1, foundation](docs/plans/2026-10-05-stage-1-foundation.md).

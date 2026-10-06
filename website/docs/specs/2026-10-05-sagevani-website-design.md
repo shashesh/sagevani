@@ -81,7 +81,7 @@ Owner ───┘   ├ public site         └─ Google Analytics (after cons
   ```text
   website/
     docs/specs/                 design documents
-    src/app/(site)/             public pages
+    src/app/(frontend)/         public pages
     src/app/(payload)/          Payload admin and API
     src/collections/            collection definitions
     src/blocks/                 editor blocks (Verse, Tradition, Practice)
@@ -177,7 +177,7 @@ All collections use Payload access control. "Owner" means the owner role; "assis
 
 **siteSettings** (global) — the featured article, up to three featured picks, the Start-here reading list (ordered articles), navigation, the footer motto, and the tagline ("Where silence learns to speak.").
 
-**users** — email, name, role (owner or assistant). Login is locked after repeated failures. API keys are enabled for the assistant role.
+**users** — email, name, role (owner or assistant). Login is locked after repeated failures. Only assistant accounts can hold an API key; the owner signs in with a password only.
 
 ## 6. Public site
 
@@ -354,20 +354,26 @@ Site settings holds the featured article, the three featured picks and the Start
 
 ## 9. Security
 
+This section describes the finished site. Stage 1 delivers the admin login, database and secrets items. Reader endpoints arrive in stage 4, and rate limits and security headers in stage 6.
+
 - **Admin login**
   - HTTPS only, with secure cookies.
   - Login is locked after repeated failures.
+  - Login attempts are rate-limited, so nobody can keep the owner locked out by guessing (stage 6).
   - There is one owner account.
   - On a new staging or production database, the owner account is created from the owner's machine (`owner:create`) before the site is first deployed.
+  - If the owner password is lost or exposed, `owner:reset-password` sets a new one from the owner's machine. It also signs out every session, removes any API key and clears a login lock.
   - First-account sign-up is refused everywhere except local development and tests. That includes Payload's built-in `first-register` endpoint, which bypasses access rules, so nobody else can claim the owner account.
   - A partial unique index means the database can never hold two owners, even under concurrent sign-ups.
-  - The assistant API key is scoped to the assistant role.
+  - Only assistant accounts can hold an API key. The owner account cannot have one, so a leaked key can never act as the owner.
+  - Payload's GraphQL API is turned off. The site uses only the REST and local APIs.
 - **Access control** on every collection and on sensitive fields:
   - Emails are owner-only.
   - The public sees only published articles and approved comments.
 - **Database**
   - Payload's tables live in the dedicated `payload` schema, which Supabase's web API does not publish.
   - Row-level security is enabled on those tables.
+  - Connections use TLS, verified against Supabase's certificate authority (`DATABASE_CA_CERT`).
   - The service and database credentials stay on the server.
 - **Reader endpoints**
   - Comment and subscribe requests are verified by Turnstile on the server.
@@ -440,7 +446,7 @@ Site settings holds the featured article, the three featured picks and the Start
   - searching "maya" to find "māyā"
   - the theme toggle and the cookie banner
 - **Visual and accessibility checks:** screenshots at the section 7.3 widths in both themes, plus axe checks.
-- **Continuous integration:** GitHub Actions runs lint, type checks, unit and integration tests on every push, and end-to-end tests on pull requests. Netlify deploy previews come from every branch.
+- **Continuous integration:** on pull requests and pushes to `main`, GitHub Actions runs lint, formatting and type checks, unit and integration tests with coverage, and a migrate-and-build on a fresh database. End-to-end tests run on pull requests. Netlify builds a deploy preview for each pull request.
 - **Coverage:** at least 80%.
 
 ## 14. Environments and deployment
@@ -448,10 +454,11 @@ Site settings holds the featured article, the three featured picks and the Start
 | Environment | App | Database |
 | --- | --- | --- |
 | Local | `next dev` | Postgres 17 in Docker (`docker compose`), with a separate test database |
-| Preview | Netlify deploy preview per branch | A separate staging Supabase project (free plan); never production data |
+| Preview | Netlify deploy previews (one per pull request) and branch deploys | A separate staging Supabase project (free plan); never production data |
 | Production | Netlify production | Production Supabase project (paid plan for backups and no pausing) |
 
-- **Database changes** are Payload migrations, committed to the repository and applied during deployment, followed by the schema hardening step.
+- **Database changes** are Payload migrations, committed to the repository and followed by the schema hardening step.
+  - Production deploys apply them automatically. Previews only build, so unreviewed branch code never runs migrations with database-owner credentials. The owner applies them to staging from their own machine.
   - Migrations connect through Supabase's session pooler (`DATABASE_MIGRATION_URL`). The running app uses the transaction pooler (`DATABASE_URL`).
   - Scripts that load Payload against a real database run with `NODE_ENV=production`, so that development-mode schema push is off.
 - **Domain:** buy it before launch and point it at Netlify, which issues HTTPS automatically.
@@ -495,7 +502,7 @@ Each stage ends in something that can be reviewed. Implementation plans may be w
    - Subscribe and the new-article email.
 5. **Discovery and compliance:** search, RSS, sitemap, structured data, Google Analytics with the cookie banner, and the privacy page.
 6. **Hardening and launch**
-   - Security headers and rate limits.
+   - Security headers, and rate limits on admin login and reader endpoints.
    - Sentry.
    - Performance and accessibility passes, and the full end-to-end suite.
    - Domain, sender verification, the production database, and the six launch pieces.
