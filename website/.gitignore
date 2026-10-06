@@ -41,3 +41,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# AI-agent notes that `next dev` regenerates on every start; not project instructions
+/AGENTS.md
+/CLAUDE.md
