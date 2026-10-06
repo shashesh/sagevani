@@ -1,17 +1,19 @@
+name: sagevani
+
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:17
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: sagevani
     ports:
-      - '54329:5432'
+      - '127.0.0.1:54329:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/create-test-database.sql:/docker-entrypoint-initdb.d/create-test-database.sql:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U postgres -d sagevani']
       interval: 2s
       timeout: 3s
       retries: 20
