@@ -2678,6 +2678,13 @@ Expected: `verify` passes. If `deploy:build` fails, read the log step by step. T
 
 Never commit `.env`. `.env.test` holds test-only values and is committed on purpose.
 
+Notes for the Netlify variables:
+
+- **Builds need these values too.** Netlify runs migrations and `next build` during the build, so `DATABASE_URL`, `DATABASE_MIGRATION_URL` and `PAYLOAD_SECRET` must be available to **Builds** as well as Functions.
+- **Require TLS.** Add `?sslmode=require` to both Supabase URLs. The `pg` driver only uses TLS when the URL asks for it.
+- **Always set `DATABASE_MIGRATION_URL`** for every deploy context. If it is missing, migrations silently fall back to the transaction pooler, which can fail on schema changes.
+- **Don't set `NODE_ENV`** in Netlify's environment. It would make the install skip development dependencies, such as `tsx`, which the hardening step needs.
+
 ## Run locally
 
 1. Start Docker Desktop.
@@ -2685,6 +2692,9 @@ Never commit `.env`. `.env.test` holds test-only values and is committed on purp
 3. `npm run db:up`, then `npm run dev`, and open http://localhost:3000/admin. The first account you create locally becomes the owner.
 4. Run the tests with `npm test`, coverage with `npm run test:coverage`, and the browser tests with `npm run test:e2e`.
 5. `npm run db:reset` wipes both local databases.
+6. The dev server builds the local database by "pushing" the schema directly. If you later run `payload migrate` against that same database, Payload asks before it risks data loss. Answer no, and test migrations on a fresh database instead (`db:reset`, or a scratch database).
+
+Rolling back production means restoring a Supabase backup. A migration's `down()` drops every table, so never run it against real data.
 
 ## Set up staging and production (owner)
 
