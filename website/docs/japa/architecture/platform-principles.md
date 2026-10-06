@@ -1,35 +1,38 @@
 ---
-status: draft
-updated: 2026-09-22
+status: active
+updated: 2026-10-06
 ---
 
 # Platform principles
 
-Stack: **React Native with Expo** as a universal app (iOS, Android, web) plus native watch apps — see the [tech stack decision](../decisions/2026-09-21-tech-stack.md). These principles hold regardless.
+JapaDhyan is a section of the SageVani website at `/japa`, used in desktop and mobile browsers ([D-006](../../../../docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa)). It is part of the website's Next.js app and deploys with it. There are no iOS, Android or watch apps.
 
 ## Targets
 
-- **Android, iOS and web** from P1.
-- **Apple Watch and Wear OS** from P2.
-- One Expo Router codebase for iOS, Android and web, with native modules where needed (on-device voice counting, volume-button capture). Apple Watch in SwiftUI, Wear OS in Kotlin/Compose.
+- Current Chrome, Edge, Firefox and Safari, on computers and phones.
+- `/japa` can be added to the home screen and opened like an app. Its service worker covers `/japa` only, not the blog.
+- What a browser can't do is not part of JapaDhyan: volume-button counting, flip face down to pause, watch apps, and Bluetooth rings (Web Bluetooth is missing from Safari and Firefox).
+- Vibration works only in Android browsers, so every vibration cue also has a visual cue, plus an optional sound where it matters, such as the meru bead.
+- The screen stays on during a session through the Screen Wake Lock API.
 
 ## Offline-first
 
-- Counting, the downloaded library, sankalpas and charts work with **no connection**.
-- Counts are written locally first and synced later; sync must never lose or double-count repetitions (use per-device append-only count events, merged on the server). Events are grouped and sealed, never edited ([decision](../decisions/2026-09-22-grouped-count-events.md)).
-- A core content bundle ships inside the app, so it works offline from the moment it's installed; the rest of the library downloads as packs ([content-pipeline](content-pipeline.md)).
-- **Web** stores data in the browser (SQLite with COOP/COEP headers) and opens offline after the first visit as a PWA ([data-model](data-model.md#web)).
+- Counting, the library, sankalpas and charts work with **no connection** after the first visit to `/japa`.
+- Counts are written in the browser first and synced later. Sync must never lose or double-count repetitions: count events are append-only per device and merged on the server. Events are grouped and sealed, never edited ([decision](../decisions/2026-09-22-grouped-count-events.md)).
+- On the first visit, the service worker caches the `/japa` pages and the core content pack. The rest of the library downloads as packs ([content-pipeline](content-pipeline.md)).
+- Browsers can clear stored data, so `/japa` asks the browser to keep it (`navigator.storage.persist()`) and offers backup early ([accounts-and-sync](../product/features/accounts-and-sync.md#web)).
+- Which browser storage to use, and how offline pages are cached, are proved in part 2 (the offline spike) and settled in part 3 ([the four parts](../../specs/2026-10-06-japadhyan-in-sagevani-design.md#3-the-four-parts)).
 
 ## Accounts and sync
 
 - **No account required**, ever ([decision](../decisions/2026-09-22-guest-first-accounts.md)).
-- Optional account (Google, Apple, email code) to sync across devices and back up history, after explicit consent. Export and import for everyone. See [accounts-and-sync](../product/features/accounts-and-sync.md).
+- An optional account syncs across devices and backs up history, after explicit consent. Export and import for everyone. Sync is our own code against Supabase, designed in part 3. See [accounts-and-sync](../product/features/accounts-and-sync.md).
 
 ## Privacy
 
-- **Voice:** audio is processed on-device only, never uploaded, not stored after the session.
+- **Voice:** audio is processed on the device only, never uploaded, not stored after the session.
 - **Private guru mantras:** words never stored; only the devotee's chosen label and counts.
-- **Minimal analytics**, opt-in, never including mantra text, dedications, sankalpa intentions or reflections.
+- **Minimal analytics**, opt-in, never including mantra text, dedications, sankalpa intentions or reflections. The blog's Google Analytics never records a `/japa` page.
 - Community features (P3) are opt-in and anonymous by default.
 - **Religion is sensitive data.** Which deities and mantras someone chants is special-category data under GDPR Article 9, so nothing syncs without explicit consent ([accounts-and-sync](../product/features/accounts-and-sync.md#consent-before-the-first-sync-p1)).
 
