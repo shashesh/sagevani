@@ -3,6 +3,7 @@ import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { allowOwnerChange } from '@/collections/Users'
+import { databasePoolConfig } from '@/lib/database-pool'
 import { DB_SCHEMA } from '@/lib/db-schema'
 import { parseServerEnv } from '@/lib/env'
 import { hardenSchema } from '@/lib/harden-database'
@@ -37,7 +38,7 @@ const ensureApiRoles = async () => {
 describe('database layout', () => {
   beforeAll(async () => {
     payload = await getPayload({ config: await config })
-    pool = new Pool({ connectionString: parseServerEnv(process.env).DATABASE_URL })
+    pool = new Pool(databasePoolConfig(parseServerEnv(process.env)))
   })
 
   afterAll(async () => {

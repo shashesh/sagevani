@@ -7,13 +7,19 @@ const VALID = {
   PAYLOAD_SECRET: 'a'.repeat(32),
 }
 
+const CA = '-----BEGIN CERTIFICATE-----\nMIIBfake\n-----END CERTIFICATE-----'
+
 describe('parseServerEnv', () => {
   it('returns the variables when all are valid', () => {
     expect(parseServerEnv(VALID)).toEqual(VALID)
   })
 
   it('accepts the postgresql:// scheme', () => {
-    const env = { ...VALID, DATABASE_URL: 'postgresql://u:p@db.example.com:6543/postgres' }
+    const env = {
+      ...VALID,
+      DATABASE_URL: 'postgresql://u:p@db.example.com:6543/postgres',
+      DATABASE_CA_CERT: CA,
+    }
     expect(parseServerEnv(env).DATABASE_URL).toBe(env.DATABASE_URL)
   })
 
@@ -60,5 +66,37 @@ describe('parseServerEnv', () => {
         message: expect.not.stringMatching(/hunter2|short-secret/),
       }),
     )
+  })
+
+  it('requires a CA certificate for a database that is not local', () => {
+    expect(() =>
+      parseServerEnv({
+        ...VALID,
+        DATABASE_URL: 'postgres://u:p@aws-0-ap-south-1.pooler.supabase.com:6543/postgres',
+      }),
+    ).toThrowError(/DATABASE_CA_CERT: is required for a database that is not local/)
+  })
+
+  it('accepts a remote database with a CA certificate and keeps the certificate', () => {
+    const env = parseServerEnv({
+      ...VALID,
+      DATABASE_URL: 'postgres://u:p@aws-0-ap-south-1.pooler.supabase.com:6543/postgres',
+      DATABASE_CA_CERT: `  ${CA}\n`,
+    })
+    expect(env.DATABASE_CA_CERT).toBe(CA)
+  })
+
+  it('does not require a CA certificate for a local database', () => {
+    for (const host of ['localhost', '127.0.0.1', '[::1]']) {
+      expect(() =>
+        parseServerEnv({ ...VALID, DATABASE_URL: `postgres://u:p@${host}:5432/sagevani` }),
+      ).not.toThrow()
+    }
+  })
+
+  it('refuses sslmode in the URL, because it would override the verified TLS settings', () => {
+    expect(() =>
+      parseServerEnv({ ...VALID, DATABASE_URL: `${VALID.DATABASE_URL}?sslmode=require` }),
+    ).toThrowError(/DATABASE_URL: must not set sslmode/)
   })
 })

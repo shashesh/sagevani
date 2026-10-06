@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { Pool } from 'pg'
 
+import { databasePoolConfig } from '../src/lib/database-pool'
 import { DB_SCHEMA } from '../src/lib/db-schema'
 import { parseServerEnv } from '../src/lib/env'
 import { hardenSchema } from '../src/lib/harden-database'
@@ -8,8 +9,7 @@ import { hardenSchema } from '../src/lib/harden-database'
 // Deploys pass --require-schema so that hardening a database the migrations never reached fails loudly.
 const requireSchema = process.argv.includes('--require-schema')
 
-const { DATABASE_URL } = parseServerEnv(process.env)
-const pool = new Pool({ connectionString: DATABASE_URL, connectionTimeoutMillis: 10_000 })
+const pool = new Pool(databasePoolConfig(parseServerEnv(process.env)))
 
 try {
   const hardened = await hardenSchema(pool, DB_SCHEMA)

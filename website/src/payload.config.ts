@@ -8,6 +8,7 @@ import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
 import { Users } from './collections/Users'
+import { databasePoolConfig } from './lib/database-pool'
 import { DB_SCHEMA } from './lib/db-schema'
 import { parseServerEnv } from './lib/env'
 
@@ -30,9 +31,7 @@ export default buildConfig({
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
   db: postgresAdapter({
-    pool: {
-      connectionString: env.DATABASE_URL,
-    },
+    pool: databasePoolConfig(env),
     schemaName: DB_SCHEMA,
     migrationDir: path.resolve(dirname, 'migrations'),
     // The database itself guarantees a single owner, even if first sign-ups race.

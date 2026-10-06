@@ -14,16 +14,20 @@ const ident = (name: string): string => `"${name.replaceAll('"', '""')}"`
 
 export async function hardenSchema(pool: Pool, schema: string): Promise<boolean> {
   const client = await pool.connect()
+  let brokenConnection: Error | undefined
   try {
     await client.query('BEGIN')
     const hardened = await hardenInTransaction(client, schema)
     await client.query('COMMIT')
     return hardened
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined)
+    await client.query('ROLLBACK').catch((rollbackError: Error) => {
+      brokenConnection = rollbackError
+    })
     throw error
   } finally {
-    client.release()
+    // A connection whose rollback failed is discarded instead of being returned to the pool.
+    client.release(brokenConnection)
   }
 }
 
