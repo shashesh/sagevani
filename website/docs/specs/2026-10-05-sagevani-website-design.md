@@ -308,7 +308,7 @@ The dark values for `paper-2`, `surface`, `ink-soft` and dark on-accent are prop
 | Role | Can | Cannot |
 | --- | --- | --- |
 | Owner | Everything: write, publish, unpublish, moderate, see statistics, manage settings and users | — |
-| Assistant | Create and edit article drafts, upload media, read published content | Publish or unpublish, delete, read commenter or subscriber emails, read statistics, change settings |
+| Assistant | Create and edit article drafts, upload media, read published content | Publish or unpublish, delete, read commenter or subscriber emails, read statistics, change settings, edit any account (including its own password and API key), unlock accounts |
 
 The assistant role enforces decision D-003: the assistant may draft without asking, and publication requires owner approval. AI drafting uses an assistant API key. The rule that the assistant must not invent personal experiences or verification still applies to drafted content.
 
@@ -358,7 +358,9 @@ Site settings holds the featured article, the three featured picks and the Start
   - HTTPS only, with secure cookies.
   - Login is locked after repeated failures.
   - There is one owner account.
-  - On a new staging or production database, the owner account is created from the owner's machine (`owner:create`) before the site is first deployed. That way nobody else can claim it through the first-user screen.
+  - On a new staging or production database, the owner account is created from the owner's machine (`owner:create`) before the site is first deployed.
+  - First-account sign-up is refused everywhere except local development and tests. That includes Payload's built-in `first-register` endpoint, which bypasses access rules, so nobody else can claim the owner account.
+  - A partial unique index means the database can never hold two owners, even under concurrent sign-ups.
   - The assistant API key is scoped to the assistant role.
 - **Access control** on every collection and on sensitive fields:
   - Emails are owner-only.

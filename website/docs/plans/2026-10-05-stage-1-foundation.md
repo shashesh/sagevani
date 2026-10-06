@@ -1194,10 +1194,10 @@ git commit -m "feat: store Payload tables in a dedicated payload schema"
 - [ ] **Step 1: Write the failing test** — `website/tests/int/users.int.spec.ts`
 
 ```ts
-import { getPayload, type Payload } from 'payload'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { createLocalReq, getPayload, type Payload } from 'payload'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ALLOW_OWNER_CHANGE } from '@/collections/Users'
+import { allowOwnerChange } from '@/collections/Users'
 import config from '@/payload.config'
 
 let payload: Payload
@@ -1209,7 +1209,7 @@ const clearUsers = () =>
     collection: 'users',
     where: { id: { exists: true } },
     overrideAccess: true,
-    context: { [ALLOW_OWNER_CHANGE]: true },
+    context: allowOwnerChange(),
   })
 
 const createOwner = () =>
@@ -1274,14 +1274,15 @@ describe('users and roles', () => {
   it('does not let an assistant promote themselves', async () => {
     await createOwner()
     const assistant = await createAssistant()
-    const updated = await payload.update({
-      collection: 'users',
-      id: assistant.id,
-      data: { role: 'owner' },
-      overrideAccess: false,
-      user: assistant,
-    })
-    expect(updated.role).toBe('assistant')
+    await expect(
+      payload.update({
+        collection: 'users',
+        id: assistant.id,
+        data: { role: 'owner' },
+        overrideAccess: false,
+        user: assistant,
+      }),
+    ).rejects.toThrow(/not allowed/i)
   })
 
   it('shows an assistant only their own account', async () => {
@@ -1349,17 +1350,19 @@ describe('users and roles', () => {
     ).rejects.toThrow('The owner account cannot be deleted.')
   })
 
-  it('ignores a plain string flag, which an outside request could send', async () => {
+  it('ignores look-alike Symbols with the same description', async () => {
     const owner = await createOwner()
-    await expect(
-      payload.delete({
-        collection: 'users',
-        id: owner.id,
-        overrideAccess: false,
-        user: owner,
-        context: { allowOwnerChange: true },
-      }),
-    ).rejects.toThrow('The owner account cannot be deleted.')
+    for (const lookalike of [Symbol('allowOwnerChange'), Symbol.for('allowOwnerChange')]) {
+      await expect(
+        payload.delete({
+          collection: 'users',
+          id: owner.id,
+          overrideAccess: false,
+          user: owner,
+          context: { allowOwnerChange: lookalike, [lookalike]: true },
+        }),
+      ).rejects.toThrow('The owner account cannot be deleted.')
+    }
   })
 
   it('still lets the owner edit their own details', async () => {
@@ -1372,6 +1375,167 @@ describe('users and roles', () => {
       user: owner,
     })
     expect(updated).toMatchObject({ name: 'Renamed', role: 'owner' })
+  })
+
+  it('does not let an assistant change their own password or API key', async () => {
+    await createOwner()
+    const assistant = await createAssistant()
+    for (const data of [{ password: 'attacker-chosen-password' }, { enableAPIKey: true, apiKey: 'new-key' }]) {
+      await expect(
+        payload.update({ collection: 'users', id: assistant.id, data, overrideAccess: false, user: assistant }),
+      ).rejects.toThrow(/not allowed/i)
+    }
+  })
+
+  it('does not let an assistant change the owner email, password or API key', async () => {
+    const owner = await createOwner()
+    const assistant = await createAssistant()
+    const attempts = [
+      { email: 'attacker@example.com' },
+      { password: 'attacker-chosen-password' },
+      { enableAPIKey: true, apiKey: 'attacker-key' },
+    ]
+    for (const data of attempts) {
+      await expect(
+        payload.update({ collection: 'users', id: owner.id, data, overrideAccess: false, user: assistant }),
+      ).rejects.toThrow(/not allowed/i)
+    }
+    await expect(
+      payload.login({ collection: 'users', data: { email: 'owner@example.com', password } }),
+    ).resolves.toMatchObject({ user: { email: 'owner@example.com' } })
+  })
+
+  it('hides the owner from an assistant looking them up by id', async () => {
+    const owner = await createOwner()
+    const assistant = await createAssistant()
+    await expect(
+      payload.findByID({ collection: 'users', id: owner.id, overrideAccess: false, user: assistant }),
+    ).rejects.toThrow(/not found/i)
+  })
+
+  it('does not let an assistant create accounts', async () => {
+    await createOwner()
+    const assistant = await createAssistant()
+    await expect(
+      payload.create({
+        collection: 'users',
+        data: { email: 'new@example.com', name: 'New', password, role: 'assistant' },
+        overrideAccess: false,
+        user: assistant,
+      }),
+    ).rejects.toThrow(/not allowed/i)
+  })
+
+  it('refuses a bulk promotion to owner and reports it per document', async () => {
+    const owner = await createOwner()
+    await createAssistant()
+    const result = await payload.update({
+      collection: 'users',
+      where: { role: { equals: 'assistant' } },
+      data: { role: 'owner' },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(result.docs).toEqual([])
+    expect(result.errors.map((error) => error.message)).toEqual(['There can only be one owner account.'])
+    const { totalDocs } = await payload.count({ collection: 'users', where: { role: { equals: 'owner' } } })
+    expect(totalDocs).toBe(1)
+  })
+
+  it('keeps the owner when a bulk delete matches every account', async () => {
+    const owner = await createOwner()
+    await createAssistant()
+    const result = await payload.delete({
+      collection: 'users',
+      where: { id: { exists: true } },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(result.docs.map((user) => user.email)).toEqual(['assistant@example.com'])
+    expect(result.errors.map((error) => error.message)).toEqual(['The owner account cannot be deleted.'])
+    await expect(payload.findByID({ collection: 'users', id: owner.id })).resolves.toMatchObject({ role: 'owner' })
+  })
+
+  it('lets the owner delete an assistant', async () => {
+    const owner = await createOwner()
+    const assistant = await createAssistant()
+    await expect(
+      payload.delete({ collection: 'users', id: assistant.id, overrideAccess: false, user: owner }),
+    ).resolves.toMatchObject({ email: 'assistant@example.com' })
+  })
+
+  it('lets the owner unlock a locked assistant', async () => {
+    const owner = await createOwner()
+    await createAssistant()
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await expect(
+        payload.login({ collection: 'users', data: { email: 'assistant@example.com', password: 'wrong' } }),
+      ).rejects.toThrow()
+    }
+    await expect(
+      payload.unlock({
+        collection: 'users',
+        data: { email: 'assistant@example.com', password: '' },
+        overrideAccess: false,
+        req: { user: { ...owner, collection: 'users' } },
+      }),
+    ).resolves.toBe(true)
+    await expect(
+      payload.login({ collection: 'users', data: { email: 'assistant@example.com', password } }),
+    ).resolves.toMatchObject({ user: { email: 'assistant@example.com' } })
+  })
+
+  it('creates at most one owner when first sign-ups race', async () => {
+    const results = await Promise.allSettled(
+      [1, 2, 3].map((n) =>
+        payload.create({
+          collection: 'users',
+          data: { email: `race${n}@example.com`, name: 'Race', password, role: 'assistant' },
+          overrideAccess: false,
+        }),
+      ),
+    )
+    const { totalDocs } = await payload.count({ collection: 'users', where: { role: { equals: 'owner' } } })
+    expect(totalDocs).toBe(1)
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+  })
+
+  it('refuses the first sign-up outside development and tests, even with access overridden', async () => {
+    // overrideAccess mirrors what POST /api/users/first-register does.
+    for (const nodeEnv of ['production', 'staging', '']) {
+      vi.stubEnv('NODE_ENV', nodeEnv)
+      try {
+        await expect(
+          payload.create({
+            collection: 'users',
+            data: { email: 'first@example.com', name: 'First', password, role: 'owner' },
+            overrideAccess: true,
+          }),
+        ).rejects.toThrow(/owner CLI/)
+      } finally {
+        vi.unstubAllEnvs()
+      }
+    }
+  })
+
+  it('keeps the maintenance flag through nested Local API calls', async () => {
+    const owner = await createOwner()
+    const req = await createLocalReq({ context: allowOwnerChange() }, payload)
+    await payload.count({ collection: 'users', req })
+    await payload.delete({ collection: 'users', id: owner.id, req })
+    const { totalDocs } = await payload.count({ collection: 'users' })
+    expect(totalDocs).toBe(0)
+  })
+
+  it('lets server code demote the owner with the maintenance flag', async () => {
+    const owner = await createOwner()
+    const updated = await payload.update({
+      collection: 'users',
+      id: owner.id,
+      data: { role: 'assistant' },
+      context: allowOwnerChange(),
+    })
+    expect(updated.role).toBe('assistant')
   })
 
   it('locks login after five failed attempts', async () => {
@@ -1397,7 +1561,7 @@ describe('users and roles', () => {
 npm run test:int
 ```
 
-Expected: FAIL, with several of the 13 new tests failing. The test file can't import `ALLOW_OWNER_CHANGE` from the template's Users collection, and that collection has no `role` field, uses default access, and has no lockout, unlock rule or single-owner guard.
+Expected: FAIL, with most of the 25 new tests failing. The template's Users collection has no `role` field, no `allowOwnerChange` export, default access, no unlock rule and no single-owner guard.
 
 - [ ] **Step 3: Implement** — replace `website/src/collections/Users.ts`
 
@@ -1409,6 +1573,7 @@ import {
   type CollectionBeforeDeleteHook,
   type CollectionConfig,
   type PayloadRequest,
+  type RequestContext,
 } from 'payload'
 
 import {
@@ -1423,12 +1588,21 @@ import {
 const LOCK_TIME_MS = 15 * 60 * 1000
 const SESSION_SECONDS = 8 * 60 * 60
 
-// Server-side code (tests, maintenance scripts) can pass this flag in a Local API call's context to
-// demote or delete the owner deliberately. It is a module-private Symbol, so no HTTP request can set it.
-export const ALLOW_OWNER_CHANGE = Symbol('allowOwnerChange')
+const OWNER_CHANGE_TOKEN = Symbol('allowOwnerChange')
 
-const ownerChangeAllowed = (context: object): boolean =>
-  (context as Record<PropertyKey, unknown>)[ALLOW_OWNER_CHANGE] === true
+/**
+ * Server-only escape hatch for deliberate owner maintenance (the owner CLI and tests). The key is a
+ * string, so Payload keeps it through nested Local API calls; the value is a private Symbol that no
+ * HTTP or JSON input can produce. Never merge it into an incoming request's context.
+ */
+export const allowOwnerChange = (): RequestContext => ({ allowOwnerChange: OWNER_CHANGE_TOKEN })
+
+const ownerChangeAllowed = (context: RequestContext): boolean =>
+  context.allowOwnerChange === OWNER_CHANGE_TOKEN
+
+// Only local development and tests may create the first account through sign-up; everywhere else
+// (production, staging, or an unset NODE_ENV) the owner comes from the owner CLI.
+const firstUserSignUpAllowed = (): boolean => ['development', 'test'].includes(process.env.NODE_ENV ?? '')
 
 const countUsers = async (req: PayloadRequest, ownersOnly = false): Promise<number> => {
   const { totalDocs } = await req.payload.count({
@@ -1440,22 +1614,32 @@ const countUsers = async (req: PayloadRequest, ownersOnly = false): Promise<numb
   return totalDocs
 }
 
-// Anyone may create the very first account (it becomes the owner); after that only the owner can.
+// Anyone may create the very first account in development; after that only the owner can.
 const ownerOrFirstUser: Access = async ({ req }) => {
   if (isOwner(req.user)) return true
-  return (await countUsers(req)) === 0
+  return firstUserSignUpAllowed() && (await countUsers(req)) === 0
 }
 
-const firstUserIsOwner: CollectionBeforeChangeHook = async ({ data, operation, req }) => {
+const firstUserIsOwner: CollectionBeforeChangeHook = async ({ context, data, operation, req }) => {
   if (operation !== 'create') return data
   if ((await countUsers(req)) > 0) return data
+  // POST /api/users/first-register creates with overrideAccess, so ownerOrFirstUser never runs for it.
+  if (!firstUserSignUpAllowed() && !ownerChangeAllowed(context)) {
+    throw new APIError('Create the owner account with the owner CLI.', 403, undefined, true)
+  }
   return { ...data, role: 'owner' }
 }
 
 // The spec allows exactly one owner: refuse a second one, and refuse demoting the owner.
-const keepSingleOwner: CollectionBeforeChangeHook = async ({ context, data, originalDoc, req }) => {
+const keepSingleOwner: CollectionBeforeChangeHook = async ({
+  context,
+  data,
+  operation,
+  originalDoc,
+  req,
+}) => {
   if (ownerChangeAllowed(context)) return data
-  const wasOwner = originalDoc?.role === 'owner'
+  const wasOwner = operation === 'update' && originalDoc?.role === 'owner'
   const willBeOwner = (data.role ?? originalDoc?.role) === 'owner'
   if (willBeOwner && !wasOwner && (await countUsers(req, true)) > 0) {
     throw new APIError('There can only be one owner account.', 400, undefined, true)
@@ -1468,7 +1652,14 @@ const keepSingleOwner: CollectionBeforeChangeHook = async ({ context, data, orig
 
 const ownerCannotBeDeleted: CollectionBeforeDeleteHook = async ({ context, id, req }) => {
   if (ownerChangeAllowed(context)) return
-  const user = await req.payload.findByID({ collection: USERS_SLUG, id, overrideAccess: true, req })
+  const user = await req.payload.findByID({
+    collection: USERS_SLUG,
+    id,
+    depth: 0,
+    select: { role: true },
+    overrideAccess: true,
+    req,
+  })
   if (user.role === 'owner') {
     throw new APIError('The owner account cannot be deleted.', 400, undefined, true)
   }
@@ -1493,7 +1684,7 @@ export const Users: CollectionConfig = {
   access: {
     create: ownerOrFirstUser,
     read: ownerOrOwnAccount,
-    update: ownerOrOwnAccount,
+    update: ownerOnly,
     delete: ownerOnly,
     // Payload's default lets any signed-in user unlock any account, which would let the
     // assistant lift the owner's lockout and keep guessing the password.
@@ -1525,13 +1716,71 @@ export const Users: CollectionConfig = {
 }
 ```
 
+Then replace `website/src/payload.config.ts`. It adds a partial unique index, so the database itself allows only one owner, even if first sign-ups race:
+
+```ts
+import { postgresAdapter } from '@payloadcms/db-postgres'
+import { sql } from '@payloadcms/db-postgres/drizzle'
+import { uniqueIndex } from '@payloadcms/db-postgres/drizzle/pg-core'
+import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import path from 'path'
+import { buildConfig } from 'payload'
+import sharp from 'sharp'
+import { fileURLToPath } from 'url'
+
+import { Users } from './collections/Users'
+import { DB_SCHEMA } from './lib/db-schema'
+import { parseServerEnv } from './lib/env'
+
+const filename = fileURLToPath(import.meta.url)
+const dirname = path.dirname(filename)
+
+const env = parseServerEnv(process.env)
+
+export default buildConfig({
+  admin: {
+    user: Users.slug,
+    importMap: {
+      baseDir: path.resolve(dirname),
+    },
+  },
+  collections: [Users],
+  editor: lexicalEditor(),
+  secret: env.PAYLOAD_SECRET,
+  typescript: {
+    outputFile: path.resolve(dirname, 'payload-types.ts'),
+  },
+  db: postgresAdapter({
+    pool: {
+      connectionString: env.DATABASE_URL,
+    },
+    schemaName: DB_SCHEMA,
+    migrationDir: path.resolve(dirname, 'migrations'),
+    // The database itself guarantees a single owner, even if first sign-ups race.
+    afterSchemaInit: [
+      ({ schema, extendTable }) => {
+        extendTable({
+          table: schema.tables.users,
+          extraConfig: (t) => ({
+            singleOwner: uniqueIndex('users_single_owner_idx').on(t.role).where(sql`"role" = 'owner'`),
+          }),
+        })
+        return schema
+      },
+    ],
+  }),
+  sharp,
+  plugins: [],
+})
+```
+
 - [ ] **Step 4: Run it and watch it pass**
 
 ```bash
 npm run test:int
 ```
 
-Expected: PASS, `14 passed` (1 database layout + 13 users).
+Expected: PASS, `26 passed` (1 database layout + 25 users). `\d payload.users` in `sagevani_test` lists `users_single_owner_idx` UNIQUE … WHERE role = 'owner'.
 
 - [ ] **Step 5: Regenerate types and keep the role list in step with them**
 
@@ -1569,7 +1818,7 @@ git add website
 git commit -m "feat: add owner and assistant roles, single-owner rule, owner-only unlock and login lockout"
 ```
 
-Expected: `npm test` shows the unit tests (68) and integration tests (14) passing.
+Expected: `npm test` shows the unit tests (68) and integration tests (26) passing.
 
 ---
 
@@ -1589,7 +1838,7 @@ import { Pool } from 'pg'
 import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { ALLOW_OWNER_CHANGE } from '@/collections/Users'
+import { allowOwnerChange } from '@/collections/Users'
 import { DB_SCHEMA } from '@/lib/db-schema'
 import { parseServerEnv } from '@/lib/env'
 import { hardenSchema } from '@/lib/harden-database'
@@ -1699,7 +1948,7 @@ describe('database layout', () => {
       collection: 'users',
       id: created.id,
       overrideAccess: true,
-      context: { [ALLOW_OWNER_CHANGE]: true },
+      context: allowOwnerChange(),
     })
   })
 })
@@ -1756,7 +2005,7 @@ The identifiers interpolated into SQL come only from `pg_tables`, `pg_roles` and
 npm run test:int
 ```
 
-Expected: PASS, `17 passed`.
+Expected: PASS, `29 passed`.
 
 - [ ] **Step 5: Add the command-line entry point** — `website/scripts/harden-database.ts`
 
@@ -1871,6 +2120,9 @@ Expected:
 
 - `Migrated: <timestamp>_initial`, then `Row-level security enabled on every table in schema "payload".`
 - The query returns one row, `payload | 8 | 8`. All 8 tables have RLS, and nothing is in `public`.
+- Before the final `DROP DATABASE`, also run
+  `docker compose exec -T db psql -U postgres -d sagevani_migrate_check -c "SELECT indexdef FROM pg_indexes WHERE indexname = 'users_single_owner_idx'"`.
+  It must return one row: `CREATE UNIQUE INDEX users_single_owner_idx ON payload.users USING btree (role) WHERE (role = 'owner'::payload.enum_users_role)`. That shows the migration path keeps the single-owner guarantee.
 
 - [ ] **Step 6: Commit**
 
@@ -1897,9 +2149,9 @@ On a fresh staging or production database, the first account created becomes the
 
 ```ts
 import { getPayload, type Payload } from 'payload'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ALLOW_OWNER_CHANGE } from '@/collections/Users'
+import { allowOwnerChange } from '@/collections/Users'
 import config from '@/payload.config'
 import { createOwner } from '@/lib/create-owner'
 
@@ -1910,7 +2162,7 @@ const clearUsers = () =>
     collection: 'users',
     where: { id: { exists: true } },
     overrideAccess: true,
-    context: { [ALLOW_OWNER_CHANGE]: true },
+    context: allowOwnerChange(),
   })
 
 describe('createOwner', () => {
@@ -1951,6 +2203,20 @@ describe('createOwner', () => {
     ).rejects.toThrow('Refusing to create an owner: this database already has user accounts.')
   })
 
+  it('still works in production, where first sign-ups are refused', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    try {
+      const owner = await createOwner(payload, {
+        email: 'owner@example.com',
+        name: 'Owner',
+        password: 'long-enough-password',
+      })
+      expect(owner.role).toBe('owner')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('refuses a password shorter than 12 characters', async () => {
     await expect(
       createOwner(payload, { email: 'owner@example.com', name: 'Owner', password: 'short' }),
@@ -1972,12 +2238,15 @@ Expected: FAIL because `@/lib/create-owner` can't be resolved (`Failed to resolv
 ```ts
 import type { Payload } from 'payload'
 
+import { allowOwnerChange } from '../collections/Users'
+
 export const MIN_OWNER_PASSWORD_LENGTH = 12
 
 export type OwnerInput = { email: string; name: string; password: string }
 
-// Creates the single owner account on a fresh database, before the site is reachable,
-// so nobody else can claim it through the first-user screen.
+// Creates the single owner account on a fresh database, before the site is reachable. Outside
+// development and tests the Users collection refuses first sign-ups, so this deliberate server-side
+// path carries the owner-maintenance flag. It creates one document; never bulk-write with the flag.
 export async function createOwner(payload: Payload, input: OwnerInput) {
   if (input.password.length < MIN_OWNER_PASSWORD_LENGTH) {
     throw new Error(`The owner password must be at least ${MIN_OWNER_PASSWORD_LENGTH} characters.`)
@@ -1990,6 +2259,7 @@ export async function createOwner(payload: Payload, input: OwnerInput) {
     collection: 'users',
     data: { ...input, role: 'owner' },
     overrideAccess: true,
+    context: allowOwnerChange(),
   })
 }
 ```
@@ -2000,7 +2270,7 @@ export async function createOwner(payload: Payload, input: OwnerInput) {
 npm run test:int
 ```
 
-Expected: PASS, `20 passed`.
+Expected: PASS, `33 passed`.
 
 - [ ] **Step 5: Add the command-line entry point** — `website/scripts/create-owner.ts`
 
@@ -2127,7 +2397,7 @@ npm run test:coverage
 
 Expected:
 
-- `Tests  88 passed (88)` (68 unit + 20 integration)
+- `Tests  101 passed (101)` (68 unit + 33 integration)
 - The coverage table shows 100% for `access/roles.ts`, `collections/Users.ts`, `lib/env.ts`, `lib/db-schema.ts`, `lib/harden-database.ts` and `lib/create-owner.ts`.
 - No threshold errors.
 
@@ -2388,5 +2658,23 @@ Once CI is green and the owner has reviewed the PR, the owner merges it (or tell
 | §13 unit, integration, e2e tests; CI; 80% coverage | 3–13 |
 | §14 local, preview and production environments; committed migrations applied on deploy | 2, 9, 13, 14, 15 |
 | §16 stage 1: CI, environments, env checks | all |
+
+## Deferred from the stage 1 reviews
+
+These came out of the stage 1 code reviews. Each was consciously deferred rather than missed.
+
+- **Owner lockout as a nuisance.** Anyone who knows the owner's login email can re-trigger the 15-minute lockout. Existing sessions and API keys keep working.
+  - Add edge rate limiting on `/api/users/login` in the hardening stage.
+  - Consider an `owner:unlock` command.
+  - Keep the owner's login email unpublished.
+- **CSRF and `serverURL`.** Set `serverURL` and `csrf: [serverURL]` in `payload.config.ts` once the domain is known. `sameSite: 'Lax'` cookies cover cross-site POSTs in the meantime.
+- **Owner decision: admin access for the assistant.** Restrict `access.admin` to the owner if the assistant will only ever draft through its API key.
+- **Owner maintenance.**
+  - Never bulk-write with `allowOwnerChange()`. A unique-index violation aborts the whole transaction and surfaces raw query errors.
+  - To transfer ownership, demote the old owner first, then promote the new one, one document at a time.
+- **Race test.** If `creates at most one owner when first sign-ups race` ever flakes on `toHaveLength(1)`, assert only the owner count. The index is the real guarantee.
+- **Dependencies.**
+  - `undici` advisories come in through `payload` 3.90.2 and have no upstream fix yet. Track Payload releases.
+  - Revisit `legacy-peer-deps` at the next Payload upgrade.
 
 Deferred to later stages, as in the spec: content collections, Supabase Storage for media, the public design system, reader interactions, search, analytics, email, security headers, Sentry.
