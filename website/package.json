@@ -18,7 +18,8 @@
     "test:unit": "cross-env NODE_OPTIONS=--no-deprecation vitest run tests/unit",
     "test:coverage": "cross-env NODE_OPTIONS=--no-deprecation vitest run --coverage",
     "db:up": "docker compose up -d --wait",
-    "db:reset": "docker compose down -v && docker compose up -d --wait"
+    "db:reset": "docker compose down -v && docker compose up -d --wait",
+    "db:harden": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/harden-database.ts"
   },
   "dependencies": {
     "@payloadcms/db-postgres": "3.90.2",
