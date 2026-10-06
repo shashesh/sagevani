@@ -1,12 +1,14 @@
 ---
 status: draft
-updated: 2026-09-21
+updated: 2026-10-06
 phases: P1, P2
 ---
 
 # Content and learning
 
 ## Starter articles (P1)
+
+Articles are SageVani articles, written in the website's CMS and linked from `/japa` ([D-006](../../../../../docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa)). JapaDhyan has no article system of its own.
 
 - What is naam japam / mantra sadhana?
 - Benefits of name chanting — traditional teachings and what research says
@@ -33,5 +35,5 @@ phases: P1, P2
 
 ## Format
 
-- Short, readable on a phone, offline once downloaded.
+- Short and readable on a phone. Articles are blog pages, so reading one needs a connection; `/japa` itself works offline.
 - Never shown between opening the app and chanting ([vision](../vision.md)).

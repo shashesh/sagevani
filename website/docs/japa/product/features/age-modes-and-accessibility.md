@@ -1,6 +1,6 @@
 ---
 status: draft
-updated: 2026-09-21
+updated: 2026-10-06
 phases: P3
 ---
 
@@ -21,4 +21,4 @@ phases: P3
 
 - Screen reader support (VoiceOver, TalkBack) for all counting modes.
 - Dynamic text sizes, colour-contrast compliance.
-- Haptic and audio feedback so counting works without sight.
+- Audio feedback, and vibration where the browser supports it, so counting works without sight.

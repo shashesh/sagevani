@@ -1,6 +1,6 @@
 ---
 status: draft
-updated: 2026-09-22
+updated: 2026-10-06
 phases: P1
 ---
 
@@ -16,7 +16,7 @@ What the devotee sees and feels while chanting.
 ## The chanting screen
 
 - **Distraction-free:** dark background, only the mantra, the current round, and the count.
-- Screen stays awake; notifications silenced for the session (where the OS allows).
+- Screen stays awake (Screen Wake Lock).
 - Mode switcher always within reach — see [chanting-modes](chanting-modes.md).
 - Optional ambient sound (P2) — see [content-and-learning](content-and-learning.md).
 - Optional image of the deity or guru, chosen by the devotee.
@@ -26,7 +26,7 @@ What the devotee sees and feels while chanting.
 Kept from the [Sai app inspiration](../../research/inspiration-sai-nama-japam.md), where every 11 entries are offered at the lotus feet.
 
 - After each round (or a devotee-chosen batch, e.g. 11 or 108), an **"Offer"** moment appears. For a namavali, it comes after the last name.
-- It **never blocks counting**: at the meru comes a strong haptic, an optional bell and the offering card; if the devotee keeps tapping, counting carries on and the offering waits for the end of the session, so eyes-closed chanting isn't interrupted.
+- It **never blocks counting**: at the meru comes a visual cue, a strong vibration where the browser can, an optional bell and the offering card; if the devotee keeps tapping, counting carries on and the offering waits for the end of the session, so eyes-closed chanting isn't interrupted.
 - The devotee offers the japa — visually, to the chosen deity/guru, or to a [dedication](dedication-and-offering.md).
 - The offering screen can adapt per tradition (lotus feet, altar, candle, etc.).
 

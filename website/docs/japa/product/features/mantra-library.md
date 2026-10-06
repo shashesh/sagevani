@@ -1,6 +1,6 @@
 ---
 status: draft
-updated: 2026-09-22
+updated: 2026-10-06
 phases: P1, P2
 ---
 
@@ -49,7 +49,7 @@ Each practice includes:
 | Advisor review      | Who reviewed it and when. Unreviewed content never ships                                                                                  |
 | Image               | Optional, licensed, and hidden where the tradition says so                                                                                |
 
-Content is authored in the repo and delivered as downloadable packs, with a small core bundled in the app ([content-pipeline](../../architecture/content-pipeline.md)).
+Content is authored in the repo and delivered as downloadable packs, with a core pack that `/japa` caches on the first visit ([content-pipeline](../../architecture/content-pipeline.md)).
 
 ## Deity page (P1)
 
@@ -77,7 +77,7 @@ A deity whose content hasn't been downloaded yet shows "Download to open". Brows
 ## Private guru mantra (P1)
 
 - Count a diksha mantra **without ever typing or storing its words**. Shown only as a name the devotee chooses, e.g. "My guru mantra".
-- Chanted by mala tap, silent chanting, volume buttons and manual logging; voice counting (P2) works because its template never leaves the device. Word-by-word and typing are unavailable because they need the words.
+- Chanted by mala tap, silent chanting and manual logging; voice counting (P2) works because its template never leaves the device. Word-by-word and typing are unavailable because they need the words.
 - Excluded from any sharing, community or analytics features.
 
 ## Growth

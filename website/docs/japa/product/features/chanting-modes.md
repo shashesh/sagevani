@@ -1,6 +1,6 @@
 ---
 status: draft
-updated: 2026-09-22
+updated: 2026-10-06
 phases: P1, P2, P3
 ---
 
@@ -24,15 +24,11 @@ The heart of the app: many ways to chant, one count.
 | [Word-by-word tap](#word-by-word-tap)                   | P1    | easy   |
 | [Likhita japa — typing](#likhita-japa)                  | P1    | easy   |
 | [Silent chanting (manasika)](#silent-chanting-manasika) | P1    | easy   |
-| [Volume-button counting](#hands-free-counting)          | P1    | medium |
-| [Flip face down to pause](#hands-free-counting)         | P1    | easy   |
 | [Manual log](#manual-log-and-corrections)               | P1    | easy   |
 | [Voice counting](#voice-counting)                       | P2    | hard   |
-| [Smartwatch](#hands-free-counting)                      | P2    | medium |
 | [Chant along](#chant-along)                             | P2    | easy   |
 | [Listening japa](#listening-japa)                       | P2    | easy   |
 | [Likhita japa — handwriting tracing](#likhita-japa)     | P3    | hard   |
-| [Bluetooth rings / smart malas](#hands-free-counting)   | P4    | medium |
 
 ## Modes by practice type
 
@@ -44,11 +40,8 @@ Which modes each [practice type](mantra-library.md#practice-types) supports. ~ m
 | Word-by-word tap        | P1     | — (no words)        | —                        | —           |
 | Likhita typing          | P1     | —                   | P2                       | —           |
 | Silent pace / breath    | P1 ~   | P1 ~                | —                        | —           |
-| Volume buttons          | P1     | P1                  | P1: next name            | —           |
-| Flip face down to pause | P1     | P1                  | P1                       | P2          |
 | Manual log              | P1     | P1                  | P1                       | P2          |
 | Voice counting          | P2     | P2                  | —                        | —           |
-| Smartwatch              | P2     | P2                  | P2                       | —           |
 | Chant along             | P2     | —                   | P2                       | P2          |
 | Listening japa          | P2     | —                   | P2                       | P2          |
 | Verse-by-verse reading  | —      | —                   | —                        | P2          |
@@ -70,7 +63,7 @@ For an Ashtottara Shatanamavali or other namavali ([mantra-library](mantra-libra
 
 - An on-screen bead ring that advances with each tap.
 - **Mala style is the devotee's choice**: Rudraksha, Tulsi, sphatik (crystal), sandalwood, lotus seed, simarna, plain beads and more. Picked at [setup](onboarding.md), suggested by tradition, changeable any time. Never locked behind progress ([decision](../../decisions/2026-09-21-free-flow-nothing-locked.md)).
-- Light haptic on every bead; stronger haptic (and optional bell) at the meru bead.
+- A light vibration on every bead and a stronger one at the meru bead, where the browser can vibrate (Android). A visual cue at the meru everywhere, and an optional bell.
 - Tap **anywhere** on the screen so it works with eyes closed.
 - Optional: after completing a round, reverse direction (traditional practice of not crossing the meru).
 
@@ -93,7 +86,7 @@ Inspired by the [Sai app](../../research/inspiration-sai-nama-japam.md).
 ## Silent chanting (manasika)
 
 - **Pace mode:** the devotee times one repetition once (e.g. 4 seconds); the app estimates the count during silent sitting.
-- **Breath mode:** one mantra per breath, guided by a soft visual/haptic pulse.
+- **Breath mode:** one mantra per breath, guided by a soft visual pulse, with vibration where the browser supports it.
 - Counts from this mode are marked as estimated.
 
 ## Voice counting
@@ -108,12 +101,7 @@ The headline P2 feature and the hardest to build.
 
 ## Hands-free counting
 
-Many devotees chant with eyes closed or while walking. Details in [wearables-and-hardware](wearables-and-hardware.md).
-
-- **Volume buttons (P1):** count with the phone in a pocket. Full support on Android; iOS support is limited.
-- **Flip face down (P1):** pauses the session.
-- **Smartwatch (P2):** Apple Watch and Wear OS, wrist tap per count.
-- **Bluetooth japa rings and smart malas (P4).**
+Not part of JapaDhyan on the web ([D-006](../../../../../docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa)). Volume buttons, flip face down to pause, smartwatch apps and Bluetooth rings need a native app. Their plans are in the [archived repository](https://github.com/shashesh/japadhyan/blob/master/docs/product/features/wearables-and-hardware.md).
 
 ## Manual log and corrections
 

@@ -1,12 +1,14 @@
 ---
 status: draft
-updated: 2026-09-22
+updated: 2026-10-06
 phases: P1, P2
 ---
 
 # Accounts and sync
 
 The app works fully without an account. An account is for **backup and sync across devices**, nothing else ([decision](../../decisions/2026-09-22-guest-first-accounts.md)). Data shapes and sync rules: [data-model](../../architecture/data-model.md#storage-and-sync).
+
+> Sync is our own code against Supabase, and sign-in is decided in part 3 ([Q-11](../../../../../docs/governance/open-questions.md)). This spec keeps the product behaviour. Where it names a mechanism, part 3 confirms it.
 
 ## Guest first (P1)
 
@@ -18,23 +20,19 @@ The app works fully without an account. An account is for **backup and sync acro
 Never between opening the app and chanting ([vision](../vision.md#guiding-principles)).
 
 - **Welcome screen:** a small "I already have an account" link, so a returning devotee restores their practice instead of starting over ([onboarding](onboarding.md)).
-- **Backup offer:** on the session-end or Progress screen, after the 3rd day of practice or at 1,008 repetitions, whichever comes first. At most 3 offers in total. Offered earlier on the web, where browsers can clear stored data. Each offer also mentions export as an alternative.
+- **Backup offer:** on the session-end or Progress screen, after the 3rd day of practice or at 1,008 repetitions, whichever comes first. At most 3 offers in total. Browsers can clear stored data, so part 3 may make the first offer sooner. Each offer also mentions export as an alternative.
 - **Settings → Account**, always.
 
 ## Sign-in methods (P1)
 
-Through Supabase Auth.
+To be confirmed in part 3, which also chooses between Supabase Auth and Payload ([Q-11](../../../../../docs/governance/open-questions.md)).
 
-| Method                  | iOS                       | Android               | Web          |
-| ----------------------- | ------------------------- | --------------------- | ------------ |
-| **Google**              | Native Google sign-in     | Native Google sign-in | Redirect     |
-| **Apple**               | Native Sign in with Apple | Redirect              | Redirect     |
-| **Email one-time code** | 6-digit code, no password | 6-digit code          | 6-digit code |
-
-- **Apple is required on iOS** because we offer Google (App Store guideline 4.8).
-- **Email codes, not magic links:** links in a mobile app often open the wrong browser.
-- **Web uses redirects**, not popups, because the COOP header needed for offline storage cuts popups off from the page that opened them.
-- **Same person, several methods:** Supabase links Google and Apple sign-ins that share a verified email. Apple's "Hide my email" addresses won't match; **P2** adds "Link another sign-in method" in Settings.
+- **Google**, through a redirect.
+- **Apple**, through a redirect. On the web it is optional, not required. It stays for devotees who prefer it.
+- **Email one-time code:** a 6-digit code, no password.
+- **Email codes, not magic links:** a link may open in a different browser from the one that holds the devotee's practice.
+- **Redirects, not popups,** in case the storage part 3 chooses needs cross-origin isolation headers, which cut popups off from the page that opened them.
+- **Same person, several methods:** Google and Apple sign-ins that share a verified email belong to one account. Apple's "Hide my email" addresses won't match; **P2** adds "Link another sign-in method" in Settings.
 - **Phone number (SMS code): later.** Every SMS costs money, and SMS pumping fraud is a real risk.
 
 ## Consent before the first sync (P1)
@@ -84,15 +82,13 @@ A devotee signing in on a fresh install whose account has `onboarded_at` set ski
   - **Wait** and try again when online (the default);
   - **Export** everything pending to a file first, then sign out;
   - **Discard** it: the screen lists what would be lost ("12 counts from today, and 3 changes to your practices") and asks for confirmation.
-- Only then does signing out **remove the account's data from the device** and return to the Welcome screen. This protects privacy on shared family phones. Everything that synced is safe in the account.
+- Only then does signing out **remove the account's data from the device** and return to the Welcome screen. This protects privacy on shared family phones and computers. Everything that synced is safe in the account.
 
 ## Deleting an account (P1)
 
-Required by both app stores. Google Play also requires a web page for it.
-
-- **Settings → Account → Delete account**, in the app and on the web.
+- **Settings → Account → Delete account** in `/japa`.
 - Deletes the account and all its server data, and signs out every device.
-- **On the phone or browser used to delete**, the devotee then chooses: **keep my practice on this device as a guest**, or **erase everything**.
+- **In the browser used to delete**, the devotee then chooses: **keep my practice on this device as a guest**, or **erase everything**.
 - **Keeping it as a guest** creates a new local owner id and profile, moves the kept records to it (recomputing their [derived ids](../../architecture/data-model.md#ids-for-rows-that-are-unique-per-devotee)), and clears the sign-in details, the stored consent and everything the sync kept track of. The device is then exactly as it would be for someone who never signed in.
 - **Every other device clears the account's data the next time it connects.** The app checks the account whenever it comes online, and a deleted account fails that check. The device then removes the account's data and says why: "This account was deleted, so its practice has been removed from this device." If that device has counts that never synced, the devotee can export them first; nothing else is kept.
 - **A device that stays offline** keeps its copy until it next connects. The deletion screen says this plainly.
@@ -110,12 +106,12 @@ For everyone, including guests.
 
 ## Web
 
-- Guest data lives in the browser's storage, which the browser can clear. The app asks the browser to keep it and offers backup sooner.
+- Guest data lives in the browser's storage, which the browser can clear. `/japa` asks the browser to keep it and offers backup sooner.
 - The site opens offline after the first visit ([data-model](../../architecture/data-model.md#web)).
 
 ## Security and privacy
 
-- Every synced record carries its owner's `user_id`. Row-level security on every user table: devotees can only read and write their own rows ([data-model](../../architecture/data-model.md#ownership-and-shared-fields)). With PowerSync, row-level security guards writes and the sync stream queries guard downloads ([server](../../architecture/data-model.md#server-supabase)).
+- Every synced record carries its owner's `user_id`. Row-level security on every user table: devotees can only read and write their own rows ([data-model](../../architecture/data-model.md#ownership-and-shared-fields)). Uploads and downloads both enforce this ([server](../../architecture/data-model.md#server-supabase)).
 - Count events can be inserted, never updated or deleted, except by deleting the account.
 - Private fields never appear in analytics or logs ([data-model](../../architecture/data-model.md#private-fields)).
 
