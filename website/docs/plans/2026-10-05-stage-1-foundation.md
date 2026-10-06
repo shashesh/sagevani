@@ -486,7 +486,25 @@ import { config } from 'dotenv'
 
 config({ path: '.env.test' })
 config({ path: '.env' })
+
+// Integration tests delete rows. Refuse to run against anything but a *_test database,
+// so a DATABASE_URL exported for staging or production can never be wiped by `npm test`.
+const databaseName = (() => {
+  try {
+    return new URL(process.env.DATABASE_URL ?? '').pathname.replace(/^\//, '')
+  } catch {
+    return ''
+  }
+})()
+
+if (!databaseName.endsWith('_test')) {
+  throw new Error(
+    `Refusing to run tests: DATABASE_URL must point at a database whose name ends in "_test" (got "${databaseName || 'none'}").`,
+  )
+}
 ```
+
+The guard was added after the Task 3 review. A developer's exported `DATABASE_URL` takes precedence over `.env.test`, and the integration tests delete every user. Without the guard, running the tests in a shell prepared for staging or production would wipe real accounts.
 
 - [ ] **Step 3: Replace `website/playwright.config.ts`**
 
@@ -530,7 +548,15 @@ export default defineConfig([
   ...nextTs,
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
     },
   },
   globalIgnores([
