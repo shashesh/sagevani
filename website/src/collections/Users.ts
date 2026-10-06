@@ -34,7 +34,8 @@ const ownerChangeAllowed = (context: RequestContext): boolean =>
 
 // Only local development and tests may create the first account through sign-up; everywhere else
 // (production, staging, or an unset NODE_ENV) the owner comes from the owner CLI.
-const firstUserSignUpAllowed = (): boolean => ['development', 'test'].includes(process.env.NODE_ENV ?? '')
+const firstUserSignUpAllowed = (): boolean =>
+  ['development', 'test'].includes(process.env.NODE_ENV ?? '')
 
 const countUsers = async (req: PayloadRequest, ownersOnly = false): Promise<number> => {
   const { totalDocs } = await req.payload.count({

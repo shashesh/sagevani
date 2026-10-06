@@ -18,7 +18,10 @@ const untrusted: [string, unknown][] = [
   ['a padded role', { id: 3, collection: 'users', role: ' owner' }],
   ['a role array', { id: 3, collection: 'users', role: ['owner'] }],
   ['an owner from another auth collection', { id: 1, collection: 'subscribers', role: 'owner' }],
-  ['an assistant from another auth collection', { id: 2, collection: 'subscribers', role: 'assistant' }],
+  [
+    'an assistant from another auth collection',
+    { id: 2, collection: 'subscribers', role: 'assistant' },
+  ],
   ['an owner with no collection', { id: 1, role: 'owner' }],
   ['an owner with no id', { collection: 'users', role: 'owner' }],
   ['an assistant with no id', { collection: 'users', role: 'assistant' }],

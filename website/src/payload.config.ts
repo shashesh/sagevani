@@ -41,7 +41,9 @@ export default buildConfig({
         extendTable({
           table: schema.tables.users,
           extraConfig: (t) => ({
-            singleOwner: uniqueIndex('users_single_owner_idx').on(t.role).where(sql`"role" = 'owner'`),
+            singleOwner: uniqueIndex('users_single_owner_idx')
+              .on(t.role)
+              .where(sql`"role" = 'owner'`),
           }),
         })
         return schema

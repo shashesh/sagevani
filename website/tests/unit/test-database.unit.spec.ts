@@ -8,14 +8,18 @@ describe('assertTestDatabase', () => {
   })
 
   it('ignores query parameters and accepts the postgresql:// scheme', () => {
-    expect(assertTestDatabase('postgresql://u:p@db.example.com:5432/sagevani_test?sslmode=require')).toBe(
-      'sagevani_test',
-    )
+    expect(
+      assertTestDatabase('postgresql://u:p@db.example.com:5432/sagevani_test?sslmode=require'),
+    ).toBe('sagevani_test')
   })
 
   it('refuses when DATABASE_URL is not set', () => {
-    expect(() => assertTestDatabase(undefined)).toThrowError('Refusing to run tests: DATABASE_URL is not set.')
-    expect(() => assertTestDatabase('')).toThrowError('Refusing to run tests: DATABASE_URL is not set.')
+    expect(() => assertTestDatabase(undefined)).toThrowError(
+      'Refusing to run tests: DATABASE_URL is not set.',
+    )
+    expect(() => assertTestDatabase('')).toThrowError(
+      'Refusing to run tests: DATABASE_URL is not set.',
+    )
   })
 
   it('refuses a development database', () => {
@@ -25,7 +29,9 @@ describe('assertTestDatabase', () => {
   })
 
   it('refuses a name that only contains _test', () => {
-    expect(() => assertTestDatabase('postgres://u:p@h:5432/sagevani_test_backup')).toThrowError(/got "sagevani_test_backup"/)
+    expect(() => assertTestDatabase('postgres://u:p@h:5432/sagevani_test_backup')).toThrowError(
+      /got "sagevani_test_backup"/,
+    )
   })
 
   it('refuses a URL with no database name', () => {

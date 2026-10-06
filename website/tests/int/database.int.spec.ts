@@ -123,8 +123,12 @@ describe('database layout', () => {
 
   it('removes default privileges that would grant the API roles access to future objects', async () => {
     await ensureApiRoles()
-    await db().query(`ALTER DEFAULT PRIVILEGES IN SCHEMA "${DB_SCHEMA}" GRANT SELECT ON TABLES TO anon`)
-    await db().query(`ALTER DEFAULT PRIVILEGES IN SCHEMA "${DB_SCHEMA}" GRANT USAGE ON SEQUENCES TO authenticated`)
+    await db().query(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${DB_SCHEMA}" GRANT SELECT ON TABLES TO anon`,
+    )
+    await db().query(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${DB_SCHEMA}" GRANT USAGE ON SEQUENCES TO authenticated`,
+    )
 
     await hardenSchema(db(), DB_SCHEMA)
 

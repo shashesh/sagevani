@@ -184,9 +184,18 @@ describe('users and roles', () => {
   it('does not let an assistant change their own password or API key', async () => {
     await createOwner()
     const assistant = await createAssistant()
-    for (const data of [{ password: 'attacker-chosen-password' }, { enableAPIKey: true, apiKey: 'new-key' }]) {
+    for (const data of [
+      { password: 'attacker-chosen-password' },
+      { enableAPIKey: true, apiKey: 'new-key' },
+    ]) {
       await expect(
-        payload.update({ collection: 'users', id: assistant.id, data, overrideAccess: false, user: assistant }),
+        payload.update({
+          collection: 'users',
+          id: assistant.id,
+          data,
+          overrideAccess: false,
+          user: assistant,
+        }),
       ).rejects.toThrow(/not allowed/i)
     }
   })
@@ -201,7 +210,13 @@ describe('users and roles', () => {
     ]
     for (const data of attempts) {
       await expect(
-        payload.update({ collection: 'users', id: owner.id, data, overrideAccess: false, user: assistant }),
+        payload.update({
+          collection: 'users',
+          id: owner.id,
+          data,
+          overrideAccess: false,
+          user: assistant,
+        }),
       ).rejects.toThrow(/not allowed/i)
     }
     await expect(
@@ -213,7 +228,12 @@ describe('users and roles', () => {
     const owner = await createOwner()
     const assistant = await createAssistant()
     await expect(
-      payload.findByID({ collection: 'users', id: owner.id, overrideAccess: false, user: assistant }),
+      payload.findByID({
+        collection: 'users',
+        id: owner.id,
+        overrideAccess: false,
+        user: assistant,
+      }),
     ).rejects.toThrow(/not found/i)
   })
 
@@ -241,8 +261,13 @@ describe('users and roles', () => {
       user: owner,
     })
     expect(result.docs).toEqual([])
-    expect(result.errors.map((error) => error.message)).toEqual(['There can only be one owner account.'])
-    const { totalDocs } = await payload.count({ collection: 'users', where: { role: { equals: 'owner' } } })
+    expect(result.errors.map((error) => error.message)).toEqual([
+      'There can only be one owner account.',
+    ])
+    const { totalDocs } = await payload.count({
+      collection: 'users',
+      where: { role: { equals: 'owner' } },
+    })
     expect(totalDocs).toBe(1)
   })
 
@@ -256,8 +281,12 @@ describe('users and roles', () => {
       user: owner,
     })
     expect(result.docs.map((user) => user.email)).toEqual(['assistant@example.com'])
-    expect(result.errors.map((error) => error.message)).toEqual(['The owner account cannot be deleted.'])
-    await expect(payload.findByID({ collection: 'users', id: owner.id })).resolves.toMatchObject({ role: 'owner' })
+    expect(result.errors.map((error) => error.message)).toEqual([
+      'The owner account cannot be deleted.',
+    ])
+    await expect(payload.findByID({ collection: 'users', id: owner.id })).resolves.toMatchObject({
+      role: 'owner',
+    })
   })
 
   it('lets the owner delete an assistant', async () => {
@@ -273,7 +302,10 @@ describe('users and roles', () => {
     await createAssistant()
     for (let attempt = 0; attempt < 5; attempt++) {
       await expect(
-        payload.login({ collection: 'users', data: { email: 'assistant@example.com', password: 'wrong' } }),
+        payload.login({
+          collection: 'users',
+          data: { email: 'assistant@example.com', password: 'wrong' },
+        }),
       ).rejects.toThrow()
     }
     await expect(
@@ -299,7 +331,10 @@ describe('users and roles', () => {
         }),
       ),
     )
-    const { totalDocs } = await payload.count({ collection: 'users', where: { role: { equals: 'owner' } } })
+    const { totalDocs } = await payload.count({
+      collection: 'users',
+      where: { role: { equals: 'owner' } },
+    })
     expect(totalDocs).toBe(1)
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
   })

@@ -24,9 +24,9 @@ describe('parseServerEnv', () => {
   })
 
   it('rejects a non-postgres connection string', () => {
-    expect(() => parseServerEnv({ ...VALID, DATABASE_URL: 'mongodb://127.0.0.1/sagevani' })).toThrowError(
-      /DATABASE_URL: must be a postgres:\/\/ connection string/,
-    )
+    expect(() =>
+      parseServerEnv({ ...VALID, DATABASE_URL: 'mongodb://127.0.0.1/sagevani' }),
+    ).toThrowError(/DATABASE_URL: must be a postgres:\/\/ connection string/)
   })
 
   it('rejects a short secret', () => {
@@ -51,7 +51,10 @@ describe('parseServerEnv', () => {
 
   it('never echoes the rejected values in its error', () => {
     expect(() =>
-      parseServerEnv({ DATABASE_URL: 'mongodb://user:hunter2@h/db', PAYLOAD_SECRET: 'short-secret' }),
+      parseServerEnv({
+        DATABASE_URL: 'mongodb://user:hunter2@h/db',
+        PAYLOAD_SECRET: 'short-secret',
+      }),
     ).toThrowError(
       expect.objectContaining({
         message: expect.not.stringMatching(/hunter2|short-secret/),
