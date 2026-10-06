@@ -28,6 +28,7 @@
     "owner:reset-password": "cross-env NODE_ENV=production NODE_OPTIONS=--no-deprecation tsx scripts/reset-owner-password.ts"
   },
   "dependencies": {
+    "@noble/hashes": "2.4.0",
     "@payloadcms/db-postgres": "3.90.2",
     "@payloadcms/next": "3.90.2",
     "@payloadcms/richtext-lexical": "3.90.2",
@@ -45,6 +46,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.58.2",
+    "@siva-sh/vidyut": "0.3.0",
     "@types/node": "24.19.1",
     "@types/pg": "8.20.0",
     "@types/react": "19.2.14",
@@ -56,7 +58,8 @@
     "tsx": "4.23.15",
     "typescript": "5.7.3",
     "vite-tsconfig-paths": "6.0.5",
-    "vitest": "4.0.18"
+    "vitest": "4.0.18",
+    "yaml": "2.9.1"
   },
   "overrides": {
     "undici": "7.30.0"
