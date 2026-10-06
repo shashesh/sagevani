@@ -1,0 +1,64 @@
+name: Website CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['website/**', '.github/workflows/website-ci.yml']
+  pull_request:
+    paths: ['website/**', '.github/workflows/website-ci.yml']
+
+concurrency:
+  group: website-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: website
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sagevani_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d sagevani_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/sagevani_test
+      PAYLOAD_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run test:coverage
+
+      - name: Migrate a fresh database and build, exactly as Netlify will
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/sagevani_deploy
+        run: |
+          psql postgres://postgres:postgres@localhost:5432/postgres -c "CREATE DATABASE sagevani_deploy"
+          npm run deploy:build
+
+      - name: Install the Playwright browser
+        if: github.event_name == 'pull_request'
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke tests
+        if: github.event_name == 'pull_request'
+        run: npm run test:e2e
