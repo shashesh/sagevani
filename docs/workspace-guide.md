@@ -9,7 +9,7 @@ This is a proposed working structure, created from the handbook and confirmed sc
 | `docs/operations/` | Tasks and operational notes |
 | `vault/` | Questions, seeds, passages, stories, terms, frictions, experiences, dormant series |
 | `research/` | Source cards and research logs |
-| `content/drafts/` | No longer holds article drafts, which live in the website's CMS (D-005). Whether completed piece worksheets belong here is pending |
+| `content/drafts/` | Completed piece worksheets; excluded from the website. Article drafts live in the website's CMS (D-005) |
 | `content/published/` | Approved published article copies |
 | `content/publication-records/` | URLs, dates, versions, and corrections |
 | `templates/` | Reusable Markdown starting points |
@@ -21,7 +21,7 @@ This is a proposed working structure, created from the handbook and confirmed sc
 1. Copy the seed template into the appropriate Vault section and capture your own noticing.
 2. Sit with the question before researching, following the handbook workflow.
 3. Use source and story cards in `research/` as evidence develops.
-4. When the seed earns a draft, write it in the website's CMS. The article editor arrives in website build stage 2. Assistant drafting may begin without separate permission.
+4. When the seed earns a draft, copy the piece worksheet into `content/drafts/` and write the draft itself in the website's CMS. The article editor arrives in website build stage 2. Assistant drafting may begin without separate permission.
 5. Add the piece's difficulty and suggested prior readings for advanced topics. Complete the article's editorial checklist in the CMS and record unresolved claims.
 6. Request the owner's final approval before publication. A completed checklist is not approval.
 7. Once actually published, store the published copy and publication record. Record later material corrections.

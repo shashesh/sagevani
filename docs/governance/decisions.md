@@ -80,6 +80,7 @@
   - **Article drafts live in the CMS.**
     - Article drafts are written in the website's CMS, not in this repository. Their editorial review lives there too, as the article's admin-only editorial checklist.
     - Seed cards, Vault entries, research and the foundation stay in this repository.
+    - Completed piece worksheets also stay in this repository, in `content/drafts/`, off the website. This was confirmed in a follow-up answer that resolved Q-10.
     - The website still never shows unpublished drafts or review notes, and only the owner publishes.
   - **Only the owner uses the admin panel.** SageVani is a solo project. The assistant role remains so that an AI assistant can draft through its API key (D-003), but it cannot open the admin panel.
   - **The audience is worldwide.** There is no reader region.
@@ -96,7 +97,6 @@
   - D-004's pending draft-location, region and paid-plan items.
   - Spec section 18, items 2, 6 (the region) and 7.
 - Pending:
-  - Where completed piece worksheets live (Q-10). They contain unfinished writing and owner-supplied reflections, so they could go in the CMS or stay in this repository.
   - Domain and sender address.
   - Difficulty labels (Q-01).
 

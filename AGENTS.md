@@ -12,7 +12,7 @@ Read `README.md`, `docs/project-brief.md`, and relevant foundation sections befo
 - Distinguish text, named traditional interpretation, personal reflection, and practice invitation.
 - Treat unapproved revisions and operational conventions as proposals.
 - Keep unresolved choices visible and ask when they materially affect the work.
-- Article drafts and their editorial reviews live in the website's CMS, not in this workspace (D-005). Seed cards, Vault entries, research, and the foundation stay here. Where completed piece worksheets live is pending. The owner clarified that "private" means unpublished on the website; repository confidentiality was not requested. Do not include drafts or review notes in website pages, feeds, search indexes, sitemaps, downloadable files, or deployment assets.
+- Article drafts and their editorial reviews live in the website's CMS, not in this workspace (D-005). Seed cards, Vault entries, research, and the foundation stay here, and completed piece worksheets stay in `content/drafts/`. The owner clarified that "private" means unpublished on the website; repository confidentiality was not requested. Do not include drafts or review notes in website pages, feeds, search indexes, sitemaps, downloadable files, or deployment assets.
 - Only the owner uses the website's admin panel. The assistant drafts through its API key.
 - Website content selection must require explicit owner approval for the exact version; a filename or location alone does not establish approval.
 - Privacy rules for standalone personal reflections, Vault entries, and raw research remain undecided.

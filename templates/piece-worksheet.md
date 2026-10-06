@@ -1,6 +1,6 @@
 # Piece worksheet
 
-Completed worksheets contain unfinished writing and must not be published on the website. The article draft itself is written in the website's CMS (D-005). Where completed worksheets live is pending.
+Completed worksheets contain unfinished writing and belong in `content/drafts/`. They must not be published on the website. The article draft itself is written in the website's CMS (D-005).
 
 ## Living question
 

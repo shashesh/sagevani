@@ -24,7 +24,7 @@ This Markdown task list is a proposed maintenance method.
 - [x] Review the written [website design spec](../../website/docs/specs/2026-10-05-sagevani-website-design.md).
 - [x] Confirm that article drafts are written in the CMS rather than `content/drafts/` (D-005).
 - [x] Decide admin access, database region and the Supabase plan (D-005).
-- [ ] Decide where completed piece worksheets live (Q-10).
+- [x] Decide where completed piece worksheets live: `content/drafts/` (D-005).
 
 ## Next work after clarification
 

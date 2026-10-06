@@ -1,6 +1,6 @@
 # Content
 
-- `drafts/`: no longer holds article drafts, which live in the website's CMS (D-005). Whether completed piece worksheets belong here is pending.
+- `drafts/`: completed piece worksheets; excluded from the website. Article drafts live in the website's CMS (D-005).
 - `published/`: owner-approved copies of actually published work.
 - `publication-records/`: publication details and correction histories.
 

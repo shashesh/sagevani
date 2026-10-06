@@ -24,7 +24,7 @@
 
 ## Unresolved
 
-Domain, maintenance system, voice-guide adoption, privacy for other personal material, difficulty labels, licensing, citation presentation, assistant disclosure, and where completed piece worksheets live remain open. Indian and Nepali regional languages are possibilities, not commitments.
+Domain, maintenance system, voice-guide adoption, privacy for other personal material, difficulty labels, licensing, citation presentation, and assistant disclosure remain open. Indian and Nepali regional languages are possibilities, not commitments.
 
 The owner clarified that draft privacy means keeping unfinished writing off the website. Article drafts live in the CMS; anything kept in this public repository remains readable there.
 

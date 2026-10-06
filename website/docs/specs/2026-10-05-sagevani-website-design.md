@@ -526,7 +526,7 @@ Each stage ends in something that can be reviewed. Implementation plans may be w
 ## 18. Open items
 
 1. **Difficulty labels (Q-01).** The build ships with the proposed three, which can be edited in the admin.
-2. **Where article drafts live.** Confirmed on 2026-10-06 (D-005). Article drafts and their editorial checklist live in the CMS, which replaces D-003's `content/drafts/` for article text. Seed cards, Vault entries, research and the foundation stay in this repository. Where completed piece worksheets live is still open (Q-10).
+2. **Where article drafts live.** Confirmed on 2026-10-06 (D-005). Article drafts and their editorial checklist live in the CMS, which replaces D-003's `content/drafts/` for article text. Seed cards, Vault entries, research, the foundation and completed piece worksheets (`content/drafts/`) stay in this repository.
 3. **Interface wording.** Placeholder copy to write or approve:
    - the like label ("found this worth reading")
    - the subscribe text

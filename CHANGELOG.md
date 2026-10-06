@@ -10,7 +10,7 @@
 - Limited the website's admin panel to the owner.
 - Updated AGENTS.md, the README, the project brief, the workspace guide, the templates, the spec and the environments guide to match.
 - Added a tested manual backup for production until it moves to Pro.
-- Added Q-10: where completed piece worksheets live.
+- Resolved Q-10: completed piece worksheets stay in `content/drafts/` in this repository.
 
 ## 2026-10-06 — Website stage 1: foundation
 
