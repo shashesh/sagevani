@@ -8,17 +8,17 @@ updated: 2026-10-06
 
 ## Context
 
-Content in `content/` and the packs built from it are checked against one schema in `packages/shared` ([content-pipeline](../architecture/content-pipeline.md#source-content)). Two programs run it: the content build, on Node, and the app, on iOS, Android and web, when it reads a pack. The app can't trust a pack's shape just because the manifest signature verifies, since a build bug would still ship. The types in `packages/shared/src/types` are hand-written from the [data model](../architecture/data-model.md) and stay the contract.
+Content in `japa-catalog/content/` and the packs built from it are checked against one schema in `src/japa/domain` ([content-pipeline](../architecture/content-pipeline.md#source-content)). Two programs run it: the content build, on Node, and the app, on iOS, Android and web, when it reads a pack. The app can't trust a pack's shape just because the manifest signature verifies, since a build bug would still ship. The types in `src/japa/domain/types` are hand-written from the [data model](../architecture/data-model.md) and stay the contract.
 
 ## Decision
 
-**Use [Zod](https://zod.dev) 4 as a runtime dependency of `packages/shared`.** It is the most widely used TypeScript schema library, it has no platform dependencies (so `packages/shared` stays platform-agnostic), and it has what the catalog needs: discriminated unions for practice kinds, partial records for text by script and language, and refinements for rules that span fields.
+**Use [Zod](https://zod.dev) 4 as a runtime dependency of `src/japa/domain`.** It is the most widely used TypeScript schema library, it has no platform dependencies (so `src/japa/domain` stays platform-agnostic), and it has what the catalog needs: discriminated unions for practice kinds, partial records for text by script and language, and refinements for rules that span fields.
 
 The schemas are written against the existing types, not the other way round. A compile-time test checks each schema's output against its type in both directions, so neither can change without the other.
 
 Each catalog entity has two forms, built from one set of shapes:
 
-- **Content** — the YAML in `content/`. Strict, so a misspelt field is an error. A practice's text carries exactly the master scripts: the source script and IAST.
+- **Content** — the YAML in `japa-catalog/content/`. Strict, so a misspelt field is an error. A practice's text carries exactly the master scripts: the source script and IAST.
 - **Export** — what packs carry. Unknown fields are dropped, so an app can read a pack with fields added after it was released. A practice's text carries at least the source script, IAST and `latin`. Deity names are written per language and exempt from both.
 
 ## Alternatives

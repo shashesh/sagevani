@@ -12,7 +12,7 @@ The library will grow to many deities, namavalis, stotras, several scripts and l
 
 ## Decision
 
-- **Source:** text and metadata live in `content/` as YAML, checked against a schema, reviewed in PRs, with the advisor's sign-off and the licence recorded on each practice. Audio and images live in object storage, not git.
+- **Source:** text and metadata live in `japa-catalog/content/` as YAML, checked against a schema, reviewed in PRs, with the advisor's sign-off and the licence recorded on each practice. Audio and images live in object storage, not git.
 - **Delivery:** a build step generates scripts, then publishes versioned **packs** and a **manifest** as static files with the website. The manifest was signed until 2026-10-06; that was dropped because packs come from the same site as the code that reads them ([D-006](../../../../docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa)).
 - **Device:** a **core pack** is cached by `/japa` on the first visit: the index of every deity and practice, programs, and the full text of every launch deity, so P1 downloads no text at all and a request never reveals which deity someone chants to. Other packs download when a deity is opened, and automatically for anything saved or starred. Audio is always on demand.
 

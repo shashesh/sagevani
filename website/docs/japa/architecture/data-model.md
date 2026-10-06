@@ -5,7 +5,7 @@ updated: 2026-10-06
 
 # Data model
 
-How practices, content and a devotee's own data are shaped, how counting works across practice types, and how data is stored and synced. Types live in `packages/shared/src/types` with snake_case fields, so the same shapes work on device and in Postgres.
+How practices, content and a devotee's own data are shaped, how counting works across practice types, and how data is stored and synced. Types live in `src/japa/domain/types` with snake_case fields, so the same shapes work on device and in Postgres.
 
 Decisions behind this: [practice model](../decisions/2026-09-22-practice-model-ordered-steps.md), [content packs](../decisions/2026-09-22-content-packs.md), [grouped count events](../decisions/2026-09-22-grouped-count-events.md), [guest-first accounts](../decisions/2026-09-22-guest-first-accounts.md). How content is authored and delivered: [content-pipeline](content-pipeline.md).
 
@@ -28,7 +28,7 @@ A `practice_id` is either a catalog slug (`vishnu-ashtottara`) or a custom pract
 
 ## Catalog
 
-Read-only on the device. Authored in `content/`, reviewed, and delivered as packs ([content-pipeline](content-pipeline.md)). Catalog ids are readable slugs, lowercase letters, digits and hyphens only (`^[a-z0-9-]+$`), never shaped like a UUID (so they can't be mistaken for a custom practice's id), and never change once published.
+Read-only on the device. Authored in `japa-catalog/content/`, reviewed, and delivered as packs ([content-pipeline](content-pipeline.md)). Catalog ids are readable slugs, lowercase letters, digits and hyphens only (`^[a-z0-9-]+$`), never shaped like a UUID (so they can't be mistaken for a custom practice's id), and never change once published.
 
 ### Tradition
 
@@ -385,7 +385,7 @@ Four kinds of row are unique per devotee: the profile, one saved practice per pr
   - `v1:practice_positions:<user_id>:<practice_id>`
   - `v1:deity_defaults:<user_id>:<deity_id>`
 - **Canonical fields:** `user_id` and a custom practice's UUID in lowercase hyphenated form; a catalog slug exactly as published. None can contain `:`, so the name is unambiguous.
-- **One implementation:** `derivedId` in `packages/shared`, pinned by fixed test vectors computed with Python's `uuid.uuid5`, so every client derives the same id. Before sign-in `user_id` is the local owner id, so the profile's id is derived from that and is never an input to itself; re-keying recomputes every derived id from the new `user_id`.
+- **One implementation:** `derivedId` in `src/japa/domain`, pinned by fixed test vectors computed with Python's `uuid.uuid5`, so every client derives the same id. Before sign-in `user_id` is the local owner id, so the profile's id is derived from that and is never an input to itself; re-keying recomputes every derived id from the new `user_id`.
 - **`v1` never changes once rows have synced.** A different scheme would mint different ids for existing rows, so it would be a migration, not an edit.
 
 The profile needs this too. The account's profile wins on sign-in, but a brand-new account has none yet, so two guest devices signing in to it at about the same time would each upload their own.
@@ -445,7 +445,7 @@ Nothing has shipped, so there is no data to migrate.
 - `ChantMode` gains `manual` and `correction`.
 - `CountEvent` gains `local_day`, `tz_offset_min` and `steps_per_repetition`. `dailyTotals` groups by `local_day` instead of converting `created_at`.
 - `Sankalpa` gains `program_id`, `intention`, `status` and sync fields.
-- `STARTER_MANTRAS` moves out of code into `content/`.
+- `STARTER_MANTRAS` moves out of code into `japa-catalog/content/`.
 - `totalCount` and `dailyTotals` sum each session's events and floor the session at zero before adding sessions together.
 - `computeStreak` takes days with a positive net count.
 - New in `shared`: hybrid logical clock helpers (create, compare, advance on receive).

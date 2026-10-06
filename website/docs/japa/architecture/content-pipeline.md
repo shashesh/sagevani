@@ -7,7 +7,7 @@ updated: 2026-10-06
 
 How deities, mantras, namavalis and programs are written, reviewed, built and delivered to browsers. The shapes are in [data-model](data-model.md#catalog); the decision is [content packs](../decisions/2026-09-22-content-packs.md).
 
-**Source, delivery and device are separate.** `content/` in the repo is where content is written and reviewed. It is not what browsers download.
+**Source, delivery and device are separate.** `japa-catalog/content/` in the repo is where content is written and reviewed. It is not what browsers download.
 
 ## Why not bundle everything
 
@@ -36,14 +36,14 @@ content/
 └─ programs/navaratri.yaml
 ```
 
-- **Layout.** A file's name is its id. Deities sit in their tradition's folder, and practices in their tradition's and their **primary deity's** folder (the first of `deity_ids`), so Hare Krishna is `practices/hindu/krishna/hare-krishna.yaml`. Any other file is an error, except `content/README.md`.
+- **Layout.** A file's name is its id. Deities sit in their tradition's folder, and practices in their tradition's and their **primary deity's** folder (the first of `deity_ids`), so Hare Krishna is `practices/hindu/krishna/hare-krishna.yaml`. Any other file is an error, except `japa-catalog/content/README.md`.
 - **Audio and images are not in git.** They live in object storage, named by their SHA-256. YAML refers to them by id, checksum, size and (for audio) duration.
-- **Schema.** Every file is checked against a schema in `packages/shared` (`src/schemas`, [Zod](../decisions/2026-09-23-schema-library-zod.md)), which is platform-agnostic and also used by the app to read packs. Each entity has two forms:
+- **Schema.** Every file is checked against a schema in `src/japa/domain` (`src/schemas`, [Zod](../decisions/2026-09-23-schema-library-zod.md)), which is platform-agnostic and also used by the app to read packs. Each entity has two forms:
   - **Content** schemas are strict: a field the schema doesn't know is an error, not ignored. A practice's step text, words and names carry the master scripts — the source script and IAST. Generated scripts may not be written by hand, except a `latin` that overrides the rules ([how `latin` is produced](../decisions/2026-09-23-transliteration-library.md#how-latin-is-produced)).
   - **Export** schemas drop fields they don't know, so an app can read a pack with fields added after its release. A practice's step text, words and names carry at least the source script, IAST and `latin`; script add-on packs bring more.
   - **Deity names** have no source script, so neither rule applies: they are written by hand per language, each in the scripts that language uses (`en` in `latin`, `hi` in `devanagari`), and are never generated.
   - Both enforce the rules within a single entity, among them: catalog ids, language tags as language, optional script and optional region in canonical case (`en`, `pt-BR`, `sa-Latn`), a source script other than `latin`, one step for a mantra, words only on a mantra, a name on every namavali step, a namavali round of one recitation, a duration on every recording, audio positions inside the recording, program days within the program, and an absent meaning or reading written as `null`, never as an empty map. Rules that span files — a practice's deities exist, versions only go up — belong to the build.
-- **Review.** Each practice carries `review: { advisor, reviewed_on, version }`, `source` and `licence`. A review covers the version it names: a practice whose chanted text changed since is unreviewed again (`isReviewed` in `packages/shared`), so that change goes back to the advisor. Titles, intros and meanings can change without a version bump ([versions](#source-content)), so they keep the review; the advisor sees them in the PR like any other change. Production packs refuse unreviewed content; development packs include it, flagged.
+- **Review.** Each practice carries `review: { advisor, reviewed_on, version }`, `source` and `licence`. A review covers the version it names: a practice whose chanted text changed since is unreviewed again (`isReviewed` in `src/japa/domain`), so that change goes back to the advisor. Titles, intros and meanings can change without a version bump ([versions](#source-content)), so they keep the review; the advisor sees them in the PR like any other change. Production packs refuse unreviewed content; development packs include it, flagged.
 - **Versions.** Any change to the chanted text bumps the practice's `version`: a step's text, words or name in any script, generated scripts included, or the number of steps. Titles, subtitles, intros, meanings, repetition words, source and licence can be corrected without a bump, because a saved place in a namavali resets on any version change ([data-model](data-model.md#practiceposition)). Counts refer to the practice id, so fixing a typo never changes anyone's history. The build checks this against the [reviewed snapshot](#the-reviewed-snapshot).
 - **English first.** Base packs carry English, and every other language is an add-on, so a practice's `title` and `repetition_word`, and a deity's `names`, must have `en`.
 - **Changes go through PRs** like code. If advisors aren't comfortable reviewing on GitHub, a CMS can later sit in front of the same build step without changing packs or the app.
@@ -53,7 +53,7 @@ content/
 - The master text is the practice's source script (Devanagari for Sanskrit, Gurmukhi for Sikh practice) plus IAST.
 - `latin` (common spelling such as "Om Namah Shivaya") and other Indic scripts are **generated at build time**, not in the browser, using an established transliteration library chosen in M2 ([vidyut-lipi](../decisions/2026-09-23-transliteration-library.md), with our own rules for `latin` and for each script's conventions).
 - From Devanagari, the build generates Tamil, Telugu, Kannada, Gujarati and Bengali; Gurmukhi and Tibetan wait for P2. `latin` comes from the IAST by rules, unless the step carries a hand-written one. A step's text, words and name are each generated, words one by one.
-- The build checks what it generates (`tools/content-build/src/generate.ts`):
+- The build checks what it generates (`src/japa/catalog-build/generate.ts`):
   - The source script, read as IAST, must match the hand-written IAST, ignoring punctuation (daṇḍas, hyphens, brackets; never the avagraha). IAST must be lower case with `ṃ`, not `ṁ`.
   - No generated script may hold letters of the source script. vidyut-lipi passes through letters it has no mapping for, such as ऑ, and a round trip can't see them.
   - Tamil, Telugu, Kannada and Gujarati must convert back to the source exactly. Bengali writes `va` and `ba` alike, so it relies on review.
@@ -89,10 +89,10 @@ Steps 1 to 4 are `src/japa/catalog-build`, run by `scripts/japa-content-build.ts
 
 ### The reviewed snapshot
 
-`content-snapshot/practices/<id>.yaml` holds each practice as packs carry it, with every generated script, and is committed. The advisor reviews generated text as a diff in the PR, and a transliteration library upgrade that changes a script shows up there too.
+`japa-catalog/snapshot/practices/<id>.yaml` holds each practice as packs carry it, with every generated script, and is committed. The advisor reviews generated text as a diff in the PR, and a transliteration library upgrade that changes a script shows up there too.
 
 - It is the baseline for the **version rules**: a practice whose steps differ from its snapshot (text, words or names in any script, or the number of steps) must have a higher `version`, and no version may go down. The error names the version to use. Comparing with the committed snapshot needs no git history and no published manifest. A practice changed twice before one release is bumped twice, so versions can skip numbers, which does no harm.
-- It is **keyed by practice id**, so moving a practice to another tradition or primary deity keeps its snapshot. A practice removed from `content/` keeps its snapshot as the highest version its id reached. It isn't packed, and it can't come back at a lower version, or at the same version with different chanted text.
+- It is **keyed by practice id**, so moving a practice to another tradition or primary deity keeps its snapshot. A practice removed from `japa-catalog/content/` keeps its snapshot as the highest version its id reached. It isn't packed, and it can't come back at a lower version, or at the same version with different chanted text.
 - It is written only when every check passes, so a failed build leaves the committed baseline as it was. `npm run test:unit` fails when the committed snapshot is out of date, or when a practice's chanted text changed without a bump.
 
 ### Packs
@@ -100,7 +100,7 @@ Steps 1 to 4 are `src/japa/catalog-build`, run by `scripts/japa-content-build.ts
 | Pack                         | Contents                                                                                                                                                                                                                                                                                                                                |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `index`                      | Every tradition, and every deity and practice: id, titles and names in every language, deity, kind, step count, pack id, has audio, reviewed. About 100 KB                                                                                                                                                                              |
-| `core`                       | Everything `/japa` caches on the first visit, in one file: in P1, every other pack (the index, programs, and every launch deity's base pack with its script and language add-ons), each installed as if downloaded. Launch deities are, for now, every deity in `content/`. Corrections arrive in a new release of this pack |
+| `core`                       | Everything `/japa` caches on the first visit, in one file: in P1, every other pack (the index, programs, and every launch deity's base pack with its script and language add-ons), each installed as if downloaded. Launch deities are, for now, every deity in `japa-catalog/content/`. Corrections arrive in a new release of this pack |
 | `deity/<id>`                 | The deity and its practices in the source script, IAST, `latin` and English                                                                                                                                                                                                                                                             |
 | `deity/<id>/script/<script>` | The same practices in one extra script; never `latin` or `iast`, which the base pack has                                                                                                                                                                                                                                                |
 | `deity/<id>/lang/<language>` | The deity's summary, and practices' titles, subtitles, repetition words, intros and meanings, in one extra language. Names are in the index                                                                                                                                                                                             |
@@ -112,7 +112,7 @@ Steps 1 to 4 are `src/japa/catalog-build`, run by `scripts/japa-content-build.ts
 - **Schema version.** Every pack and the manifest carry `schema_version`, the format's major version. A pack with one the app doesn't understand is ignored; the app keeps what it has and suggests updating. Fields added within a major version are dropped by older apps.
 - **Releases, not pack versions.** A pack has no version of its own: the app fetches a pack when its SHA-256 changes. The manifest carries a `release` number that only goes up. `/japa` remembers the highest it has accepted and rejects a manifest with a lower one, so a stale cached manifest can't roll a correction back.
 - **Add-ons** carry the `version` of each practice they were built from and apply only to that version, step by step.
-- **Shapes:** `packages/shared/src/types/packs.ts`. The build checks every pack against the schemas in `src/schemas/packs.ts` before writing it, and the app reads packs with the same schemas. The schemas check each pack on its own; that `core` holds every pack and that packs agree with one another is the build's job.
+- **Shapes:** `src/japa/domain/types/packs.ts`. The build checks every pack against the schemas in `src/schemas/packs.ts` before writing it, and the app reads packs with the same schemas. The schemas check each pack on its own; that `core` holds every pack and that packs agree with one another is the build's job.
 
 - Packs are **data only**: text and references, never code or markup. `/japa` renders text as text.
 

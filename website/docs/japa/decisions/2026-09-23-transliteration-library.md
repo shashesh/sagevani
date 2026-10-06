@@ -10,7 +10,7 @@ Accepted by the owner on 2026-09-23, knowing it adds a young, single-maintainer 
 
 ## Context
 
-A practice's master text is its source script (Devanagari for Sanskrit, Gurmukhi for Sikh practice) and IAST, both written by hand. The content build generates the rest ([transliteration](../architecture/content-pipeline.md#transliteration)): `latin`, and the Indic scripts the app supports — `tamil`, `telugu`, `kannada`, `bengali`, `gujarati`, `gurmukhi` and `tibetan` (`Script` in `packages/shared/src/types/catalog.ts`). The build is a Node script run locally, so the library runs in Node 22/24 and never ships in the app. The advisor reviews generated text like any other.
+A practice's master text is its source script (Devanagari for Sanskrit, Gurmukhi for Sikh practice) and IAST, both written by hand. The content build generates the rest ([transliteration](../architecture/content-pipeline.md#transliteration)): `latin`, and the Indic scripts the app supports — `tamil`, `telugu`, `kannada`, `bengali`, `gujarati`, `gurmukhi` and `tibetan` (`Script` in `src/japa/domain/types/catalog.ts`). The build is a Node script run locally, so the library runs in Node 22/24 and never ships in the app. The advisor reviews generated text like any other.
 
 We tried four samples — ॐ नमः शिवाय, ॐ श्री विष्णवे नमः, ॐ कृष्णाय नमः, ॐ ऐं ह्रीं क्लीं चामुण्डायै विच्चे — and a few edge cases through every candidate, in a scratch directory outside the repo, on Node 24.13 and Python 3.14.
 
@@ -56,7 +56,7 @@ Compared with Aksharamukha 2.3 and `sanscript.js` 1.3.3:
 
 Run on the owner's request before accepting, on the same versions:
 
-- **Our five development mantras:** Devanagari to IAST matches the hand-written IAST in `content/` exactly, for all five.
+- **Our five development mantras:** Devanagari to IAST matches the hand-written IAST in `japa-catalog/content/` exactly, for all five.
 - **A real typo is caught.** Vaidika Vignanam published वर्शिष्ठान्ते for वर्षिष्ठान्ते in every script for over two years (below). vidyut-lipi turns the typo into varśiṣṭhānte, which differs from the hand-written varṣiṣṭhānte, so our IAST check stops it at build time.
 - **Where Vignanam's converter is wrong, vidyut-lipi is right:** Bengali शान्ति → শান্তি (not শাংতি), Bengali य → য়, Gujarati ॐ → ૐ.
 - **Seed syllables and clusters** — ह्रीं श्रीं क्लीं, ऐं, त्र्यम्बकं, महागणाधिपतये — convert cleanly to IAST, Tamil and Bengali, and a verse with conjunct nasals round-trips through Telugu, Kannada, Tamil, Bengali, Gujarati, Malayalam and Odia.
