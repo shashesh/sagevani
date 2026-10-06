@@ -3,8 +3,12 @@ import { z } from 'zod'
 const serverEnvSchema = z.object({
   DATABASE_URL: z
     .string({ error: 'is required' })
+    .trim()
     .regex(/^postgres(ql)?:\/\/.+/, 'must be a postgres:// connection string'),
-  PAYLOAD_SECRET: z.string({ error: 'is required' }).min(32, 'must be at least 32 characters'),
+  PAYLOAD_SECRET: z
+    .string({ error: 'is required' })
+    .trim()
+    .min(32, 'must be at least 32 characters'),
 })
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>
