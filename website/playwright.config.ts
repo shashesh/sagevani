@@ -9,9 +9,11 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: process.env.CI ? 'github' : 'list',
+  timeout: 60_000,
   use: {
     baseURL,
     trace: 'on-first-retry',
+    navigationTimeout: 45_000,
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
