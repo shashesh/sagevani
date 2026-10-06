@@ -1,5 +1,10 @@
 # Change log
 
+## 2026-10-06 — Website stage 1 merged
+
+- The owner merged [pull request #1](https://github.com/shashesh/sagevani/pull/1) into `main`. Nothing is deployed yet.
+- Updated the [environments guide](website/docs/environments.md) for the merge-first order. Importing the site into Netlify now deploys `main` to production straight away, so Supabase and the variables come first. Staging is checked through the next pull request's preview.
+
 ## 2026-10-06 — Drafts in the CMS, admin access, region and database plan
 
 - Recorded [D-005](docs/governance/decisions.md#d-005--drafts-in-the-cms-admin-access-region-and-database-plan):

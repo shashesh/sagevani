@@ -36,4 +36,4 @@ The website must select only owner-approved article versions. Drafts and review 
 
 The boundary for standalone personal reflections, Vault entries, and raw research is unresolved. Keep unfinished article text and review notes in the CMS to make website exclusion straightforward. Do not copy confidential material or full copyrighted source works into this workspace. Link to sources and record permitted excerpts with attribution.
 
-Website build stage 1 (foundation) is in [pull request #1](https://github.com/shashesh/sagevani/pull/1). Hosting and external publication have not been performed.
+Website build stage 1 (foundation) is merged ([pull request #1](https://github.com/shashesh/sagevani/pull/1)). Hosting and external publication have not been performed.
