@@ -486,25 +486,9 @@ import { config } from 'dotenv'
 
 config({ path: '.env.test' })
 config({ path: '.env' })
-
-// Integration tests delete rows. Refuse to run against anything but a *_test database,
-// so a DATABASE_URL exported for staging or production can never be wiped by `npm test`.
-const databaseName = (() => {
-  try {
-    return new URL(process.env.DATABASE_URL ?? '').pathname.replace(/^\//, '')
-  } catch {
-    return ''
-  }
-})()
-
-if (!databaseName.endsWith('_test')) {
-  throw new Error(
-    `Refusing to run tests: DATABASE_URL must point at a database whose name ends in "_test" (got "${databaseName || 'none'}").`,
-  )
-}
 ```
 
-The guard was added after the Task 3 review. A developer's exported `DATABASE_URL` takes precedence over `.env.test`, and the integration tests delete every user. Without the guard, running the tests in a shell prepared for staging or production would wipe real accounts.
+Task 4 adds a guard to this file so that tests refuse to run against anything but a `*_test` database.
 
 - [ ] **Step 3: Replace `website/playwright.config.ts`**
 
@@ -637,8 +621,34 @@ describe('parseServerEnv', () => {
       /PAYLOAD_SECRET: must be at least 32 characters/,
     )
   })
+
+  it('trims whitespace around values, such as a stray space or a Windows line ending', () => {
+    const env = parseServerEnv({
+      DATABASE_URL: ` ${VALID.DATABASE_URL} \r`,
+      PAYLOAD_SECRET: ` ${VALID.PAYLOAD_SECRET}\r`,
+    })
+    expect(env).toEqual(VALID)
+  })
+
+  it('rejects a secret that is only whitespace', () => {
+    expect(() => parseServerEnv({ ...VALID, PAYLOAD_SECRET: ' '.repeat(40) })).toThrowError(
+      /PAYLOAD_SECRET: must be at least 32 characters/,
+    )
+  })
+
+  it('never echoes the rejected values in its error', () => {
+    expect(() =>
+      parseServerEnv({ DATABASE_URL: 'mongodb://user:hunter2@h/db', PAYLOAD_SECRET: 'short-secret' }),
+    ).toThrowError(
+      expect.objectContaining({
+        message: expect.not.stringMatching(/hunter2|short-secret/),
+      }),
+    )
+  })
 })
 ```
+
+The `\r` in the trim test must be the two-character escape sequence (backslash, `r`), not a literal carriage return. Git's `eol=lf` setting strips a literal CR at the end of a line.
 
 - [ ] **Step 2: Run it and watch it fail**
 
@@ -646,7 +656,7 @@ describe('parseServerEnv', () => {
 npm run test:unit
 ```
 
-Expected: FAIL with `Failed to resolve import "@/lib/env"`.
+Expected: FAIL because `@/lib/env` can't be resolved. Vitest reports either `Failed to resolve import "@/lib/env"` or `Cannot find package '@/lib/env'`.
 
 - [ ] **Step 3: Implement** — `website/src/lib/env.ts`
 
@@ -656,8 +666,12 @@ import { z } from 'zod'
 const serverEnvSchema = z.object({
   DATABASE_URL: z
     .string({ error: 'is required' })
+    .trim()
     .regex(/^postgres(ql)?:\/\/.+/, 'must be a postgres:// connection string'),
-  PAYLOAD_SECRET: z.string({ error: 'is required' }).min(32, 'must be at least 32 characters'),
+  PAYLOAD_SECRET: z
+    .string({ error: 'is required' })
+    .trim()
+    .min(32, 'must be at least 32 characters'),
 })
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>
@@ -680,7 +694,7 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
 npm run test:unit
 ```
 
-Expected: PASS, `5 passed`.
+Expected: PASS, `8 passed`.
 
 - [ ] **Step 5: Use it in `website/src/payload.config.ts`**
 
@@ -734,6 +748,122 @@ git commit -m "feat: fail fast on missing or invalid website environment variabl
 ```
 
 Expected: all three commands pass before the commit.
+
+- [ ] **Step 7: Write the failing test for the test-database guard**
+
+The integration tests in later tasks delete every user. An exported `DATABASE_URL` takes precedence over `.env.test`, so without a guard, running the tests in a shell prepared for staging or production would wipe real accounts.
+
+Create `website/tests/unit/test-database.unit.spec.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest'
+
+import { assertTestDatabase } from '../helpers/test-database'
+
+describe('assertTestDatabase', () => {
+  it('accepts a database whose name ends in _test and returns the name', () => {
+    expect(assertTestDatabase('postgres://u:p@127.0.0.1:54329/sagevani_test')).toBe('sagevani_test')
+  })
+
+  it('ignores query parameters and accepts the postgresql:// scheme', () => {
+    expect(assertTestDatabase('postgresql://u:p@db.example.com:5432/sagevani_test?sslmode=require')).toBe(
+      'sagevani_test',
+    )
+  })
+
+  it('refuses when DATABASE_URL is not set', () => {
+    expect(() => assertTestDatabase(undefined)).toThrowError('Refusing to run tests: DATABASE_URL is not set.')
+    expect(() => assertTestDatabase('')).toThrowError('Refusing to run tests: DATABASE_URL is not set.')
+  })
+
+  it('refuses a development database', () => {
+    expect(() => assertTestDatabase('postgres://u:p@127.0.0.1:54329/sagevani')).toThrowError(
+      'Refusing to run tests: DATABASE_URL must point at a database whose name ends in "_test" (got "sagevani").',
+    )
+  })
+
+  it('refuses a name that only contains _test', () => {
+    expect(() => assertTestDatabase('postgres://u:p@h:5432/sagevani_test_backup')).toThrowError(/got "sagevani_test_backup"/)
+  })
+
+  it('refuses a URL with no database name', () => {
+    expect(() => assertTestDatabase('postgres://u:p@h:5432')).toThrowError(/got "no database name"/)
+  })
+
+  it('refuses something that is not a URL', () => {
+    expect(() => assertTestDatabase('not a url')).toThrowError(
+      'Refusing to run tests: DATABASE_URL is not a valid connection URL.',
+    )
+  })
+
+  it('never echoes the password in its error', () => {
+    expect(() => assertTestDatabase('postgres://user:hunter2@h:5432/production')).toThrowError(
+      expect.objectContaining({ message: expect.not.stringContaining('hunter2') }),
+    )
+  })
+})
+```
+
+Run `npm run test:unit`. Expected: this file fails because `../helpers/test-database` can't be found. The env tests still pass.
+
+- [ ] **Step 8: Implement the guard and use it in the test setup**
+
+`website/tests/helpers/test-database.ts`:
+
+```ts
+// Integration tests delete rows. This guard keeps them away from any database whose name
+// does not end in "_test" — for example a staging or production URL exported in the shell.
+export function assertTestDatabase(databaseUrl: string | undefined): string {
+  if (!databaseUrl) {
+    throw new Error('Refusing to run tests: DATABASE_URL is not set.')
+  }
+
+  let name: string
+  try {
+    name = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\//, ''))
+  } catch {
+    throw new Error('Refusing to run tests: DATABASE_URL is not a valid connection URL.')
+  }
+
+  if (!name.endsWith('_test')) {
+    throw new Error(
+      `Refusing to run tests: DATABASE_URL must point at a database whose name ends in "_test" (got "${name || 'no database name'}").`,
+    )
+  }
+  return name
+}
+```
+
+Replace `website/vitest.setup.ts`:
+
+```ts
+// Test settings take precedence: dotenv never overwrites a variable that is already set,
+// so values from .env.test (or CI) win over the developer's .env.
+import { config } from 'dotenv'
+
+import { assertTestDatabase } from './tests/helpers/test-database'
+
+config({ path: '.env.test' })
+config({ path: '.env' })
+
+// Integration tests delete rows, so never run against anything but a *_test database.
+assertTestDatabase(process.env.DATABASE_URL)
+```
+
+- [ ] **Step 9: Verify both directions and commit**
+
+```bash
+npm run test:unit
+DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329/sagevani npm run test:unit; echo "exit $?"
+npm run lint && npm run typecheck
+git add website
+git commit -m "test: refuse to run tests against anything but a _test database"
+```
+
+Expected:
+
+- The first run passes with `16 passed`.
+- The second fails with `Refusing to run tests: DATABASE_URL must point at a database whose name ends in "_test" (got "sagevani").` and a non-zero exit.
 
 ---
 
@@ -802,7 +932,7 @@ describe('ownerOrSelf', () => {
 npm run test:unit
 ```
 
-Expected: FAIL with `Failed to resolve import "@/access/roles"`.
+Expected: FAIL because `@/access/roles` can't be resolved (`Failed to resolve import` or `Cannot find package`).
 
 - [ ] **Step 3: Implement** — `website/src/access/roles.ts`
 
@@ -834,7 +964,7 @@ export const ownerOrSelf: Access = ({ req }) => {
 npm run test:unit
 ```
 
-Expected: PASS, `11 passed` (env + roles).
+Expected: PASS, `22 passed` (16 env and guard + 6 roles).
 
 - [ ] **Step 5: Verify and commit**
 
@@ -1214,7 +1344,7 @@ git add website
 git commit -m "feat: add owner and assistant roles, first-user ownership and login lockout"
 ```
 
-Expected: `npm test` shows the unit tests (11) and integration tests (8) passing.
+Expected: `npm test` shows the unit tests (22) and integration tests (8) passing.
 
 ---
 
@@ -1729,7 +1859,7 @@ npm run test:coverage
 
 Expected:
 
-- `Tests  25 passed (25)`
+- `Tests  36 passed (36)` (22 unit + 14 integration)
 - The coverage table shows 100% for `access/roles.ts`, `collections/Users.ts`, `lib/env.ts`, `lib/db-schema.ts`, `lib/harden-database.ts` and `lib/create-owner.ts`.
 - No threshold errors.
 
