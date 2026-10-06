@@ -1,8 +1,9 @@
-import { createLocalReq, getPayload, type Payload } from 'payload'
+import { createLocalReq, getAccessResults, getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { allowOwnerChange } from '@/collections/Users'
 import config from '@/payload.config'
+import type { User } from '@/payload-types'
 
 let payload: Payload
 
@@ -237,6 +238,50 @@ describe('users and roles', () => {
         user: owner,
       })
       expect((await authWithKey(assistantKey)).user?.email).toBe('assistant@example.com')
+    })
+  })
+
+  describe('admin panel', () => {
+    // The same computation behind GET /api/access, run on a request for the given user. Payload drops
+    // false values from the result, so only an explicit true means access.
+    const canAccessAdmin = async (user?: User) => {
+      const req = await createLocalReq(
+        { user: user ? { ...user, collection: 'users' } : undefined },
+        payload,
+      )
+      return (await getAccessResults({ req })).canAccessAdmin === true
+    }
+
+    it('lets the owner into the admin panel', async () => {
+      const owner = await createOwner()
+      expect(await canAccessAdmin(owner)).toBe(true)
+    })
+
+    it('keeps an assistant out of the admin panel', async () => {
+      await createOwner()
+      const assistant = await createAssistant()
+      expect(await canAccessAdmin(assistant)).toBe(false)
+    })
+
+    it('keeps a request with no user out of the admin panel', async () => {
+      expect(await canAccessAdmin()).toBe(false)
+    })
+
+    it('still authenticates the assistant API key for drafting through the API', async () => {
+      const owner = await createOwner()
+      const assistant = await createAssistant()
+      const key = 'assistant-key-0123456789abcdef'
+      await payload.update({
+        collection: 'users',
+        id: assistant.id,
+        data: { enableAPIKey: true, apiKey: key },
+        overrideAccess: false,
+        user: owner,
+      })
+      const { user } = await payload.auth({
+        headers: new Headers({ Authorization: `users API-Key ${key}` }),
+      })
+      expect(user?.email).toBe('assistant@example.com')
     })
   })
 

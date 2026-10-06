@@ -128,6 +128,9 @@ export const Users: CollectionConfig = {
     },
   },
   access: {
+    // SageVani is a solo project, so only the owner uses the admin panel; the assistant drafts
+    // through its API key. Payload's default would let any signed-in user in.
+    admin: ({ req }) => isOwner(req.user),
     create: ownerOrFirstUser,
     read: ownerOrOwnAccount,
     update: ownerOnly,
