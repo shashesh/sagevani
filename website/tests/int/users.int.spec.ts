@@ -1,7 +1,7 @@
 import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { ALLOW_OWNER_CHANGE } from '@/collections/Users'
+import { allowOwnerChange } from '@/collections/Users'
 import config from '@/payload.config'
 
 let payload: Payload
@@ -13,7 +13,7 @@ const clearUsers = () =>
     collection: 'users',
     where: { id: { exists: true } },
     overrideAccess: true,
-    context: { [ALLOW_OWNER_CHANGE]: true },
+    context: allowOwnerChange(),
   })
 
 const createOwner = () =>
@@ -153,17 +153,19 @@ describe('users and roles', () => {
     ).rejects.toThrow('The owner account cannot be deleted.')
   })
 
-  it('ignores a plain string flag, which an outside request could send', async () => {
+  it('ignores look-alike Symbols with the same description', async () => {
     const owner = await createOwner()
-    await expect(
-      payload.delete({
-        collection: 'users',
-        id: owner.id,
-        overrideAccess: false,
-        user: owner,
-        context: { allowOwnerChange: true },
-      }),
-    ).rejects.toThrow('The owner account cannot be deleted.')
+    for (const lookalike of [Symbol('allowOwnerChange'), Symbol.for('allowOwnerChange')]) {
+      await expect(
+        payload.delete({
+          collection: 'users',
+          id: owner.id,
+          overrideAccess: false,
+          user: owner,
+          context: { allowOwnerChange: lookalike, [lookalike]: true },
+        }),
+      ).rejects.toThrow('The owner account cannot be deleted.')
+    }
   })
 
   it('still lets the owner edit their own details', async () => {

@@ -5,6 +5,7 @@ import {
   type CollectionBeforeDeleteHook,
   type CollectionConfig,
   type PayloadRequest,
+  type RequestContext,
 } from 'payload'
 
 import {
@@ -19,12 +20,17 @@ import {
 const LOCK_TIME_MS = 15 * 60 * 1000
 const SESSION_SECONDS = 8 * 60 * 60
 
-// Server-side code (tests, maintenance scripts) can pass this flag in a Local API call's context to
-// demote or delete the owner deliberately. It is a module-private Symbol, so no HTTP request can set it.
-export const ALLOW_OWNER_CHANGE = Symbol('allowOwnerChange')
+const OWNER_CHANGE_TOKEN = Symbol('allowOwnerChange')
 
-const ownerChangeAllowed = (context: object): boolean =>
-  (context as Record<PropertyKey, unknown>)[ALLOW_OWNER_CHANGE] === true
+/**
+ * Server-only escape hatch for deliberate owner maintenance (the owner CLI and tests). The key is a
+ * string, so Payload keeps it through nested Local API calls; the value is a private Symbol that no
+ * HTTP or JSON input can produce. Never merge it into an incoming request's context.
+ */
+export const allowOwnerChange = (): RequestContext => ({ allowOwnerChange: OWNER_CHANGE_TOKEN })
+
+const ownerChangeAllowed = (context: RequestContext): boolean =>
+  context.allowOwnerChange === OWNER_CHANGE_TOKEN
 
 const countUsers = async (req: PayloadRequest, ownersOnly = false): Promise<number> => {
   const { totalDocs } = await req.payload.count({
