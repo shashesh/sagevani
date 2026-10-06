@@ -9,7 +9,7 @@
 - **Local:** Postgres 17 runs in Docker, and Payload's automatic schema "push" keeps the database in sync during development.
 - **Deployed:** databases change only through committed migrations, followed by a hardening step that enables row-level security and revokes Supabase's API roles.
 
-**Tech Stack:** Payload 3.90.2, Next.js 16.3, React 19.2, TypeScript 5.7, Postgres 17, Zod 4, Vitest 4, Playwright 1.58, ESLint 9 (Next flat config), GitHub Actions, Netlify, Supabase.
+**Tech Stack:** Payload 3.90.2, Next.js 16.3.8, React 19.2, TypeScript 5.7, Postgres 17, Zod 4, Vitest 4, Playwright 1.58, ESLint 9 (Next flat config), GitHub Actions, Netlify, Supabase.
 
 **Spec:** [`../specs/2026-10-05-sagevani-website-design.md`](../specs/2026-10-05-sagevani-website-design.md), sections 4, 5.3 (users), 9, 13, 14 and 16 (stage 1).
 
@@ -202,27 +202,40 @@ Expected: `npm pkg get private` prints `true` (not `"true"`). The printed script
 npm install --no-audit --no-fund
 npm install --save-exact --no-audit --no-fund zod@4.6.5 pg@8.20.0
 npm install --save-exact --no-audit --no-fund -D @types/pg@8.20.0 @vitest/coverage-v8@4.0.18
+# Security patches over the template's pins (added after the Task 2 review):
+# next 16.3.3 has a critical RCE in next/og ImageResponse (GHSA-vcvr-r3jv-pc5j); sharp 0.35.4 a high advisory (GHSA-wq5f-xc86-pv6w).
+npm install --save-exact --no-audit --no-fund next@16.3.8 sharp@0.35.5
+npm install --save-exact --no-audit --no-fund -D eslint-config-next@16.3.8 @types/node@24.19.1
+npm pkg delete scripts.devsafe
 ```
 
-Expected: `package-lock.json` is created, and `npm ls zod pg @vitest/coverage-v8` shows `zod@4.6.5`, `pg@8.20.0` and `@vitest/coverage-v8@4.0.18`.
+Expected:
+
+- `package-lock.json` is created.
+- `npm ls zod pg @vitest/coverage-v8 next sharp` shows `zod@4.6.5`, `pg@8.20.0`, `@vitest/coverage-v8@4.0.18`, `next@16.3.8` and `sharp@0.35.5`.
+- `npm audit --omit=dev` lists no `next` or `sharp` advisory. Advisories for `undici` through `payload` have no upstream fix yet; track them, and don't run `npm audit fix`.
+
+The template's `devsafe` script is removed because it uses `rm -rf`, which fails when npm runs scripts through `cmd.exe` on Windows.
 
 - [ ] **Step 5: Create `website/docker-compose.yml`**
 
 ```yaml
+name: sagevani
+
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:17
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: sagevani
     ports:
-      - '54329:5432'
+      - '127.0.0.1:54329:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/create-test-database.sql:/docker-entrypoint-initdb.d/create-test-database.sql:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U postgres -d sagevani']
       interval: 2s
       timeout: 3s
       retries: 20
@@ -231,7 +244,9 @@ volumes:
   pgdata:
 ```
 
-Port 54329 avoids clashing with any Postgres already installed on 5432.
+- **Port:** 54329 avoids clashing with any Postgres already installed on 5432. It's bound to `127.0.0.1`, so the trivial local password is never reachable from the network.
+- **Image:** `postgres:17` (glibc) sorts text the same way as Supabase. The Alpine image (musl) does not.
+- **Healthcheck:** it checks over TCP, so `--wait` only returns once the real server is accepting connections.
 
 - [ ] **Step 6: Create `website/docker/create-test-database.sql`**
 
@@ -347,6 +362,58 @@ export default function HomePage() {
   )
 }
 ```
+
+- [ ] **Step 11a: Tighten `.gitignore` and remove template leftovers**
+
+Replace `website/.gitignore`. The template ignored only `.env` and `.env*.local`, which would let `.env.production` slip into a public repository.
+
+```gitignore
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+/.idea/*
+!/.idea/runConfigurations
+
+# testing
+/coverage
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env files: ignore everything except the documented, non-secret ones
+.env*
+!.env.example
+!.env.test
+
+# netlify
+.netlify
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+```
+
+In `website/next.config.ts`, delete the `images: { localPatterns: [...] }` block. It points at the removed Media collection.
 
 - [ ] **Step 12: Regenerate types and the admin import map**
 
@@ -1687,7 +1754,7 @@ jobs:
         working-directory: website
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: sagevani_test
