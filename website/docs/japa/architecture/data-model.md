@@ -1,6 +1,6 @@
 ---
 status: active
-updated: 2026-09-24
+updated: 2026-10-06
 ---
 
 # Data model
@@ -125,7 +125,7 @@ Every record in this section has:
 | Field               | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `id`                | **UUIDv7**, generated on the device, so it works offline and sorts by time. Rows unique per devotee, the profile among them, derive theirs instead ([why](#ids-for-rows-that-are-unique-per-devotee)). The profile's id is not the owner key                                                                                                                                                                                                                                                             |
-| `user_id`           | The owner. Before sign-in: the **local owner id**, a UUIDv7 generated at first launch; the local profile's own id is derived from it. On first sign-in, the device's rows are combined with the account's first, and only then given the account's id, before their first upload ([order of steps](../product/features/accounts-and-sync.md#signing-in-on-a-device-that-already-has-data)). On the server: the Supabase auth user id, a UUID but not necessarily v7, not null. One profile per `user_id` |
+| `user_id`           | The owner. Before sign-in: the **local owner id**, a UUIDv7 generated on the first visit; the local profile's own id is derived from it. On first sign-in, the device's rows are combined with the account's first, and only then given the account's id, before their first upload ([order of steps](../product/features/accounts-and-sync.md#signing-in-on-a-device-that-already-has-data)). On the server: the Supabase auth user id, a UUID but not necessarily v7, not null. One profile per `user_id` |
 | `hlc`, `deleted_at` | On records where the latest edit wins: `hlc` orders edits ([conflict rule](#conflict-rule)); `deleted_at` marks a deletion so it syncs                                                                                                                                                                                                                                                                                                                                                                   |
 
 Uniqueness is per user: one saved practice per `(user_id, practice_id)`, one default per `(user_id, deity_id)`, one position per `(user_id, practice_id)`.
@@ -137,7 +137,7 @@ One per user. Before sign-in there is a local profile; on first sign-in the acco
 | Field                  | Notes                                                                         |
 | ---------------------- | ----------------------------------------------------------------------------- |
 | `display_name`         | Optional                                                                      |
-| `ui_language`          | From the phone's setting at first launch                                      |
+| `ui_language`          | From the browser's language at the first visit                                      |
 | `primary_script`       | Script the mantra is shown in                                                 |
 | `show_transliteration` | Show a second line in Latin script                                            |
 | `traditions`           | Traditions to browse. P1: Hindu                                               |
@@ -267,7 +267,7 @@ The devotee's place in a namavali (and, in P2, a stotra). It is not a count.
 
 `pass_ordinal` is a bookmark, not a total: it says which recitation the marks belong to, and merging takes the higher one. Totals always come from count events.
 
-**When a recitation counts.** A step is chanted when the devotee moves forward from it (tap, volume button, or chant along in P2). A recitation counts only when **every step in the pass has been chanted**, and it counts once: the pass then resets to step 1 with an empty `chanted_steps`, and back can't cross into the finished pass. Jumping from the list view moves `step_index` without marking anything. Going back and forward again re-chants a name without counting it twice.
+**When a recitation counts.** A step is chanted when the devotee moves forward from it (tap, or chant along in P2). A recitation counts only when **every step in the pass has been chanted**, and it counts once: the pass then resets to step 1 with an empty `chanted_steps`, and back can't cross into the finished pass. Jumping from the list view moves `step_index` without marking anything. Going back and forward again re-chants a name without counting it twice.
 
 ### Sankalpa
 
@@ -289,9 +289,8 @@ Progress is derived from count events for the practice (or the program's practic
 
 Never synced:
 
-- **Reminders:** a fixed time or a solar anchor (Brahma muhurta, sunrise, sunset) with an offset, days of the week, optional practice. Notifications are scheduled per device.
+- **Reminders:** a fixed time or a solar anchor (Brahma muhurta, sunrise, sunset) with an offset, days of the week, optional practice. Browsers can't schedule notifications, so reminders need web push from a server; part 3 designs them, and what the server may know.
 - **Location for sunrise times:** a city or an approximate position, used on the device only.
-- **Device settings:** volume-button counting, flip to pause.
 - **Open (unsealed) count events.**
 - **Installed content packs and cached audio.**
 - **Voice templates** (P2): never leave the device.
@@ -329,14 +328,14 @@ Which modes each practice type supports: [chanting-modes](../product/features/ch
 ### Layers
 
 ```text
-features/*  (screens and hooks)
+/japa screens and hooks (part 4)
    │
-apps/mobile/src/data/   repositories: the only code that touches storage
+repositories (part 3): the only code that touches browser storage
    │
-Local SQLite  ── sync engine ──  Supabase Postgres (row-level security)
+Browser storage  ── our own sync (part 3) ──  Supabase Postgres
 
-@japadhyan/shared       pure logic: totals, streaks, local_day, event sealing,
-                        combine rules, content and export schemas (all tested)
+src/japa/domain   pure logic: totals, streaks, local_day, event sealing,
+                  combine rules, content and export schemas (all tested)
 ```
 
 ### Tables by behaviour
@@ -362,13 +361,16 @@ Records where the latest edit wins are ordered by a **hybrid logical clock** (`h
 
 ### How values are stored
 
-Synced columns are text, integer or real on the device, so the richer values are written down the same way on the device and in Postgres. The codecs live in `packages/shared` (`rows.ts`), so the app, the tests and the upload path share one:
+The [conflict rule](#conflict-rule) and the [position merge](#practiceposition) need some values in a form that the browser and Postgres compare the same way. These are requirements for part 3's storage and wire format:
 
-- **`hlc`** is one fixed-width text value: `<millis, 15 digits>:<counter, 10 digits>:<device_id>`, e.g. `001727190000000:0000000003:device-a`. Its byte order is exactly the [conflict rule](#conflict-rule)'s order, so SQLite and Postgres compare it with a plain `>`. `device_id` is limited to 64 lowercase letters, digits and hyphens, and Postgres declares the column `collate "C"`: other collations skip punctuation and would order it wrongly. `deleted_hlc` is stored the same way.
-- **`chanted_steps`** is lowercase hex, two characters a byte: 28 characters for 108 names.
-- **Booleans** are `0` or `1` on the device, which is how PowerSync syncs a Postgres `boolean`, and `boolean` in Postgres. Reading a row accepts both, since PostgREST returns `true` or `false`.
-- **Timestamps** are ISO strings on the device and `timestamptz` in Postgres. Reading a row accepts the forms the databases hand back (PowerSync's `2026-09-24 05:30:00.000Z`, PostgREST's `+00:00`) and normalises them to `2026-09-24T05:30:00.000Z`.
-- Reading a row validates it: a row comes from storage or the network and is never trusted. It also enforces the server's limits, so the device never writes a row the server would refuse or drop: lengths (practice ids 128 characters, device ids 64, marks 512 bytes); a count that is positive, except a correction's, which is never 0; a position's `deleted_hlc` and `deleted_at` set together or not at all; and a position's `practice_id` as a catalog slug or a lowercase UUID.
+- **`hlc`** is one fixed-width text value: `<millis, 15 digits>:<counter, 10 digits>:<device_id>`, e.g. `001727190000000:0000000003:device-a`. Its byte order is exactly the conflict rule's order, so a plain `>` compares it. `device_id` is limited to 64 lowercase letters, digits and hyphens, and Postgres declares the column `collate "C"`: other collations skip punctuation and would order it wrongly. `deleted_hlc` is stored the same way. The codec is `hlcText.ts` in `src/japa/domain`.
+- **`chanted_steps`** is lowercase hex, two characters a byte: 28 characters for 108 names (`marks.ts`).
+- **Reading a record validates it**, because a record comes from storage or the network and is never trusted. It also enforces the server's limits, so the browser never writes a record the server would refuse or drop:
+  - lengths: practice ids 128 characters, device ids 64, marks 512 bytes
+  - a count that is positive, except a correction's, which is never 0
+  - a position's `deleted_hlc` and `deleted_at` set together or not at all
+  - a position's `practice_id` as a catalog slug or a lowercase UUID
+- The PowerSync-era codecs that did this (`rows.ts`) stay in the [archived repository](https://github.com/shashesh/japadhyan/blob/master/packages/shared/src/logic/rows.ts). Part 3 writes their replacement.
 
 ### Ids for rows that are unique per devotee
 
@@ -388,7 +390,7 @@ Four kinds of row are unique per devotee: the profile, one saved practice per pr
 
 The profile needs this too. The account's profile wins on sign-in, but a brand-new account has none yet, so two guest devices signing in to it at about the same time would each upload their own.
 
-A random UUIDv7 would break sync. Two devices chanting the same practice offline would each mint their own id for the same logical row, and the second one to reach the server would violate the unique constraint. A constraint violation is not a transient failure, so retrying never gets the row in, and the position merge above would never run, because the two rows never meet. PowerSync's demo connector goes further and discards the row, losing its marks silently. Ours sets it aside on the device instead, in a local-only table a later fix can replay ([S4 plan](../plans/active/2026-09-24-s4-sync-prototype.md#the-client)), but the row still never reaches the server.
+A random UUIDv7 would break sync. Two devices chanting the same practice offline would each mint their own id for the same logical row, and the second one to reach the server would violate the unique constraint. A constraint violation is not a transient failure, so retrying never gets the row in, and the position merge above would never run, because the two rows never meet. Some sync engines go further and discard the row, losing its marks silently.
 
 Deriving the id means both devices write the same row. The server therefore **never plain-inserts** these rows: every write is an upsert on the id, through the `hlc` guard or, for positions, the merge function, so the second device's write updates the row instead of hitting the primary key. The conflict rule then decides the winner and, for positions, the server's merge combines marks within a pass as intended. Count events, sessions, sankalpas and custom practices are unconstrained — a devotee can have any number of them — so they keep generated UUIDv7 ids.
 
@@ -396,42 +398,43 @@ The id has to include the devotee, because the row is identified by that id alon
 
 ### Sync engine
 
-Chosen by spike **S4**, which is a prerequisite for the local storage milestone in the [Phase 1 plan](../plans/active/2026-09-21-phase-1-plan.md): PowerSync ships its own SQLite layer (op-sqlite on phones, wa-sqlite on web), so choosing it after building on expo-sqlite would mean migrating twice. S4 must show:
+Our own, written against Supabase and designed in part 3 ([D-006](../../../../docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa)). PowerSync was chosen first and dropped with the native apps; that decision and its prototype are in the [archived repository](https://github.com/shashesh/japadhyan/blob/master/docs/decisions/2026-09-22-sync-engine-powersync.md). Part 3 must show:
 
 1. A guest's data becomes account data following the [combine rules](../product/features/accounts-and-sync.md#signing-in-on-a-device-that-already-has-data).
 2. Two devices go offline, both keep chanting, reconnect, and totals are exact.
-3. It works on the web with offline persistence.
-4. Local queries update the screen live as counts change.
-5. Monthly cost at 10,000 and 100,000 users.
-6. How much code we have to own.
-7. The [conflict rule](#conflict-rule) is applied on the server (a write that applies only if newer, and the position merge for positions), not by the order uploads arrive in.
-
-Chosen: PowerSync ([decision](../decisions/2026-09-22-sync-engine-powersync.md)); the offline queue, retries, web storage and live queries are exactly the fiddly parts. A prototype still has to show 1–3. Fallback if it fails: our own sync, feasible because the data is append-only events plus latest-edit-wins records.
+3. Local queries update the screen live as counts change.
+4. The [conflict rule](#conflict-rule) is applied on the server (a write that applies only if newer, and the position merge for positions), not by the order uploads arrive in.
+5. Downloads never skip a change. A cursor built from timestamps can permanently miss a transaction that commits after the cursor has read past its time, and `hlc` can't drive the cursor because devices stamp it. This is the hardest part, and the reason PowerSync was chosen first.
 
 ### Web
 
-- SQLite runs in the browser. It needs **COOP/COEP headers**, so the host must allow custom headers (EAS Hosting, Cloudflare Pages and Vercel do). With COOP, OAuth sign-in on web redirects instead of opening a popup.
-- expo-sqlite's web support is **alpha**: a tracked risk, with an IndexedDB store behind the same repositories as the fallback.
-- A **PWA service worker** caches the app shell and core content bundle, so the site opens offline after the first visit. The app asks the browser to keep its data (`navigator.storage.persist()`).
-- Articles stay statically rendered for search engines.
+- **Storage** is the browser's, chosen in part 3: IndexedDB, or SQLite compiled to WebAssembly. If the choice needs cross-origin isolation headers, they apply to `/japa` only, and sign-in on `/japa` uses redirects, because those headers cut popups off from the page that opened them.
+- A **service worker** scoped to `/japa` caches its pages and the core content pack, so `/japa` opens offline after the first visit. Part 2 proves this inside the website's Next.js app on Netlify, Safari included.
+- `/japa` asks the browser to keep its data (`navigator.storage.persist()`).
+- JapaDhyan's articles are SageVani articles: rendered on the server, cached, and found by search engines like any other.
 
 ### Server (Supabase)
 
+Requirements for part 3. The [first version](https://github.com/shashesh/japadhyan/tree/master/supabase) of this schema, with its pgTAP tests, is in the archived repository.
+
+- JapaDhyan's tables live in their own `japa` schema in the website's Supabase project, apart from Payload's `payload` schema.
 - Tables mirror the shared types, in snake_case.
-- Every user table has `user_id uuid not null` referencing `auth.users` **with cascade delete**, so deleting the user deletes everything they own.
-- `user_id = auth.uid()` row-level security on every user table, for reading and writing. **With PowerSync** it guards writes only: the service replicates with `BYPASSRLS`, so the sync stream queries must filter downloads by `user_id` themselves, and are reviewed as security code ([decision](../decisions/2026-09-22-sync-engine-powersync.md)).
-- **Links stay within one user:** `count_events (user_id, session_id)` references `sessions (user_id, id)`, so an event can't point at another user's session. The same pattern applies to any future link between user tables. The key also carries `practice_id`, `local_day` and `steps_per_repetition`, so an event can't differ from its session in any of the three ([session](#session)).
+- Every user table has `user_id` referencing the user **with cascade delete**, so deleting the user deletes everything they own.
+- Each devotee reads and writes only their own rows, on every path data takes, uploads and downloads alike.
+- **Links stay within one user:** `count_events (user_id, session_id)` references `sessions (user_id, id)`, so an event can't point at another user's session. The key also carries `practice_id`, `local_day` and `steps_per_repetition`, so an event can't differ from its session in any of the three ([session](#session)).
 - **A count event holds a real count:** `mode` is one of the `ChantMode` values, and `count` is positive, except a correction's, which may be negative but never 0.
+- Sessions are inserted once. The only update is filling in an empty `ended_at`. Count events are never updated or deleted, except by deleting the account.
 - `practice_id` is not a foreign key: it can be a catalog slug, and the catalog isn't in the database.
 - `consents`: user, policy version, date agreed.
-- `delete-account` Edge Function: deletes the user, which removes their data and revokes their sessions. The app checks the account each time it comes online; a deleted account fails that check and starts the [clear-device flow](../product/features/accounts-and-sync.md#deleting-an-account-p1).
-- Content packs are files on a CDN, not database tables.
-- Migrations live in `supabase/migrations/`, with pgTAP tests in `supabase/tests/` (`npm run sync:test`).
-- **Closed by default.** Supabase grants every new table and function in `public` to `anon` and `authenticated`; `auto_expose_new_tables = false` in `supabase/config.toml` and the first migration both turn those defaults off, so each object is granted explicitly or not at all. That includes `service_role`, which has no rights on these tables until a migration grants some. Nothing for `anon`. `authenticated` may read its own rows; insert sessions and count events; update a session's `ended_at` only, once (a column grant, and a trigger that raises `23514` if it changes again); and never write positions directly.
+- Deleting an account deletes the user, which removes their data and revokes their sessions. `/japa` checks the account each time it comes online; a deleted account fails that check and starts the [clear-device flow](../product/features/accounts-and-sync.md#deleting-an-account-p1).
+- Content packs are static files, not database tables.
+- **Closed by default.** Nothing in the `japa` schema is reachable through Supabase's web API unless a migration grants it.
 - **Every text field has a length limit** (practice ids 128 characters, device ids 64, marks 512 bytes, which is 4,096 names), so no row can be made expensive to store or merge.
-- **Positions are written only through `merge_practice_position(row jsonb)`**, which runs the [position merge](#practiceposition) (`merge_position_rows`) under `security definer` with an empty `search_path`. It raises `42501` unless the caller owns the row. It drops a row over 4 KB of JSON text before any other work (measured as text, since a compressed value's stored size would understate it), a malformed row (including a `deleted_hlc` without its `deleted_at`, or the reverse), a non-canonical `practice_id`, an id not derived from the owner and practice, or a clock more than 5 minutes ahead, and answers success, so the upload queue moves on. With no catalog, the server can't check marks against the step count, so within one generation it ORs them whatever their lengths, padding the shorter with zeros. Honest rows in one generation are always the same length. Choosing between lengths pair by pair would make the result depend on arrival order.
-- **`server_now()`** returns the database's time, for signed-in users only, so a device can correct its clock offset before uploading ([conflict rule](#conflict-rule)) instead of having edits dropped for running more than 5 minutes ahead.
-- **The `powersync` publication lists the synced tables by name**, never `for all tables`. PowerSync Cloud connects as `powersync_role` (replication, `bypassrls`, `select` on those tables); its password is set on the hosted database only.
+- **Positions are written only through a merge** that runs the [position merge](#practiceposition) on the server.
+  - It refuses rows the caller doesn't own.
+  - It drops a malformed row, a non-canonical `practice_id`, an id not derived from the owner and practice, or a clock more than 5 minutes ahead, and answers success, so the upload queue moves on.
+  - With no catalog, the server can't check marks against the step count. So within one generation it ORs them whatever their lengths, padding the shorter with zeros.
+- **The server's time** is available to signed-in users, so a device can correct its clock offset before uploading ([conflict rule](#conflict-rule)).
 
 ## Changes to existing code
 
