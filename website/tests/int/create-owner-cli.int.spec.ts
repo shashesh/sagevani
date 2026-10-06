@@ -4,7 +4,12 @@ import { describe, expect, it } from 'vitest'
 // Runs scripts/create-owner.ts the way `npm run owner:create` does, and returns everything it printed.
 const runCli = (env: Record<string, string | undefined>) => {
   const result = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/create-owner.ts'], {
-    env: { ...process.env, NODE_ENV: 'production', ...env },
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      DOTENV_CONFIG_PATH: 'tests/no-such-env-file',
+      ...env,
+    },
     encoding: 'utf-8',
     timeout: 90_000,
   })
@@ -27,9 +32,9 @@ describe('owner:create command', () => {
       DATABASE_URL: 'postgres://owner:db-sekret-123@db.invalid:99999/sagevani',
       OWNER_EMAIL: 'owner@example.com',
       OWNER_NAME: 'Owner',
-      OWNER_PASSWORD: 'owner-sekret-456',
+      OWNER_PASSWORD: 'zq-sekret-4567-x',
     })
     expect(status).toBe(1)
-    expect(output).not.toMatch(/db-sekret-123|owner-sekret-456/)
+    expect(output).not.toMatch(/db-sekret-123|zq-sekret-4567-x/)
   })
 })
