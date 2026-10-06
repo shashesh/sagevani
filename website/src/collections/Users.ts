@@ -32,8 +32,9 @@ export const allowOwnerChange = (): RequestContext => ({ allowOwnerChange: OWNER
 const ownerChangeAllowed = (context: RequestContext): boolean =>
   context.allowOwnerChange === OWNER_CHANGE_TOKEN
 
-// Outside development and tests, the owner account is created only by the owner CLI.
-const firstUserSignUpAllowed = (): boolean => process.env.NODE_ENV !== 'production'
+// Only local development and tests may create the first account through sign-up; everywhere else
+// (production, staging, or an unset NODE_ENV) the owner comes from the owner CLI.
+const firstUserSignUpAllowed = (): boolean => ['development', 'test'].includes(process.env.NODE_ENV ?? '')
 
 const countUsers = async (req: PayloadRequest, ownersOnly = false): Promise<number> => {
   const { totalDocs } = await req.payload.count({

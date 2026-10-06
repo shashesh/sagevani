@@ -304,19 +304,21 @@ describe('users and roles', () => {
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
   })
 
-  it('refuses the first sign-up in production, even with access overridden', async () => {
+  it('refuses the first sign-up outside development and tests, even with access overridden', async () => {
     // overrideAccess mirrors what POST /api/users/first-register does.
-    vi.stubEnv('NODE_ENV', 'production')
-    try {
-      await expect(
-        payload.create({
-          collection: 'users',
-          data: { email: 'first@example.com', name: 'First', password, role: 'owner' },
-          overrideAccess: true,
-        }),
-      ).rejects.toThrow(/owner CLI/)
-    } finally {
-      vi.unstubAllEnvs()
+    for (const nodeEnv of ['production', 'staging', '']) {
+      vi.stubEnv('NODE_ENV', nodeEnv)
+      try {
+        await expect(
+          payload.create({
+            collection: 'users',
+            data: { email: 'first@example.com', name: 'First', password, role: 'owner' },
+            overrideAccess: true,
+          }),
+        ).rejects.toThrow(/owner CLI/)
+      } finally {
+        vi.unstubAllEnvs()
+      }
     }
   })
 
