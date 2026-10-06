@@ -6,6 +6,7 @@ import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
 import { Users } from './collections/Users'
+import { DB_SCHEMA } from './lib/db-schema'
 import { parseServerEnv } from './lib/env'
 
 const filename = fileURLToPath(import.meta.url)
@@ -30,6 +31,8 @@ export default buildConfig({
     pool: {
       connectionString: env.DATABASE_URL,
     },
+    schemaName: DB_SCHEMA,
+    migrationDir: path.resolve(dirname, 'migrations'),
   }),
   sharp,
   plugins: [],
