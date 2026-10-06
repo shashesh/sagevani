@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 
+import { USERS_SLUG } from '../access/roles'
 import { allowOwnerChange } from '../collections/Users'
 
 export const MIN_OWNER_PASSWORD_LENGTH = 12
@@ -36,12 +37,12 @@ export async function createOwner(payload: Payload, input: OwnerInput) {
   if (!name) throw new Error('The owner name must not be empty.')
   checkOwnerPassword({ email, name, password: input.password })
 
-  const { totalDocs } = await payload.count({ collection: 'users', overrideAccess: true })
+  const { totalDocs } = await payload.count({ collection: USERS_SLUG, overrideAccess: true })
   if (totalDocs > 0) {
     throw new Error('Refusing to create an owner: this database already has user accounts.')
   }
   return payload.create({
-    collection: 'users',
+    collection: USERS_SLUG,
     data: { email, name, password: input.password, role: 'owner' },
     overrideAccess: true,
     context: allowOwnerChange(),
