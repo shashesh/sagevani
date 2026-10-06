@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-09-23
+updated: 2026-10-06
 ---
 
 # Transliteration: vidyut-lipi, with our own rules for `latin`
@@ -102,11 +103,7 @@ With these rules our four samples become **Om Namah Shivaya**, **Om Shri Vishnav
 ## Consequences
 
 - **The npm package is young and unofficial.** Upstream vidyut publishes no npm package. `@siva-sh/vidyut` is a one-maintainer binding built from a fork (0.3.0, August 2026, no provenance attestation); its output matched the official Python binding on the samples we compared. We pin the exact version (the lockfile pins its integrity hash), upgrade deliberately, review the package's glue code (standard `wasm-bindgen`, no install scripts) and read the diff of generated text on every upgrade. If the binding goes stale, the exits are building the MIT crate to WebAssembly ourselves or falling back to `sanscript.js`; both are contained, because the build's output is checked against the round trip and the reviewed snapshot.
-- **The package never runs where the signing key can be reached.** Pinning doesn't stop compromised code from running, so the boundary is in how the build runs ([signing](../architecture/content-pipeline.md#signing)):
-  - The key is protected by its encryption and a clean signing folder, not by the build's sandbox. `npm install` and `npm test` already run the package with the owner's full permissions, so the key file is encrypted, and its passphrase is typed only into the signing script, run from a fresh clone where `npm install` never ran.
-  - Signing is a separate step: a small script that uses only Node's built-ins, imports nothing from the build, re-hashes the packs against the manifest, and signs only that. Generating and packing also run under Node's permission model, as an extra layer.
-
-  The worst compromised code can do is write wrong text, which the IAST check, the round trip and the reviewed snapshot are there to catch.
+- **Content signing was dropped on 2026-10-06** ([D-006](../../../../docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa)), and the build's sandbox with it, so no key is at risk. The package still runs with the owner's permissions whenever the build or the tests run, which is why it stays pinned and every upgrade's diff of generated text is read. The worst compromised code can do is write wrong text, which the IAST check, the round trip and the reviewed snapshot are there to catch.
 
 - **vidyut-lipi itself is quiet.** The crate's last release was 0.2.0 in January 2025; the repository is active on its other crates. Transliteration tables change rarely, so this matters less than it would for a parser, but bugs we find may be ours to report and wait on.
 - **Schema change, for the owner to approve with the build.** The content schema rejects `latin` today ("generated at build time; write only the source script and IAST"). The override needs it to accept an optional hand-written `latin` in a practice's step `text`, `words` and `name`, and [content-pipeline](../architecture/content-pipeline.md#source-content) to say `latin` is the one generated script that may be overridden. The export schema is unchanged.
@@ -117,7 +114,7 @@ With these rules our four samples become **Om Namah Shivaya**, **Om Shri Vishnav
 - **vidyut-lipi misreads ā followed by another vowel in romanised text.** After a consonant, `sāī` becomes सी instead of साई, `sāu` becomes सु and `sāa` becomes स, in IAST, ISO 15919, Harvard-Kyoto and SLP1 alike; the official Python package does the same. Devanagari to IAST is correct (साई → sāī), and the build never reads IAST back, so our checks are unaffected. It matters for names such as Sai and Bhai; reported upstream as [ambuda-org/vidyut#253](https://github.com/ambuda-org/vidyut/issues/253).
 - **Each script's conventions are ours to choose.** vidyut-lipi follows the source spelling: शान्ति stays శాన్తి in Telugu, where Telugu readers usually write శాంతి; Tamil marks anusvara as ம்ʼ; chandrabindu reads oddly in Tamil (हँस → ஹம்ˮஸ). The build applies a small, tested set of rules per script after transliterating, like the `latin` rules, and a reader of that script signs them off before the script ships.
 - **IAST is written in lower case with ṃ, not ṁ.** vidyut-lipi garbles capitalised IAST and reads ṁ as a Vedic anusvara (ꣳ). The build rejects both.
-- **`@siva-sh/vidyut` goes into [TECH-VERSIONS](../../TECH-VERSIONS.md)** when the build installs it.
+- **`@siva-sh/vidyut` is pinned** in `website/package.json`.
 
 ## Sources
 

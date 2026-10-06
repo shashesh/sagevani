@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-09-23
+updated: 2026-10-06
 ---
 
 # Catalog schemas use Zod
@@ -27,6 +28,6 @@ Each catalog entity has two forms, built from one set of shapes:
 
 ## Consequences
 
-- One more runtime dependency in the app bundle, listed in [TECH-VERSIONS](../../TECH-VERSIONS.md).
+- One more runtime dependency in the browser bundle. The website already depends on Zod.
 - A pack that fails its schema is rejected like one whose checksum doesn't match, and the app keeps what it has.
 - Rules that span files — a practice's deities exist, a deity's parent exists, a version never goes down, a new step count comes with a new version — belong to the content build, not the schemas.
