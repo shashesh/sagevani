@@ -1,4 +1,6 @@
-// Any setup scripts you might need go here
+// Test settings take precedence: dotenv never overwrites a variable that is already set,
+// so values from .env.test (or CI) win over the developer's .env.
+import { config } from 'dotenv'
 
-// Load .env files
-import 'dotenv/config'
+config({ path: '.env.test' })
+config({ path: '.env' })
