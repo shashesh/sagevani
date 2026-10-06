@@ -1857,6 +1857,19 @@ const cms = (): Payload => {
   return payload
 }
 
+// Supabase always has these roles; plain local Postgres does not, so tests create them.
+const ensureApiRoles = async () => {
+  for (const role of ['anon', 'authenticated']) {
+    await db().query(
+      `DO $$ BEGIN
+         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
+           CREATE ROLE ${role} NOLOGIN;
+         END IF;
+       END $$`,
+    )
+  }
+}
+
 describe('database layout', () => {
   beforeAll(async () => {
     payload = await getPayload({ config: await config })
@@ -1904,14 +1917,8 @@ describe('database layout', () => {
   })
 
   it("revokes Supabase's API roles from the schema when they exist", async () => {
+    await ensureApiRoles()
     for (const role of ['anon', 'authenticated']) {
-      await db().query(
-        `DO $$ BEGIN
-           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
-             CREATE ROLE ${role} NOLOGIN;
-           END IF;
-         END $$`,
-      )
       await db().query(`GRANT USAGE ON SCHEMA "${DB_SCHEMA}" TO ${role}`)
       await db().query(`GRANT SELECT ON ALL TABLES IN SCHEMA "${DB_SCHEMA}" TO ${role}`)
     }
@@ -1929,6 +1936,43 @@ describe('database layout', () => {
     expect(rows.filter((r) => r.usage || r.can_select)).toEqual([])
   })
 
+  it('does nothing, and does not fail, when the schema does not exist yet', async () => {
+    await expect(hardenSchema(db(), 'payload_schema_that_does_not_exist')).resolves.toBe(false)
+  })
+
+  it('can run again, and covers tables created after an earlier hardening', async () => {
+    await hardenSchema(db(), DB_SCHEMA)
+    await db().query(`CREATE TABLE "${DB_SCHEMA}".hardening_check (id int)`)
+    try {
+      await expect(hardenSchema(db(), DB_SCHEMA)).resolves.toBe(true)
+      const { rows } = await db().query<{ relrowsecurity: boolean }>(
+        `SELECT c.relrowsecurity
+           FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = $1 AND c.relname = 'hardening_check'`,
+        [DB_SCHEMA],
+      )
+      expect(rows).toEqual([{ relrowsecurity: true }])
+    } finally {
+      await db().query(`DROP TABLE "${DB_SCHEMA}".hardening_check`)
+    }
+  })
+
+  it('removes default privileges that would grant the API roles access to future objects', async () => {
+    await ensureApiRoles()
+    await db().query(`ALTER DEFAULT PRIVILEGES IN SCHEMA "${DB_SCHEMA}" GRANT SELECT ON TABLES TO anon`)
+    await db().query(`ALTER DEFAULT PRIVILEGES IN SCHEMA "${DB_SCHEMA}" GRANT USAGE ON SEQUENCES TO authenticated`)
+
+    await hardenSchema(db(), DB_SCHEMA)
+
+    const { rows } = await db().query<{ acl: string }>(
+      `SELECT array_to_string(d.defaclacl, ',') AS acl
+         FROM pg_default_acl d JOIN pg_namespace n ON n.oid = d.defaclnamespace
+        WHERE n.nspname = $1`,
+      [DB_SCHEMA],
+    )
+    expect(rows.filter((r) => /(^|,)(anon|authenticated)=/.test(r.acl))).toEqual([])
+  })
+
   it('still lets Payload read and write after hardening', async () => {
     await hardenSchema(db(), DB_SCHEMA)
     const created = await cms().create({
@@ -1941,15 +1985,22 @@ describe('database layout', () => {
       },
       overrideAccess: true,
     })
-    const found = await cms().findByID({ collection: 'users', id: created.id, overrideAccess: true })
-    expect(found.email).toBe('after-rls@example.com')
-    // On an empty database this user becomes the owner, which may only be removed deliberately.
-    await cms().delete({
-      collection: 'users',
-      id: created.id,
-      overrideAccess: true,
-      context: allowOwnerChange(),
-    })
+    try {
+      const found = await cms().findByID({
+        collection: 'users',
+        id: created.id,
+        overrideAccess: true,
+      })
+      expect(found.email).toBe('after-rls@example.com')
+    } finally {
+      // On an empty database this user becomes the owner, which may only be removed deliberately.
+      await cms().delete({
+        collection: 'users',
+        id: created.id,
+        overrideAccess: true,
+        context: allowOwnerChange(),
+      })
+    }
   })
 })
 ```
@@ -1962,38 +2013,68 @@ The test creates the `anon` and `authenticated` roles locally because they exist
 npm run test:int
 ```
 
-Expected: FAIL because `@/lib/harden-database` can't be resolved (`Failed to resolve import` or `Cannot find package`).
+Expected: FAIL because `@/lib/harden-database` can't be resolved (`Failed to resolve import` or `Cannot find package`). Once the module exists, the tests check that it returns `false` for a missing schema, runs in one transaction, and revokes default privileges as well.
 
 - [ ] **Step 3: Implement** — `website/src/lib/harden-database.ts`
 
 ```ts
-import type { Pool } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 
 // Supabase publishes a web API (PostgREST) for exposed schemas and grants its `anon` and
-// `authenticated` roles access. Payload's tables must never be reachable that way, so we
-// enable row-level security on every table in the schema (no policies = no rows for those
-// roles) and revoke their privileges. Payload connects as the table owner, which RLS does
-// not restrict. Roles that do not exist (e.g. plain local Postgres) are skipped.
+// `authenticated` roles access. Payload's tables must never be reachable that way. Revoking the
+// roles' privileges (schema USAGE first) is the primary lock; row-level security with no policies
+// is the backstop. Payload connects as the table owner, which RLS (without FORCE) does not
+// restrict. Roles that do not exist (e.g. plain local Postgres) are skipped.
+// Everything runs in one transaction, so a failure leaves the schema exactly as it was.
+// Returns false, and changes nothing, when the schema does not exist yet (e.g. before the first migration).
 const API_ROLES = ['anon', 'authenticated'] as const
+const OBJECT_KINDS = ['TABLES', 'SEQUENCES', 'FUNCTIONS'] as const
 
-export async function hardenSchema(pool: Pool, schema: string): Promise<void> {
-  const { rows } = await pool.query<{ tablename: string }>(
-    'SELECT tablename FROM pg_tables WHERE schemaname = $1',
-    [schema],
-  )
-  for (const { tablename } of rows) {
-    await pool.query(`ALTER TABLE "${schema}"."${tablename}" ENABLE ROW LEVEL SECURITY`)
+const ident = (name: string): string => `"${name.replaceAll('"', '""')}"`
+
+export async function hardenSchema(pool: Pool, schema: string): Promise<boolean> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const hardened = await hardenInTransaction(client, schema)
+    await client.query('COMMIT')
+    return hardened
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally {
+    client.release()
   }
+}
 
-  const { rows: roles } = await pool.query<{ rolname: string }>(
+async function hardenInTransaction(client: PoolClient, schema: string): Promise<boolean> {
+  await client.query("SET LOCAL lock_timeout = '10s'")
+  const { rowCount } = await client.query('SELECT 1 FROM pg_namespace WHERE nspname = $1', [schema])
+  if (!rowCount) return false
+
+  const { rows: roles } = await client.query<{ rolname: string }>(
     'SELECT rolname FROM pg_roles WHERE rolname = ANY($1)',
     [API_ROLES],
   )
   for (const { rolname } of roles) {
-    await pool.query(`REVOKE ALL ON SCHEMA "${schema}" FROM "${rolname}"`)
-    await pool.query(`REVOKE ALL ON ALL TABLES IN SCHEMA "${schema}" FROM "${rolname}"`)
-    await pool.query(`REVOKE ALL ON ALL SEQUENCES IN SCHEMA "${schema}" FROM "${rolname}"`)
+    const role = ident(rolname)
+    await client.query(`REVOKE ALL ON SCHEMA ${ident(schema)} FROM ${role}`)
+    for (const kind of OBJECT_KINDS) {
+      await client.query(`REVOKE ALL ON ALL ${kind} IN SCHEMA ${ident(schema)} FROM ${role}`)
+      await client.query(
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA ${ident(schema)} REVOKE ALL ON ${kind} FROM ${role}`,
+      )
+    }
   }
+
+  const { rows: tables } = await client.query<{ tablename: string }>(
+    'SELECT tablename FROM pg_tables WHERE schemaname = $1',
+    [schema],
+  )
+  for (const { tablename } of tables) {
+    await client.query(`ALTER TABLE ${ident(schema)}.${ident(tablename)} ENABLE ROW LEVEL SECURITY`)
+  }
+  return true
 }
 ```
 
@@ -2005,7 +2086,7 @@ The identifiers interpolated into SQL come only from `pg_tables`, `pg_roles` and
 npm run test:int
 ```
 
-Expected: PASS, `29 passed`.
+Expected: PASS, `32 passed` (7 database + 25 users).
 
 - [ ] **Step 5: Add the command-line entry point** — `website/scripts/harden-database.ts`
 
@@ -2017,12 +2098,27 @@ import { DB_SCHEMA } from '../src/lib/db-schema'
 import { parseServerEnv } from '../src/lib/env'
 import { hardenSchema } from '../src/lib/harden-database'
 
+// Deploys pass --require-schema so that hardening a database the migrations never reached fails loudly.
+const requireSchema = process.argv.includes('--require-schema')
+
 const { DATABASE_URL } = parseServerEnv(process.env)
-const pool = new Pool({ connectionString: DATABASE_URL })
+const pool = new Pool({ connectionString: DATABASE_URL, connectionTimeoutMillis: 10_000 })
 
 try {
-  await hardenSchema(pool, DB_SCHEMA)
-  console.log(`Row-level security enabled on every table in schema "${DB_SCHEMA}".`)
+  const hardened = await hardenSchema(pool, DB_SCHEMA)
+  if (hardened) {
+    console.log(`Row-level security enabled on every table in schema "${DB_SCHEMA}".`)
+  } else if (requireSchema) {
+    console.error(
+      `Schema "${DB_SCHEMA}" does not exist, so it could not be hardened. Did the migrations run against this database?`,
+    )
+    process.exitCode = 1
+  } else {
+    console.log(`Schema "${DB_SCHEMA}" does not exist yet; nothing to harden.`)
+  }
+} catch (error) {
+  console.error('db:harden failed:', error instanceof Error ? error.message : error)
+  process.exitCode = 1
 } finally {
   await pool.end()
 }
@@ -2033,7 +2129,11 @@ npm pkg set "scripts.db:harden=cross-env NODE_OPTIONS=--no-deprecation tsx scrip
 npm run db:harden
 ```
 
-Expected: `Row-level security enabled on every table in schema "payload".` This runs against your local `sagevani` database.
+Expected:
+
+- Your local `sagevani` database has no `payload` schema until the dev server or a migration creates it. So `npm run db:harden` prints `Schema "payload" does not exist yet; nothing to harden.` and exits 0.
+- `npm run db:harden -- --require-schema` fails with exit code 1, saying the migrations didn't run. Deploys use this strict form.
+- Against the test database, `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329/sagevani_test npm run db:harden -- --require-schema` prints `Row-level security enabled on every table in schema "payload".`
 
 - [ ] **Step 6: Verify and commit**
 
@@ -2096,7 +2196,7 @@ head -6 src/migrations/*_initial.ts
 - [ ] **Step 4: Add the deploy scripts**
 
 ```bash
-npm pkg set "scripts.deploy:migrate=cross-env NODE_ENV=production NODE_OPTIONS=--no-deprecation payload migrate && npm run db:harden"
+npm pkg set "scripts.deploy:migrate=cross-env NODE_ENV=production NODE_OPTIONS=--no-deprecation payload migrate && npm run db:harden -- --require-schema"
 npm pkg set 'scripts.deploy:build=DATABASE_URL=${DATABASE_MIGRATION_URL:-$DATABASE_URL} npm run deploy:migrate && npm run build'
 ```
 
@@ -2270,7 +2370,7 @@ export async function createOwner(payload: Payload, input: OwnerInput) {
 npm run test:int
 ```
 
-Expected: PASS, `33 passed`.
+Expected: PASS, `36 passed`.
 
 - [ ] **Step 5: Add the command-line entry point** — `website/scripts/create-owner.ts`
 
@@ -2397,7 +2497,7 @@ npm run test:coverage
 
 Expected:
 
-- `Tests  101 passed (101)` (68 unit + 33 integration)
+- `Tests  104 passed (104)` (68 unit + 36 integration)
 - The coverage table shows 100% for `access/roles.ts`, `collections/Users.ts`, `lib/env.ts`, `lib/db-schema.ts`, `lib/harden-database.ts` and `lib/create-owner.ts`.
 - No threshold errors.
 
@@ -2568,7 +2668,7 @@ Never commit `.env`. `.env.test` holds test-only values and is committed on purp
 Do these steps in order. Step 4 must happen before step 5, so that nobody can claim the owner account on a live site.
 
 1. **Supabase:** create two projects, `sagevani-staging` (free plan) and `sagevani-production` (Pro plan), in the agreed region. For each one, copy the transaction pooler and session pooler connection strings from the project's Connect panel.
-2. **Supabase web API:** in each project's API settings, check that `payload` is **not** in the list of exposed schemas. The site never uses Supabase's web API, so you can also turn it off.
+2. **Supabase web API:** in each project's API settings, check that `payload` is **not** in the list of exposed schemas. The site never uses Supabase's web API, so you can also turn it off. After step 3, run `select * from pg_default_acl` in each project's SQL editor and note any entries for `anon` or `authenticated`. The hardening step revokes schema-level defaults, and revoking schema USAGE is the primary lock either way.
 3. **Migrate each database from your machine** (in `website/`, Git Bash):
    `DATABASE_URL="<session pooler URL>" npm run deploy:migrate`
 4. **Create your owner account in each database:**
@@ -2609,6 +2709,7 @@ Follow `website/docs/environments.md`, "Set up staging and production", steps 1 
 An agent may walk the owner through these steps but must not create accounts, enter secrets, or start deploys itself.
 
 - [ ] **Step 1:** Supabase projects exist, and `payload` is not an exposed schema in either.
+- [ ] **Step 1b:** `select * from pg_default_acl` was run in each project and the results noted, as the Task 8 review advised.
 - [ ] **Step 2:** `deploy:migrate` succeeded on staging and on production.
 - [ ] **Step 3:** `owner:create` succeeded on staging and on production.
 - [ ] **Step 4:** The Netlify site is connected, with variables scoped per deploy context.
