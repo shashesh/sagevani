@@ -1,0 +1,37 @@
+import { describe, expect, it } from 'vitest'
+
+import { parseServerEnv } from '@/lib/env'
+
+const VALID = {
+  DATABASE_URL: 'postgres://postgres:postgres@127.0.0.1:5432/sagevani',
+  PAYLOAD_SECRET: 'a'.repeat(32),
+}
+
+describe('parseServerEnv', () => {
+  it('returns the variables when all are valid', () => {
+    expect(parseServerEnv(VALID)).toEqual(VALID)
+  })
+
+  it('accepts the postgresql:// scheme', () => {
+    const env = { ...VALID, DATABASE_URL: 'postgresql://u:p@db.example.com:6543/postgres' }
+    expect(parseServerEnv(env).DATABASE_URL).toBe(env.DATABASE_URL)
+  })
+
+  it('names every missing variable in one error', () => {
+    expect(() => parseServerEnv({})).toThrowError(
+      /DATABASE_URL: is required[\s\S]*PAYLOAD_SECRET: is required/,
+    )
+  })
+
+  it('rejects a non-postgres connection string', () => {
+    expect(() => parseServerEnv({ ...VALID, DATABASE_URL: 'mongodb://127.0.0.1/sagevani' })).toThrowError(
+      /DATABASE_URL: must be a postgres:\/\/ connection string/,
+    )
+  })
+
+  it('rejects a short secret', () => {
+    expect(() => parseServerEnv({ ...VALID, PAYLOAD_SECRET: 'short' })).toThrowError(
+      /PAYLOAD_SECRET: must be at least 32 characters/,
+    )
+  })
+})
