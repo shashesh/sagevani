@@ -37,8 +37,8 @@ describe('parseServerEnv', () => {
 
   it('trims whitespace around values, such as a stray space or a Windows line ending', () => {
     const env = parseServerEnv({
-      DATABASE_URL: ` ${VALID.DATABASE_URL} `,
-      PAYLOAD_SECRET: ` ${VALID.PAYLOAD_SECRET}`,
+      DATABASE_URL: ` ${VALID.DATABASE_URL} \r`,
+      PAYLOAD_SECRET: ` ${VALID.PAYLOAD_SECRET}\r`,
     })
     expect(env).toEqual(VALID)
   })
