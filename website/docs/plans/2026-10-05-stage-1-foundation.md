@@ -2909,8 +2909,10 @@ Later, whenever a pull request adds a migration, repeat steps 1, 2 and 5 against
 
 ### 4. Connect Netlify
 
+Importing the site makes Netlify build `main` for production straight away. Finish sections 1 to 3 for production first.
+
 1. Add a new site from the GitHub repository `shashesh/sagevani`. Build settings come from `netlify.toml`.
-2. Under **Project configuration → Environment variables**, set:
+2. In the import screen, before you deploy, add the variables below. You can change them later under **Project configuration → Environment variables**. If the first build starts without them, it fails without publishing anything; add them, then trigger the deploy again.
 
    | Variable | Production | Deploy Previews and Branch deploys |
    | --- | --- | --- |
@@ -2922,12 +2924,12 @@ Later, whenever a pull request adds a migration, repeat steps 1, 2 and 5 against
    - Tick **Contains secret values** for `DATABASE_URL`, `DATABASE_MIGRATION_URL` and `PAYLOAD_SECRET`. Netlify then masks them, and fails a build that would expose them in the code or the build output.
    - Builds need these values as well as the running site, because `next build` loads the configuration. Netlify's free plan makes every variable available to both. On a plan with scopes, give `DATABASE_MIGRATION_URL` the **Builds** scope only.
    - A production deploy without `DATABASE_MIGRATION_URL` stops with `Set DATABASE_MIGRATION_URL to the Supabase session-pooler URL`.
-3. Before the first deploy, set:
-   - **Deploy log visibility: Private logs.** The repository is public, and Netlify makes deploy logs public by default for public repositories.
+3. As soon as the site exists, set:
+   - **Deploy log visibility: Private logs.** The repository is public, and Netlify makes deploy logs public by default for public repositories. Values marked secret are masked in the logs either way.
    - **Sensitive variable policy: Require approval.** This is the default. It keeps pull requests from people outside your Netlify team, including forks, from building with your variables until you approve them.
-   - **Project visibility for previews: Private,** under **Project configuration → General → Visitor access → Project visibility.** Previews connect to the staging database, so only you should see them. Keep production private as well until launch.
-4. The open pull request's deploy preview builds against staging. Open `/admin` on the preview address and sign in with the staging owner account.
-5. Merging to `main` triggers the first production deploy. Sign in at `/admin` with the production owner account.
+   - **Project visibility: Private** for production and for previews, under **Project configuration → General → Visitor access → Project visibility.** Previews connect to the staging database, so only you should see them. Make production public at launch.
+4. When the production deploy finishes, open `/admin` on the site's address and sign in with the production owner account.
+5. Staging is checked through deploy previews. The next pull request you open gets a preview built against staging; open `/admin` there and sign in with the staging owner account.
 
 ## Until production is on Pro
 
@@ -3012,9 +3014,11 @@ An agent may walk the owner through these steps but must not create accounts, en
 - [ ] **Step 2:** `deploy:migrate` succeeded on staging and on production.
 - [ ] **Step 3:** `owner:create` succeeded on staging and on production.
 - [ ] **Step 4:** The Netlify site is connected, with variables set per deploy context and the secret ones marked as secret.
-- [ ] **Step 4b:** Deploy logs are private, the sensitive variable policy is "Require approval", and previews are private.
-- [ ] **Step 5:** A deploy preview of this pull request builds, and signing in at `<preview URL>/admin` works with the staging owner account.
-- [ ] **Step 6:** After the merge, the production deploy migrates and builds, and signing in at `/admin` works with the production owner account.
+- [ ] **Step 4b:** Deploy logs are private, the sensitive variable policy is "Require approval", and production and previews are private.
+- [ ] **Step 5:** The production deploy migrates and builds, and signing in at `/admin` works with the production owner account.
+- [ ] **Step 6:** The next pull request's deploy preview builds against staging, and signing in at `<preview URL>/admin` works with the staging owner account.
+
+The owner merged pull request #1 on 2026-10-06, before Netlify was connected. So the first Netlify build is a production deploy of `main`, and staging is first checked through the next pull request's preview.
 
 **If the first Netlify build fails:**
 
