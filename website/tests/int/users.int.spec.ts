@@ -1,5 +1,5 @@
-import { getPayload, type Payload } from 'payload'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { createLocalReq, getPayload, type Payload } from 'payload'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { allowOwnerChange } from '@/collections/Users'
 import config from '@/payload.config'
@@ -78,14 +78,15 @@ describe('users and roles', () => {
   it('does not let an assistant promote themselves', async () => {
     await createOwner()
     const assistant = await createAssistant()
-    const updated = await payload.update({
-      collection: 'users',
-      id: assistant.id,
-      data: { role: 'owner' },
-      overrideAccess: false,
-      user: assistant,
-    })
-    expect(updated.role).toBe('assistant')
+    await expect(
+      payload.update({
+        collection: 'users',
+        id: assistant.id,
+        data: { role: 'owner' },
+        overrideAccess: false,
+        user: assistant,
+      }),
+    ).rejects.toThrow(/not allowed/i)
   })
 
   it('shows an assistant only their own account', async () => {
@@ -178,6 +179,165 @@ describe('users and roles', () => {
       user: owner,
     })
     expect(updated).toMatchObject({ name: 'Renamed', role: 'owner' })
+  })
+
+  it('does not let an assistant change their own password or API key', async () => {
+    await createOwner()
+    const assistant = await createAssistant()
+    for (const data of [{ password: 'attacker-chosen-password' }, { enableAPIKey: true, apiKey: 'new-key' }]) {
+      await expect(
+        payload.update({ collection: 'users', id: assistant.id, data, overrideAccess: false, user: assistant }),
+      ).rejects.toThrow(/not allowed/i)
+    }
+  })
+
+  it('does not let an assistant change the owner email, password or API key', async () => {
+    const owner = await createOwner()
+    const assistant = await createAssistant()
+    const attempts = [
+      { email: 'attacker@example.com' },
+      { password: 'attacker-chosen-password' },
+      { enableAPIKey: true, apiKey: 'attacker-key' },
+    ]
+    for (const data of attempts) {
+      await expect(
+        payload.update({ collection: 'users', id: owner.id, data, overrideAccess: false, user: assistant }),
+      ).rejects.toThrow(/not allowed/i)
+    }
+    await expect(
+      payload.login({ collection: 'users', data: { email: 'owner@example.com', password } }),
+    ).resolves.toMatchObject({ user: { email: 'owner@example.com' } })
+  })
+
+  it('hides the owner from an assistant looking them up by id', async () => {
+    const owner = await createOwner()
+    const assistant = await createAssistant()
+    await expect(
+      payload.findByID({ collection: 'users', id: owner.id, overrideAccess: false, user: assistant }),
+    ).rejects.toThrow(/not found/i)
+  })
+
+  it('does not let an assistant create accounts', async () => {
+    await createOwner()
+    const assistant = await createAssistant()
+    await expect(
+      payload.create({
+        collection: 'users',
+        data: { email: 'new@example.com', name: 'New', password, role: 'assistant' },
+        overrideAccess: false,
+        user: assistant,
+      }),
+    ).rejects.toThrow(/not allowed/i)
+  })
+
+  it('refuses a bulk promotion to owner and reports it per document', async () => {
+    const owner = await createOwner()
+    await createAssistant()
+    const result = await payload.update({
+      collection: 'users',
+      where: { role: { equals: 'assistant' } },
+      data: { role: 'owner' },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(result.docs).toEqual([])
+    expect(result.errors.map((error) => error.message)).toEqual(['There can only be one owner account.'])
+    const { totalDocs } = await payload.count({ collection: 'users', where: { role: { equals: 'owner' } } })
+    expect(totalDocs).toBe(1)
+  })
+
+  it('keeps the owner when a bulk delete matches every account', async () => {
+    const owner = await createOwner()
+    await createAssistant()
+    const result = await payload.delete({
+      collection: 'users',
+      where: { id: { exists: true } },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(result.docs.map((user) => user.email)).toEqual(['assistant@example.com'])
+    expect(result.errors.map((error) => error.message)).toEqual(['The owner account cannot be deleted.'])
+    await expect(payload.findByID({ collection: 'users', id: owner.id })).resolves.toMatchObject({ role: 'owner' })
+  })
+
+  it('lets the owner delete an assistant', async () => {
+    const owner = await createOwner()
+    const assistant = await createAssistant()
+    await expect(
+      payload.delete({ collection: 'users', id: assistant.id, overrideAccess: false, user: owner }),
+    ).resolves.toMatchObject({ email: 'assistant@example.com' })
+  })
+
+  it('lets the owner unlock a locked assistant', async () => {
+    const owner = await createOwner()
+    await createAssistant()
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await expect(
+        payload.login({ collection: 'users', data: { email: 'assistant@example.com', password: 'wrong' } }),
+      ).rejects.toThrow()
+    }
+    await expect(
+      payload.unlock({
+        collection: 'users',
+        data: { email: 'assistant@example.com', password: '' },
+        overrideAccess: false,
+        req: { user: { ...owner, collection: 'users' } },
+      }),
+    ).resolves.toBe(true)
+    await expect(
+      payload.login({ collection: 'users', data: { email: 'assistant@example.com', password } }),
+    ).resolves.toMatchObject({ user: { email: 'assistant@example.com' } })
+  })
+
+  it('creates at most one owner when first sign-ups race', async () => {
+    const results = await Promise.allSettled(
+      [1, 2, 3].map((n) =>
+        payload.create({
+          collection: 'users',
+          data: { email: `race${n}@example.com`, name: 'Race', password, role: 'assistant' },
+          overrideAccess: false,
+        }),
+      ),
+    )
+    const { totalDocs } = await payload.count({ collection: 'users', where: { role: { equals: 'owner' } } })
+    expect(totalDocs).toBe(1)
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+  })
+
+  it('refuses the first sign-up in production, even with access overridden', async () => {
+    // overrideAccess mirrors what POST /api/users/first-register does.
+    vi.stubEnv('NODE_ENV', 'production')
+    try {
+      await expect(
+        payload.create({
+          collection: 'users',
+          data: { email: 'first@example.com', name: 'First', password, role: 'owner' },
+          overrideAccess: true,
+        }),
+      ).rejects.toThrow(/owner CLI/)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('keeps the maintenance flag through nested Local API calls', async () => {
+    const owner = await createOwner()
+    const req = await createLocalReq({ context: allowOwnerChange() }, payload)
+    await payload.count({ collection: 'users', req })
+    await payload.delete({ collection: 'users', id: owner.id, req })
+    const { totalDocs } = await payload.count({ collection: 'users' })
+    expect(totalDocs).toBe(0)
+  })
+
+  it('lets server code demote the owner with the maintenance flag', async () => {
+    const owner = await createOwner()
+    const updated = await payload.update({
+      collection: 'users',
+      id: owner.id,
+      data: { role: 'assistant' },
+      context: allowOwnerChange(),
+    })
+    expect(updated.role).toBe('assistant')
   })
 
   it('locks login after five failed attempts', async () => {
