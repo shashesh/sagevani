@@ -25,7 +25,7 @@
 
 - Date: 2026-10-05
 - Status: Confirmed by owner
-- Draft location: Same workspace, under `content/drafts/`.
+- Draft location: Same workspace, under `content/drafts/`. Superseded for article drafts by [D-005](#d-005--drafts-in-the-cms-admin-access-region-and-database-plan): they now live in the website's CMS.
 - Privacy meaning: Unfinished drafts are not published on the website. The owner did not request repository-level secrecy for drafts.
 - Drafting assistance: Assistant may draft without asking first; owner approval is required before publication.
 - Public author byline: `Sagevani`, exactly as confirmed. The project name remains `SageVani`.
@@ -70,6 +70,35 @@
   - Difficulty labels (Q-01).
   - Domain, database region and sender address.
   - Acceptance of the Supabase paid-plan cost.
+- Update: [D-005](#d-005--drafts-in-the-cms-admin-access-region-and-database-plan) settled the draft location, the database region and the paid plan.
+
+## D-005 — Drafts in the CMS, admin access, region and database plan
+
+- Date: 2026-10-06
+- Status: Confirmed by owner
+- Decisions:
+  - **Article drafts live in the CMS.**
+    - Article drafts are written in the website's CMS, not in this repository. Their editorial review lives there too, as the article's admin-only editorial checklist.
+    - Seed cards, Vault entries, research and the foundation stay in this repository.
+    - Completed piece worksheets also stay in this repository, in `content/drafts/`, off the website. This was confirmed in a follow-up answer that resolved Q-10.
+    - The website still never shows unpublished drafts or review notes, and only the owner publishes.
+  - **Only the owner uses the admin panel.** SageVani is a solo project. The assistant role remains so that an AI assistant can draft through its API key (D-003), but it cannot open the admin panel.
+  - **The audience is worldwide.** There is no reader region.
+  - **Supabase Pro when the site is launch-ready.** Production stays on the free plan until then. Staging stays on the free plan.
+- Consequences (assistant recommendations that follow from the decisions; the owner may change them):
+  - **Database region.** A Supabase project still needs one region. Both projects go in East US (Ohio). Netlify runs the site's server code in US East (Ohio) by default, and only paid Netlify plans can move it. Every page render queries the database, so the database sits next to that code. Readers worldwide are served through Netlify's global network.
+  - **Separate organizations.** Supabase plans apply to a whole organization, and an organization can't mix paid and free projects. So production goes in its own organization, and upgrading it at launch leaves staging free.
+  - **Until production is on Pro:**
+    - Free projects pause after a week without activity. You can resume them from the dashboard.
+    - Free projects have no automatic backups. Drafts written in production need the manual backup in the [environments guide](../../website/docs/environments.md#until-production-is-on-pro).
+- Evidence: Owner's answers on 2026-10-06 in the website build session.
+- Supersedes:
+  - D-003's draft location (`content/drafts/`) for article drafts and their reviews.
+  - D-004's pending draft-location, region and paid-plan items.
+  - Spec section 18, items 2, 6 (the region) and 7.
+- Pending:
+  - Domain and sender address.
+  - Difficulty labels (Q-01).
 
 ## New decision template
 

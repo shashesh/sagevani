@@ -9,7 +9,7 @@
 - **Local:** Postgres 17 runs in Docker, and Payload's automatic schema "push" keeps the database in sync during development.
 - **Deployed:** databases change only through committed migrations, followed by a hardening step that enables row-level security and revokes Supabase's API roles.
 
-**Tech Stack:** Payload 3.90.2, Next.js 16.3, React 19.2, TypeScript 5.7, Postgres 17, Zod 4, Vitest 4, Playwright 1.58, ESLint 9 (Next flat config), GitHub Actions, Netlify, Supabase.
+**Tech Stack:** Payload 3.90.2, Next.js 16.3.8, React 19.2, TypeScript 5.7, Postgres 17, Zod 4, Vitest 4, Playwright 1.58, ESLint 9 (Next flat config), GitHub Actions, Netlify, Supabase.
 
 **Spec:** [`../specs/2026-10-05-sagevani-website-design.md`](../specs/2026-10-05-sagevani-website-design.md), sections 4, 5.3 (users), 9, 13, 14 and 16 (stage 1).
 
@@ -42,10 +42,12 @@
 | `website/src/lib/db-schema.ts` | The schema name constant (`payload`) |
 | `website/src/lib/harden-database.ts` | Enables RLS and revokes Supabase API roles on the schema |
 | `website/src/lib/create-owner.ts` | Creates the single owner account on an empty database |
+| `website/src/lib/database-pool.ts` | Connection settings shared by the app and the scripts, with verified TLS (added after the final review) |
+| `website/src/lib/describe-error.ts`, `website/src/lib/reset-owner-password.ts` | Secret-safe error text for the command-line tools; owner password recovery (added after the final review) |
 | `website/src/access/roles.ts` | Role constants and access helpers |
 | `website/src/collections/Users.ts` | Users, auth settings, role rules |
 | `website/src/migrations/*` | Committed database migrations |
-| `website/scripts/harden-database.ts`, `website/scripts/create-owner.ts` | Command-line entry points for the two library functions |
+| `website/scripts/harden-database.ts`, `website/scripts/create-owner.ts`, `website/scripts/reset-owner-password.ts` | Command-line entry points for the library functions |
 | `website/src/app/(frontend)/layout.tsx`, `page.tsx` | Placeholder public page |
 | `website/tests/unit/*.unit.spec.ts` | Fast tests with no database |
 | `website/tests/int/*.int.spec.ts` | Tests against the `sagevani_test` database |
@@ -202,27 +204,40 @@ Expected: `npm pkg get private` prints `true` (not `"true"`). The printed script
 npm install --no-audit --no-fund
 npm install --save-exact --no-audit --no-fund zod@4.6.5 pg@8.20.0
 npm install --save-exact --no-audit --no-fund -D @types/pg@8.20.0 @vitest/coverage-v8@4.0.18
+# Security patches over the template's pins (added after the Task 2 review):
+# next 16.3.3 has a critical RCE in next/og ImageResponse (GHSA-vcvr-r3jv-pc5j); sharp 0.35.4 a high advisory (GHSA-wq5f-xc86-pv6w).
+npm install --save-exact --no-audit --no-fund next@16.3.8 sharp@0.35.5
+npm install --save-exact --no-audit --no-fund -D eslint-config-next@16.3.8 @types/node@24.19.1
+npm pkg delete scripts.devsafe
 ```
 
-Expected: `package-lock.json` is created, and `npm ls zod pg @vitest/coverage-v8` shows `zod@4.6.5`, `pg@8.20.0` and `@vitest/coverage-v8@4.0.18`.
+Expected:
+
+- `package-lock.json` is created.
+- `npm ls zod pg @vitest/coverage-v8 next sharp` shows `zod@4.6.5`, `pg@8.20.0`, `@vitest/coverage-v8@4.0.18`, `next@16.3.8` and `sharp@0.35.5`.
+- `npm audit --omit=dev` lists no `next` or `sharp` advisory. Advisories for `undici` through `payload` have no upstream fix yet; track them, and don't run `npm audit fix`.
+
+The template's `devsafe` script is removed because it uses `rm -rf`, which fails when npm runs scripts through `cmd.exe` on Windows.
 
 - [ ] **Step 5: Create `website/docker-compose.yml`**
 
 ```yaml
+name: sagevani
+
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:17
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: sagevani
     ports:
-      - '54329:5432'
+      - '127.0.0.1:54329:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/create-test-database.sql:/docker-entrypoint-initdb.d/create-test-database.sql:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U postgres -d sagevani']
       interval: 2s
       timeout: 3s
       retries: 20
@@ -231,7 +246,9 @@ volumes:
   pgdata:
 ```
 
-Port 54329 avoids clashing with any Postgres already installed on 5432.
+- **Port:** 54329 avoids clashing with any Postgres already installed on 5432. It's bound to `127.0.0.1`, so the trivial local password is never reachable from the network.
+- **Image:** `postgres:17` (glibc) sorts text the same way as Supabase. The Alpine image (musl) does not.
+- **Healthcheck:** it checks over TCP, so `--wait` only returns once the real server is accepting connections.
 
 - [ ] **Step 6: Create `website/docker/create-test-database.sql`**
 
@@ -348,6 +365,58 @@ export default function HomePage() {
 }
 ```
 
+- [ ] **Step 11a: Tighten `.gitignore` and remove template leftovers**
+
+Replace `website/.gitignore`. The template ignored only `.env` and `.env*.local`, which would let `.env.production` slip into a public repository.
+
+```gitignore
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+/.idea/*
+!/.idea/runConfigurations
+
+# testing
+/coverage
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env files: ignore everything except the documented, non-secret ones
+.env*
+!.env.example
+!.env.test
+
+# netlify
+.netlify
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+```
+
+In `website/next.config.ts`, delete the `images: { localPatterns: [...] }` block. It points at the removed Media collection.
+
 - [ ] **Step 12: Regenerate types and the admin import map**
 
 ```bash
@@ -421,6 +490,8 @@ config({ path: '.env.test' })
 config({ path: '.env' })
 ```
 
+Task 4 adds a guard to this file so that tests refuse to run against anything but a `*_test` database.
+
 - [ ] **Step 3: Replace `website/playwright.config.ts`**
 
 ```ts
@@ -435,9 +506,11 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: process.env.CI ? 'github' : 'list',
+  timeout: 60_000,
   use: {
     baseURL,
     trace: 'on-first-retry',
+    navigationTimeout: 45_000,
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
@@ -463,7 +536,15 @@ export default defineConfig([
   ...nextTs,
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
     },
   },
   globalIgnores([
@@ -477,6 +558,28 @@ export default defineConfig([
     'src/migrations/**',
   ]),
 ])
+```
+
+- [ ] **Step 4a: Prettier setup**
+
+The editor's format-on-save hook reformats any file it touches. Formatting everything once avoids noisy diffs later. Create `website/.prettierignore`:
+
+```gitignore
+# Generated by Payload; regenerate instead of formatting by hand
+src/payload-types.ts
+src/app/(payload)/
+src/migrations/
+
+# Authored documents keep their hand formatting
+docs/
+*.md
+```
+
+Then run:
+
+```bash
+npm pkg set "scripts.format=prettier --write ." "scripts.format:check=prettier --check ."
+npm run format
 ```
 
 - [ ] **Step 5: Lint and typecheck**
@@ -544,8 +647,34 @@ describe('parseServerEnv', () => {
       /PAYLOAD_SECRET: must be at least 32 characters/,
     )
   })
+
+  it('trims whitespace around values, such as a stray space or a Windows line ending', () => {
+    const env = parseServerEnv({
+      DATABASE_URL: ` ${VALID.DATABASE_URL} \r`,
+      PAYLOAD_SECRET: ` ${VALID.PAYLOAD_SECRET}\r`,
+    })
+    expect(env).toEqual(VALID)
+  })
+
+  it('rejects a secret that is only whitespace', () => {
+    expect(() => parseServerEnv({ ...VALID, PAYLOAD_SECRET: ' '.repeat(40) })).toThrowError(
+      /PAYLOAD_SECRET: must be at least 32 characters/,
+    )
+  })
+
+  it('never echoes the rejected values in its error', () => {
+    expect(() =>
+      parseServerEnv({ DATABASE_URL: 'mongodb://user:hunter2@h/db', PAYLOAD_SECRET: 'short-secret' }),
+    ).toThrowError(
+      expect.objectContaining({
+        message: expect.not.stringMatching(/hunter2|short-secret/),
+      }),
+    )
+  })
 })
 ```
+
+The `\r` in the trim test must be the two-character escape sequence (backslash, `r`), not a literal carriage return. Git's `eol=lf` setting strips a literal CR at the end of a line.
 
 - [ ] **Step 2: Run it and watch it fail**
 
@@ -553,7 +682,7 @@ describe('parseServerEnv', () => {
 npm run test:unit
 ```
 
-Expected: FAIL with `Failed to resolve import "@/lib/env"`.
+Expected: FAIL because `@/lib/env` can't be resolved. Vitest reports either `Failed to resolve import "@/lib/env"` or `Cannot find package '@/lib/env'`.
 
 - [ ] **Step 3: Implement** — `website/src/lib/env.ts`
 
@@ -563,8 +692,12 @@ import { z } from 'zod'
 const serverEnvSchema = z.object({
   DATABASE_URL: z
     .string({ error: 'is required' })
+    .trim()
     .regex(/^postgres(ql)?:\/\/.+/, 'must be a postgres:// connection string'),
-  PAYLOAD_SECRET: z.string({ error: 'is required' }).min(32, 'must be at least 32 characters'),
+  PAYLOAD_SECRET: z
+    .string({ error: 'is required' })
+    .trim()
+    .min(32, 'must be at least 32 characters'),
 })
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>
@@ -587,7 +720,7 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
 npm run test:unit
 ```
 
-Expected: PASS, `5 passed`.
+Expected: PASS, `8 passed`.
 
 - [ ] **Step 5: Use it in `website/src/payload.config.ts`**
 
@@ -642,6 +775,122 @@ git commit -m "feat: fail fast on missing or invalid website environment variabl
 
 Expected: all three commands pass before the commit.
 
+- [ ] **Step 7: Write the failing test for the test-database guard**
+
+The integration tests in later tasks delete every user. An exported `DATABASE_URL` takes precedence over `.env.test`, so without a guard, running the tests in a shell prepared for staging or production would wipe real accounts.
+
+Create `website/tests/unit/test-database.unit.spec.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest'
+
+import { assertTestDatabase } from '../helpers/test-database'
+
+describe('assertTestDatabase', () => {
+  it('accepts a database whose name ends in _test and returns the name', () => {
+    expect(assertTestDatabase('postgres://u:p@127.0.0.1:54329/sagevani_test')).toBe('sagevani_test')
+  })
+
+  it('ignores query parameters and accepts the postgresql:// scheme', () => {
+    expect(assertTestDatabase('postgresql://u:p@db.example.com:5432/sagevani_test?sslmode=require')).toBe(
+      'sagevani_test',
+    )
+  })
+
+  it('refuses when DATABASE_URL is not set', () => {
+    expect(() => assertTestDatabase(undefined)).toThrowError('Refusing to run tests: DATABASE_URL is not set.')
+    expect(() => assertTestDatabase('')).toThrowError('Refusing to run tests: DATABASE_URL is not set.')
+  })
+
+  it('refuses a development database', () => {
+    expect(() => assertTestDatabase('postgres://u:p@127.0.0.1:54329/sagevani')).toThrowError(
+      'Refusing to run tests: DATABASE_URL must point at a database whose name ends in "_test" (got "sagevani").',
+    )
+  })
+
+  it('refuses a name that only contains _test', () => {
+    expect(() => assertTestDatabase('postgres://u:p@h:5432/sagevani_test_backup')).toThrowError(/got "sagevani_test_backup"/)
+  })
+
+  it('refuses a URL with no database name', () => {
+    expect(() => assertTestDatabase('postgres://u:p@h:5432')).toThrowError(/got "no database name"/)
+  })
+
+  it('refuses something that is not a URL', () => {
+    expect(() => assertTestDatabase('not a url')).toThrowError(
+      'Refusing to run tests: DATABASE_URL is not a valid connection URL.',
+    )
+  })
+
+  it('never echoes the password in its error', () => {
+    expect(() => assertTestDatabase('postgres://user:hunter2@h:5432/production')).toThrowError(
+      expect.objectContaining({ message: expect.not.stringContaining('hunter2') }),
+    )
+  })
+})
+```
+
+Run `npm run test:unit`. Expected: this file fails because `../helpers/test-database` can't be found. The env tests still pass.
+
+- [ ] **Step 8: Implement the guard and use it in the test setup**
+
+`website/tests/helpers/test-database.ts`:
+
+```ts
+// Integration tests delete rows. This guard keeps them away from any database whose name
+// does not end in "_test" — for example a staging or production URL exported in the shell.
+export function assertTestDatabase(databaseUrl: string | undefined): string {
+  if (!databaseUrl) {
+    throw new Error('Refusing to run tests: DATABASE_URL is not set.')
+  }
+
+  let name: string
+  try {
+    name = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\//, ''))
+  } catch {
+    throw new Error('Refusing to run tests: DATABASE_URL is not a valid connection URL.')
+  }
+
+  if (!name.endsWith('_test')) {
+    throw new Error(
+      `Refusing to run tests: DATABASE_URL must point at a database whose name ends in "_test" (got "${name || 'no database name'}").`,
+    )
+  }
+  return name
+}
+```
+
+Replace `website/vitest.setup.ts`:
+
+```ts
+// Test settings take precedence: dotenv never overwrites a variable that is already set,
+// so values from .env.test (or CI) win over the developer's .env.
+import { config } from 'dotenv'
+
+import { assertTestDatabase } from './tests/helpers/test-database'
+
+config({ path: '.env.test' })
+config({ path: '.env' })
+
+// Integration tests delete rows, so never run against anything but a *_test database.
+assertTestDatabase(process.env.DATABASE_URL)
+```
+
+- [ ] **Step 9: Verify both directions and commit**
+
+```bash
+npm run test:unit
+DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329/sagevani npm run test:unit; echo "exit $?"
+npm run lint && npm run typecheck
+git add website
+git commit -m "test: refuse to run tests against anything but a _test database"
+```
+
+Expected:
+
+- The first run passes with `16 passed`.
+- The second fails with `Refusing to run tests: DATABASE_URL must point at a database whose name ends in "_test" (got "sagevani").` and a non-zero exit.
+
 ---
 
 ### Task 5: Role constants and access helpers
@@ -657,17 +906,36 @@ Expected: all three commands pass before the commit.
 import type { PayloadRequest } from 'payload'
 import { describe, expect, it } from 'vitest'
 
-import { isOwner, ownerOnly, ownerOnlyField, ownerOrSelf } from '@/access/roles'
+import { isOwner, ownerOnly, ownerOnlyField, ownerOrOwnAccount } from '@/access/roles'
 
 const reqWith = (user: unknown) => ({ req: { user } as unknown as PayloadRequest })
 
-const owner = { id: 1, role: 'owner' }
-const assistant = { id: 2, role: 'assistant' }
+const owner = { id: 1, collection: 'users', role: 'owner' } as const
+const assistant = { id: 2, collection: 'users', role: 'assistant' } as const
+
+// None of these may be treated as the owner, and none may get even a self-only constraint.
+const untrusted: [string, unknown][] = [
+  ['no role', { id: 3, collection: 'users' }],
+  ['a null role', { id: 3, collection: 'users', role: null }],
+  ['an unknown role', { id: 3, collection: 'users', role: 'admin' }],
+  ['a differently cased role', { id: 3, collection: 'users', role: 'Owner' }],
+  ['a padded role', { id: 3, collection: 'users', role: ' owner' }],
+  ['a role array', { id: 3, collection: 'users', role: ['owner'] }],
+  ['an owner from another auth collection', { id: 1, collection: 'subscribers', role: 'owner' }],
+  ['an assistant from another auth collection', { id: 2, collection: 'subscribers', role: 'assistant' }],
+  ['an owner with no collection', { id: 1, role: 'owner' }],
+  ['an owner with no id', { collection: 'users', role: 'owner' }],
+  ['an assistant with no id', { collection: 'users', role: 'assistant' }],
+  ['an assistant with a null id', { id: null, collection: 'users', role: 'assistant' }],
+  ['an assistant with an empty id', { id: '', collection: 'users', role: 'assistant' }],
+  ['an empty object', {}],
+  ['an undefined user', undefined],
+]
 
 describe('isOwner', () => {
   it('is true only for the owner role', () => {
-    expect(isOwner(owner as never)).toBe(true)
-    expect(isOwner(assistant as never)).toBe(false)
+    expect(isOwner(owner)).toBe(true)
+    expect(isOwner(assistant)).toBe(false)
     expect(isOwner(null)).toBe(false)
     expect(isOwner(undefined)).toBe(false)
   })
@@ -675,30 +943,43 @@ describe('isOwner', () => {
 
 describe('ownerOnly', () => {
   it('allows the owner and denies everyone else', () => {
-    expect(ownerOnly(reqWith(owner) as never)).toBe(true)
-    expect(ownerOnly(reqWith(assistant) as never)).toBe(false)
-    expect(ownerOnly(reqWith(null) as never)).toBe(false)
+    expect(ownerOnly(reqWith(owner))).toBe(true)
+    expect(ownerOnly(reqWith(assistant))).toBe(false)
+    expect(ownerOnly(reqWith(null))).toBe(false)
+  })
+
+  it.each(untrusted)('denies %s', (_label, user) => {
+    expect(ownerOnly(reqWith(user))).toBe(false)
   })
 })
 
 describe('ownerOnlyField', () => {
   it('allows the owner and denies everyone else', () => {
-    expect(ownerOnlyField(reqWith(owner) as never)).toBe(true)
-    expect(ownerOnlyField(reqWith(assistant) as never)).toBe(false)
+    expect(ownerOnlyField(reqWith(owner))).toBe(true)
+    expect(ownerOnlyField(reqWith(assistant))).toBe(false)
+    expect(ownerOnlyField(reqWith(null))).toBe(false)
+  })
+
+  it.each(untrusted)('denies %s', (_label, user) => {
+    expect(ownerOnlyField(reqWith(user))).toBe(false)
   })
 })
 
-describe('ownerOrSelf', () => {
+describe('ownerOrOwnAccount', () => {
   it('gives the owner everything', () => {
-    expect(ownerOrSelf(reqWith(owner) as never)).toBe(true)
+    expect(ownerOrOwnAccount(reqWith(owner))).toBe(true)
   })
 
   it('limits an assistant to their own record', () => {
-    expect(ownerOrSelf(reqWith(assistant) as never)).toEqual({ id: { equals: 2 } })
+    expect(ownerOrOwnAccount(reqWith(assistant))).toEqual({ id: { equals: 2 } })
   })
 
   it('denies anonymous requests', () => {
-    expect(ownerOrSelf(reqWith(null) as never)).toBe(false)
+    expect(ownerOrOwnAccount(reqWith(null))).toBe(false)
+  })
+
+  it.each(untrusted)('denies %s outright', (_label, user) => {
+    expect(ownerOrOwnAccount(reqWith(user))).toBe(false)
   })
 })
 ```
@@ -709,7 +990,7 @@ describe('ownerOrSelf', () => {
 npm run test:unit
 ```
 
-Expected: FAIL with `Failed to resolve import "@/access/roles"`.
+Expected: FAIL because `@/access/roles` can't be resolved (`Failed to resolve import` or `Cannot find package`).
 
 - [ ] **Step 3: Implement** — `website/src/access/roles.ts`
 
@@ -719,18 +1000,35 @@ import type { Access, FieldAccess } from 'payload'
 export const ROLES = ['owner', 'assistant'] as const
 export type Role = (typeof ROLES)[number]
 
-type RoleHolder = { id?: number | string; role?: Role | null } | null | undefined
+/** The only auth collection whose accounts carry a role. Use it as `Users.slug` too. */
+export const USERS_SLUG = 'users'
 
-export const isOwner = (user: RoleHolder): boolean => user?.role === 'owner'
+// req.user is read structurally and every property is checked at runtime, so no cast is needed
+// and anything unexpected (other auth collection, missing id, unknown role) fails closed.
+type RequestUser = { id?: unknown; collection?: unknown; role?: unknown } | null | undefined
+type StaffUser = { id: number | string; collection: typeof USERS_SLUG; role: Role }
 
-export const ownerOnly: Access = ({ req }) => isOwner(req.user as RoleHolder)
+const isRole = (value: unknown): value is Role => (ROLES as readonly unknown[]).includes(value)
 
-export const ownerOnlyField: FieldAccess = ({ req }) => isOwner(req.user as RoleHolder)
+const isStaffUser = (user: RequestUser): user is StaffUser =>
+  user?.collection === USERS_SLUG &&
+  (typeof user.id === 'number' || (typeof user.id === 'string' && user.id !== '')) &&
+  isRole(user.role)
 
-export const ownerOrSelf: Access = ({ req }) => {
-  const user = req.user as RoleHolder
-  if (!user) return false
-  if (isOwner(user)) return true
+export const isOwner = (user: RequestUser): boolean => isStaffUser(user) && user.role === 'owner'
+
+export const ownerOnly: Access = ({ req }) => isOwner(req.user)
+
+export const ownerOnlyField: FieldAccess = ({ req }) => isOwner(req.user)
+
+/**
+ * Users collection only: the owner gets every account, any other staff user only their own.
+ * Never reuse on another collection: it compares the document id with the user's id.
+ */
+export const ownerOrOwnAccount: Access = ({ req }) => {
+  const user = req.user
+  if (!isStaffUser(user)) return false
+  if (user.role === 'owner') return true
   return { id: { equals: user.id } }
 }
 ```
@@ -741,7 +1039,7 @@ export const ownerOrSelf: Access = ({ req }) => {
 npm run test:unit
 ```
 
-Expected: PASS, `11 passed` (env + roles).
+Expected: PASS, `67 passed` (16 env and guard + 51 roles).
 
 - [ ] **Step 5: Verify and commit**
 
@@ -776,33 +1074,50 @@ import { Pool } from 'pg'
 import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { parseServerEnv } from '@/lib/env'
 import config from '@/payload.config'
 
 const DB_SCHEMA = 'payload'
 
-let payload: Payload
-let pool: Pool
+let payload: Payload | undefined
+let pool: Pool | undefined
+
+const db = (): Pool => {
+  if (!pool) throw new Error('The database pool was not created.')
+  return pool
+}
 
 describe('database layout', () => {
   beforeAll(async () => {
     payload = await getPayload({ config: await config })
-    pool = new Pool({ connectionString: process.env.DATABASE_URL })
+    pool = new Pool({ connectionString: parseServerEnv(process.env).DATABASE_URL })
   })
 
   afterAll(async () => {
-    await pool.end()
-    await payload.destroy()
+    await pool?.end()
+    await payload?.destroy()
   })
 
-  it('keeps every Payload table in the dedicated schema, none in public', async () => {
-    const { rows } = await pool.query<{ schemaname: string; tablename: string }>(
-      `SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ('public', $1)`,
+  // Covers the schema Payload pushes in development. The migration path is checked separately
+  // (Task 9) by migrating a fresh database.
+  it('keeps every Payload table, sequence, view and enum in the dedicated schema, none in public', async () => {
+    const { rows: tables } = await db().query<{ tablename: string }>(
+      'SELECT tablename FROM pg_tables WHERE schemaname = $1',
       [DB_SCHEMA],
     )
-    const inSchema = rows.filter((r) => r.schemaname === DB_SCHEMA).map((r) => r.tablename)
-    const inPublic = rows.filter((r) => r.schemaname === 'public').map((r) => r.tablename)
+    expect(tables.map((t) => t.tablename)).toEqual(
+      expect.arrayContaining(['users', 'payload_migrations', 'payload_preferences', 'payload_kv']),
+    )
 
-    expect(inSchema).toContain('users')
+    const { rows: inPublic } = await db().query<{ name: string; kind: string }>(
+      `SELECT c.relname AS name, c.relkind::text AS kind
+         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'S', 'v', 'm')
+       UNION ALL
+       SELECT t.typname AS name, 'enum' AS kind
+         FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE n.nspname = 'public' AND t.typtype = 'e'`,
+    )
     expect(inPublic).toEqual([])
   })
 })
@@ -867,10 +1182,12 @@ export default buildConfig({
 })
 ```
 
-In the test, replace `const DB_SCHEMA = 'payload'` with the shared constant:
+In the test, delete the line `const DB_SCHEMA = 'payload'` and the blank line before it, and import the shared constant as the first `@/` import instead:
 
 ```ts
 import { DB_SCHEMA } from '@/lib/db-schema'
+import { parseServerEnv } from '@/lib/env'
+import config from '@/payload.config'
 ```
 
 - [ ] **Step 5: Clear the tables the failing run left in `public`, then run again**
@@ -903,9 +1220,10 @@ git commit -m "feat: store Payload tables in a dedicated payload schema"
 - [ ] **Step 1: Write the failing test** — `website/tests/int/users.int.spec.ts`
 
 ```ts
-import { getPayload, type Payload } from 'payload'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { createLocalReq, getPayload, type Payload } from 'payload'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { allowOwnerChange } from '@/collections/Users'
 import config from '@/payload.config'
 
 let payload: Payload
@@ -913,12 +1231,24 @@ let payload: Payload
 const password = 'correct-horse-battery-staple'
 
 const clearUsers = () =>
-  payload.delete({ collection: 'users', where: { id: { exists: true } }, overrideAccess: true })
+  payload.delete({
+    collection: 'users',
+    where: { id: { exists: true } },
+    overrideAccess: true,
+    context: allowOwnerChange(),
+  })
 
 const createOwner = () =>
   payload.create({
     collection: 'users',
     data: { email: 'owner@example.com', name: 'Owner', password, role: 'owner' },
+    overrideAccess: true,
+  })
+
+const createAssistant = () =>
+  payload.create({
+    collection: 'users',
+    data: { email: 'assistant@example.com', name: 'Assistant', password, role: 'assistant' },
     overrideAccess: true,
   })
 
@@ -968,51 +1298,280 @@ describe('users and roles', () => {
   })
 
   it('does not let an assistant promote themselves', async () => {
-    const owner = await createOwner()
-    const assistant = await payload.create({
-      collection: 'users',
-      data: { email: 'assistant@example.com', name: 'Assistant', password, role: 'assistant' },
-      overrideAccess: true,
-    })
-    const updated = await payload.update({
-      collection: 'users',
-      id: assistant.id,
-      data: { role: 'owner' },
-      overrideAccess: false,
-      user: assistant,
-    })
-    expect(updated.role).toBe('assistant')
-    expect(owner.role).toBe('owner')
+    await createOwner()
+    const assistant = await createAssistant()
+    await expect(
+      payload.update({
+        collection: 'users',
+        id: assistant.id,
+        data: { role: 'owner' },
+        overrideAccess: false,
+        user: assistant,
+      }),
+    ).rejects.toThrow(/not allowed/i)
   })
 
   it('shows an assistant only their own account', async () => {
     await createOwner()
-    const assistant = await payload.create({
+    const assistant = await createAssistant()
+    const visible = await payload.find({
       collection: 'users',
-      data: { email: 'assistant@example.com', name: 'Assistant', password, role: 'assistant' },
-      overrideAccess: true,
+      overrideAccess: false,
+      user: assistant,
     })
-    const visible = await payload.find({ collection: 'users', overrideAccess: false, user: assistant })
     expect(visible.docs.map((u) => u.email)).toEqual(['assistant@example.com'])
   })
 
   it('does not let an assistant delete accounts', async () => {
     const owner = await createOwner()
-    const assistant = await payload.create({
-      collection: 'users',
-      data: { email: 'assistant@example.com', name: 'Assistant', password, role: 'assistant' },
-      overrideAccess: true,
-    })
+    const assistant = await createAssistant()
     await expect(
       payload.delete({ collection: 'users', id: owner.id, overrideAccess: false, user: assistant }),
     ).rejects.toThrow(/not allowed/i)
+  })
+
+  it('does not let an assistant unlock the owner', async () => {
+    await createOwner()
+    const assistant = await createAssistant()
+    await expect(
+      payload.unlock({
+        collection: 'users',
+        // The generated auth types require a password here, although unlock does not use it.
+        data: { email: 'owner@example.com', password: '' },
+        overrideAccess: false,
+        req: { user: { ...assistant, collection: 'users' } },
+      }),
+    ).rejects.toThrow(/not allowed/i)
+  })
+
+  it('refuses a second owner account', async () => {
+    const owner = await createOwner()
+    await expect(
+      payload.create({
+        collection: 'users',
+        data: { email: 'second@example.com', name: 'Second', password, role: 'owner' },
+        overrideAccess: false,
+        user: owner,
+      }),
+    ).rejects.toThrow('There can only be one owner account.')
+  })
+
+  it('refuses to demote the owner', async () => {
+    const owner = await createOwner()
+    await expect(
+      payload.update({
+        collection: 'users',
+        id: owner.id,
+        data: { role: 'assistant' },
+        overrideAccess: false,
+        user: owner,
+      }),
+    ).rejects.toThrow('The owner account cannot be demoted.')
+  })
+
+  it('refuses to delete the owner', async () => {
+    const owner = await createOwner()
+    await expect(
+      payload.delete({ collection: 'users', id: owner.id, overrideAccess: false, user: owner }),
+    ).rejects.toThrow('The owner account cannot be deleted.')
+  })
+
+  it('ignores look-alike Symbols with the same description', async () => {
+    const owner = await createOwner()
+    for (const lookalike of [Symbol('allowOwnerChange'), Symbol.for('allowOwnerChange')]) {
+      await expect(
+        payload.delete({
+          collection: 'users',
+          id: owner.id,
+          overrideAccess: false,
+          user: owner,
+          context: { allowOwnerChange: lookalike, [lookalike]: true },
+        }),
+      ).rejects.toThrow('The owner account cannot be deleted.')
+    }
+  })
+
+  it('still lets the owner edit their own details', async () => {
+    const owner = await createOwner()
+    const updated = await payload.update({
+      collection: 'users',
+      id: owner.id,
+      data: { name: 'Renamed' },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(updated).toMatchObject({ name: 'Renamed', role: 'owner' })
+  })
+
+  it('does not let an assistant change their own password or API key', async () => {
+    await createOwner()
+    const assistant = await createAssistant()
+    for (const data of [{ password: 'attacker-chosen-password' }, { enableAPIKey: true, apiKey: 'new-key' }]) {
+      await expect(
+        payload.update({ collection: 'users', id: assistant.id, data, overrideAccess: false, user: assistant }),
+      ).rejects.toThrow(/not allowed/i)
+    }
+  })
+
+  it('does not let an assistant change the owner email, password or API key', async () => {
+    const owner = await createOwner()
+    const assistant = await createAssistant()
+    const attempts = [
+      { email: 'attacker@example.com' },
+      { password: 'attacker-chosen-password' },
+      { enableAPIKey: true, apiKey: 'attacker-key' },
+    ]
+    for (const data of attempts) {
+      await expect(
+        payload.update({ collection: 'users', id: owner.id, data, overrideAccess: false, user: assistant }),
+      ).rejects.toThrow(/not allowed/i)
+    }
+    await expect(
+      payload.login({ collection: 'users', data: { email: 'owner@example.com', password } }),
+    ).resolves.toMatchObject({ user: { email: 'owner@example.com' } })
+  })
+
+  it('hides the owner from an assistant looking them up by id', async () => {
+    const owner = await createOwner()
+    const assistant = await createAssistant()
+    await expect(
+      payload.findByID({ collection: 'users', id: owner.id, overrideAccess: false, user: assistant }),
+    ).rejects.toThrow(/not found/i)
+  })
+
+  it('does not let an assistant create accounts', async () => {
+    await createOwner()
+    const assistant = await createAssistant()
+    await expect(
+      payload.create({
+        collection: 'users',
+        data: { email: 'new@example.com', name: 'New', password, role: 'assistant' },
+        overrideAccess: false,
+        user: assistant,
+      }),
+    ).rejects.toThrow(/not allowed/i)
+  })
+
+  it('refuses a bulk promotion to owner and reports it per document', async () => {
+    const owner = await createOwner()
+    await createAssistant()
+    const result = await payload.update({
+      collection: 'users',
+      where: { role: { equals: 'assistant' } },
+      data: { role: 'owner' },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(result.docs).toEqual([])
+    expect(result.errors.map((error) => error.message)).toEqual(['There can only be one owner account.'])
+    const { totalDocs } = await payload.count({ collection: 'users', where: { role: { equals: 'owner' } } })
+    expect(totalDocs).toBe(1)
+  })
+
+  it('keeps the owner when a bulk delete matches every account', async () => {
+    const owner = await createOwner()
+    await createAssistant()
+    const result = await payload.delete({
+      collection: 'users',
+      where: { id: { exists: true } },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(result.docs.map((user) => user.email)).toEqual(['assistant@example.com'])
+    expect(result.errors.map((error) => error.message)).toEqual(['The owner account cannot be deleted.'])
+    await expect(payload.findByID({ collection: 'users', id: owner.id })).resolves.toMatchObject({ role: 'owner' })
+  })
+
+  it('lets the owner delete an assistant', async () => {
+    const owner = await createOwner()
+    const assistant = await createAssistant()
+    await expect(
+      payload.delete({ collection: 'users', id: assistant.id, overrideAccess: false, user: owner }),
+    ).resolves.toMatchObject({ email: 'assistant@example.com' })
+  })
+
+  it('lets the owner unlock a locked assistant', async () => {
+    const owner = await createOwner()
+    await createAssistant()
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await expect(
+        payload.login({ collection: 'users', data: { email: 'assistant@example.com', password: 'wrong' } }),
+      ).rejects.toThrow()
+    }
+    await expect(
+      payload.unlock({
+        collection: 'users',
+        data: { email: 'assistant@example.com', password: '' },
+        overrideAccess: false,
+        req: { user: { ...owner, collection: 'users' } },
+      }),
+    ).resolves.toBe(true)
+    await expect(
+      payload.login({ collection: 'users', data: { email: 'assistant@example.com', password } }),
+    ).resolves.toMatchObject({ user: { email: 'assistant@example.com' } })
+  })
+
+  it('creates at most one owner when first sign-ups race', async () => {
+    const results = await Promise.allSettled(
+      [1, 2, 3].map((n) =>
+        payload.create({
+          collection: 'users',
+          data: { email: `race${n}@example.com`, name: 'Race', password, role: 'assistant' },
+          overrideAccess: false,
+        }),
+      ),
+    )
+    const { totalDocs } = await payload.count({ collection: 'users', where: { role: { equals: 'owner' } } })
+    expect(totalDocs).toBe(1)
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+  })
+
+  it('refuses the first sign-up outside development and tests, even with access overridden', async () => {
+    // overrideAccess mirrors what POST /api/users/first-register does.
+    for (const nodeEnv of ['production', 'staging', '']) {
+      vi.stubEnv('NODE_ENV', nodeEnv)
+      try {
+        await expect(
+          payload.create({
+            collection: 'users',
+            data: { email: 'first@example.com', name: 'First', password, role: 'owner' },
+            overrideAccess: true,
+          }),
+        ).rejects.toThrow(/owner CLI/)
+      } finally {
+        vi.unstubAllEnvs()
+      }
+    }
+  })
+
+  it('keeps the maintenance flag through nested Local API calls', async () => {
+    const owner = await createOwner()
+    const req = await createLocalReq({ context: allowOwnerChange() }, payload)
+    await payload.count({ collection: 'users', req })
+    await payload.delete({ collection: 'users', id: owner.id, req })
+    const { totalDocs } = await payload.count({ collection: 'users' })
+    expect(totalDocs).toBe(0)
+  })
+
+  it('lets server code demote the owner with the maintenance flag', async () => {
+    const owner = await createOwner()
+    const updated = await payload.update({
+      collection: 'users',
+      id: owner.id,
+      data: { role: 'assistant' },
+      context: allowOwnerChange(),
+    })
+    expect(updated.role).toBe('assistant')
   })
 
   it('locks login after five failed attempts', async () => {
     await createOwner()
     for (let attempt = 0; attempt < 5; attempt++) {
       await expect(
-        payload.login({ collection: 'users', data: { email: 'owner@example.com', password: 'wrong' } }),
+        payload.login({
+          collection: 'users',
+          data: { email: 'owner@example.com', password: 'wrong' },
+        }),
       ).rejects.toThrow()
     }
     await expect(
@@ -1028,37 +1587,112 @@ describe('users and roles', () => {
 npm run test:int
 ```
 
-Expected: FAIL, with several of the 7 new tests failing. The template's Users collection has no `role` field (`expected undefined to be 'owner'`), uses default access, and has no lockout.
+Expected: FAIL, with most of the 25 new tests failing. The template's Users collection has no `role` field, no `allowOwnerChange` export, default access, no unlock rule and no single-owner guard.
 
 - [ ] **Step 3: Implement** — replace `website/src/collections/Users.ts`
 
 ```ts
-import type { Access, CollectionBeforeChangeHook, CollectionConfig } from 'payload'
+import {
+  APIError,
+  type Access,
+  type CollectionBeforeChangeHook,
+  type CollectionBeforeDeleteHook,
+  type CollectionConfig,
+  type PayloadRequest,
+  type RequestContext,
+} from 'payload'
 
-import { ROLES, isOwner, ownerOnly, ownerOnlyField, ownerOrSelf } from '../access/roles'
+import {
+  ROLES,
+  USERS_SLUG,
+  isOwner,
+  ownerOnly,
+  ownerOnlyField,
+  ownerOrOwnAccount,
+} from '../access/roles'
 
 const LOCK_TIME_MS = 15 * 60 * 1000
 const SESSION_SECONDS = 8 * 60 * 60
 
-const countUsers = async (req: Parameters<Access>[0]['req']): Promise<number> => {
-  const { totalDocs } = await req.payload.count({ collection: 'users', overrideAccess: true, req })
+const OWNER_CHANGE_TOKEN = Symbol('allowOwnerChange')
+
+/**
+ * Server-only escape hatch for deliberate owner maintenance (the owner CLI and tests). The key is a
+ * string, so Payload keeps it through nested Local API calls; the value is a private Symbol that no
+ * HTTP or JSON input can produce. Never merge it into an incoming request's context.
+ */
+export const allowOwnerChange = (): RequestContext => ({ allowOwnerChange: OWNER_CHANGE_TOKEN })
+
+const ownerChangeAllowed = (context: RequestContext): boolean =>
+  context.allowOwnerChange === OWNER_CHANGE_TOKEN
+
+// Only local development and tests may create the first account through sign-up; everywhere else
+// (production, staging, or an unset NODE_ENV) the owner comes from the owner CLI.
+const firstUserSignUpAllowed = (): boolean => ['development', 'test'].includes(process.env.NODE_ENV ?? '')
+
+const countUsers = async (req: PayloadRequest, ownersOnly = false): Promise<number> => {
+  const { totalDocs } = await req.payload.count({
+    collection: USERS_SLUG,
+    where: ownersOnly ? { role: { equals: 'owner' } } : undefined,
+    overrideAccess: true,
+    req,
+  })
   return totalDocs
 }
 
-// Anyone may create the very first account (it becomes the owner); after that only the owner can.
+// Anyone may create the very first account in development; after that only the owner can.
 const ownerOrFirstUser: Access = async ({ req }) => {
-  if (isOwner(req.user as { role?: 'owner' | 'assistant' } | null)) return true
-  return (await countUsers(req)) === 0
+  if (isOwner(req.user)) return true
+  return firstUserSignUpAllowed() && (await countUsers(req)) === 0
 }
 
-const firstUserIsOwner: CollectionBeforeChangeHook = async ({ data, operation, req }) => {
+const firstUserIsOwner: CollectionBeforeChangeHook = async ({ context, data, operation, req }) => {
   if (operation !== 'create') return data
   if ((await countUsers(req)) > 0) return data
+  // POST /api/users/first-register creates with overrideAccess, so ownerOrFirstUser never runs for it.
+  if (!firstUserSignUpAllowed() && !ownerChangeAllowed(context)) {
+    throw new APIError('Create the owner account with the owner CLI.', 403, undefined, true)
+  }
   return { ...data, role: 'owner' }
 }
 
+// The spec allows exactly one owner: refuse a second one, and refuse demoting the owner.
+const keepSingleOwner: CollectionBeforeChangeHook = async ({
+  context,
+  data,
+  operation,
+  originalDoc,
+  req,
+}) => {
+  if (ownerChangeAllowed(context)) return data
+  const wasOwner = operation === 'update' && originalDoc?.role === 'owner'
+  const willBeOwner = (data.role ?? originalDoc?.role) === 'owner'
+  if (willBeOwner && !wasOwner && (await countUsers(req, true)) > 0) {
+    throw new APIError('There can only be one owner account.', 400, undefined, true)
+  }
+  if (wasOwner && !willBeOwner) {
+    throw new APIError('The owner account cannot be demoted.', 400, undefined, true)
+  }
+  return data
+}
+
+const ownerCannotBeDeleted: CollectionBeforeDeleteHook = async ({ context, id, req }) => {
+  if (ownerChangeAllowed(context)) return
+  const user = await req.payload.findByID({
+    collection: USERS_SLUG,
+    id,
+    depth: 0,
+    select: { role: true },
+    overrideAccess: true,
+    req,
+  })
+  if (user.role === 'owner') {
+    throw new APIError('The owner account cannot be deleted.', 400, undefined, true)
+  }
+}
+
 export const Users: CollectionConfig = {
-  slug: 'users',
+  slug: USERS_SLUG,
   admin: {
     useAsTitle: 'email',
     defaultColumns: ['email', 'name', 'role'],
@@ -1075,12 +1709,16 @@ export const Users: CollectionConfig = {
   },
   access: {
     create: ownerOrFirstUser,
-    read: ownerOrSelf,
-    update: ownerOrSelf,
+    read: ownerOrOwnAccount,
+    update: ownerOnly,
     delete: ownerOnly,
+    // Payload's default lets any signed-in user unlock any account, which would let the
+    // assistant lift the owner's lockout and keep guessing the password.
+    unlock: ownerOnly,
   },
   hooks: {
-    beforeChange: [firstUserIsOwner],
+    beforeChange: [firstUserIsOwner, keepSingleOwner],
+    beforeDelete: [ownerCannotBeDeleted],
   },
   fields: [
     {
@@ -1104,24 +1742,109 @@ export const Users: CollectionConfig = {
 }
 ```
 
+Then replace `website/src/payload.config.ts`. It adds a partial unique index, so the database itself allows only one owner, even if first sign-ups race:
+
+```ts
+import { postgresAdapter } from '@payloadcms/db-postgres'
+import { sql } from '@payloadcms/db-postgres/drizzle'
+import { uniqueIndex } from '@payloadcms/db-postgres/drizzle/pg-core'
+import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import path from 'path'
+import { buildConfig } from 'payload'
+import sharp from 'sharp'
+import { fileURLToPath } from 'url'
+
+import { Users } from './collections/Users'
+import { DB_SCHEMA } from './lib/db-schema'
+import { parseServerEnv } from './lib/env'
+
+const filename = fileURLToPath(import.meta.url)
+const dirname = path.dirname(filename)
+
+const env = parseServerEnv(process.env)
+
+export default buildConfig({
+  admin: {
+    user: Users.slug,
+    importMap: {
+      baseDir: path.resolve(dirname),
+    },
+  },
+  collections: [Users],
+  editor: lexicalEditor(),
+  secret: env.PAYLOAD_SECRET,
+  typescript: {
+    outputFile: path.resolve(dirname, 'payload-types.ts'),
+  },
+  db: postgresAdapter({
+    pool: {
+      connectionString: env.DATABASE_URL,
+    },
+    schemaName: DB_SCHEMA,
+    migrationDir: path.resolve(dirname, 'migrations'),
+    // The database itself guarantees a single owner, even if first sign-ups race.
+    afterSchemaInit: [
+      ({ schema, extendTable }) => {
+        extendTable({
+          table: schema.tables.users,
+          extraConfig: (t) => ({
+            singleOwner: uniqueIndex('users_single_owner_idx').on(t.role).where(sql`"role" = 'owner'`),
+          }),
+        })
+        return schema
+      },
+    ],
+  }),
+  sharp,
+  plugins: [],
+})
+```
+
 - [ ] **Step 4: Run it and watch it pass**
 
 ```bash
 npm run test:int
 ```
 
-Expected: PASS, `8 passed` (database layout + users).
+Expected: PASS, `26 passed` (1 database layout + 25 users). `\d payload.users` in `sagevani_test` lists `users_single_owner_idx` UNIQUE … WHERE role = 'owner'.
 
-- [ ] **Step 5: Regenerate types, then verify and commit**
+- [ ] **Step 5: Regenerate types and keep the role list in step with them**
 
 ```bash
 npm run generate:types
-npm run lint && npm run typecheck && npm test
-git add website
-git commit -m "feat: add owner and assistant roles, first-user ownership and login lockout"
 ```
 
-Expected: `npm test` shows the unit tests (11) and integration tests (8) passing.
+In `website/tests/unit/roles.unit.spec.ts`, change the first two imports to:
+
+```ts
+import { describe, expect, expectTypeOf, it } from 'vitest'
+
+import { isOwner, ownerOnly, ownerOnlyField, ownerOrOwnAccount, type Role } from '@/access/roles'
+import type { User } from '@/payload-types'
+```
+
+and append at the end of the file:
+
+```ts
+describe('ROLES', () => {
+  // Checked by `npm run typecheck`: fails if the roles and Payload's generated User type drift apart.
+  it('stays in step with the role type Payload generates for users', () => {
+    expectTypeOf<User['role']>().toEqualTypeOf<Role>()
+  })
+})
+```
+
+This was verified in a throwaway copy. Adding `'editor'` to `ROLES` without regenerating types makes `npm run typecheck` fail with `Type '"owner" | "assistant" | "editor"' does not satisfy the constraint …`.
+
+- [ ] **Step 6: Verify and commit**
+
+```bash
+npm run lint && npm run typecheck && npm test
+git add website
+git commit -m "feat: add owner and assistant roles, single-owner rule, owner-only unlock and login lockout"
+```
+
+Expected: `npm test` shows the unit tests (68) and integration tests (26) passing.
 
 ---
 
@@ -1141,39 +1864,75 @@ import { Pool } from 'pg'
 import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import config from '@/payload.config'
+import { allowOwnerChange } from '@/collections/Users'
 import { DB_SCHEMA } from '@/lib/db-schema'
+import { parseServerEnv } from '@/lib/env'
 import { hardenSchema } from '@/lib/harden-database'
+import config from '@/payload.config'
 
-let payload: Payload
-let pool: Pool
+let payload: Payload | undefined
+let pool: Pool | undefined
+
+const db = (): Pool => {
+  if (!pool) throw new Error('The database pool was not created.')
+  return pool
+}
+
+const cms = (): Payload => {
+  if (!payload) throw new Error('Payload was not initialised.')
+  return payload
+}
+
+// Supabase always has these roles; plain local Postgres does not, so tests create them.
+const ensureApiRoles = async () => {
+  for (const role of ['anon', 'authenticated']) {
+    await db().query(
+      `DO $$ BEGIN
+         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
+           CREATE ROLE ${role} NOLOGIN;
+         END IF;
+       END $$`,
+    )
+  }
+}
 
 describe('database layout', () => {
   beforeAll(async () => {
     payload = await getPayload({ config: await config })
-    pool = new Pool({ connectionString: process.env.DATABASE_URL })
+    pool = new Pool({ connectionString: parseServerEnv(process.env).DATABASE_URL })
   })
 
   afterAll(async () => {
-    await pool.end()
-    await payload.destroy()
+    await pool?.end()
+    await payload?.destroy()
   })
 
-  it('keeps every Payload table in the dedicated schema, none in public', async () => {
-    const { rows } = await pool.query<{ schemaname: string; tablename: string }>(
-      `SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ('public', $1)`,
+  // Covers the schema Payload pushes in development. The migration path is checked separately
+  // (Task 9) by migrating a fresh database.
+  it('keeps every Payload table, sequence, view and enum in the dedicated schema, none in public', async () => {
+    const { rows: tables } = await db().query<{ tablename: string }>(
+      'SELECT tablename FROM pg_tables WHERE schemaname = $1',
       [DB_SCHEMA],
     )
-    const inSchema = rows.filter((r) => r.schemaname === DB_SCHEMA).map((r) => r.tablename)
-    const inPublic = rows.filter((r) => r.schemaname === 'public').map((r) => r.tablename)
+    expect(tables.map((t) => t.tablename)).toEqual(
+      expect.arrayContaining(['users', 'payload_migrations', 'payload_preferences', 'payload_kv']),
+    )
 
-    expect(inSchema).toContain('users')
+    const { rows: inPublic } = await db().query<{ name: string; kind: string }>(
+      `SELECT c.relname AS name, c.relkind::text AS kind
+         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'S', 'v', 'm')
+       UNION ALL
+       SELECT t.typname AS name, 'enum' AS kind
+         FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE n.nspname = 'public' AND t.typtype = 'e'`,
+    )
     expect(inPublic).toEqual([])
   })
 
   it('enables row-level security on every table after hardening', async () => {
-    await hardenSchema(pool, DB_SCHEMA)
-    const { rows } = await pool.query<{ relname: string; relrowsecurity: boolean }>(
+    await hardenSchema(db(), DB_SCHEMA)
+    const { rows } = await db().query<{ relname: string; relrowsecurity: boolean }>(
       `SELECT c.relname, c.relrowsecurity
          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = $1 AND c.relkind = 'r'`,
@@ -1184,21 +1943,15 @@ describe('database layout', () => {
   })
 
   it("revokes Supabase's API roles from the schema when they exist", async () => {
+    await ensureApiRoles()
     for (const role of ['anon', 'authenticated']) {
-      await pool.query(
-        `DO $$ BEGIN
-           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
-             CREATE ROLE ${role} NOLOGIN;
-           END IF;
-         END $$`,
-      )
-      await pool.query(`GRANT USAGE ON SCHEMA "${DB_SCHEMA}" TO ${role}`)
-      await pool.query(`GRANT SELECT ON ALL TABLES IN SCHEMA "${DB_SCHEMA}" TO ${role}`)
+      await db().query(`GRANT USAGE ON SCHEMA "${DB_SCHEMA}" TO ${role}`)
+      await db().query(`GRANT SELECT ON ALL TABLES IN SCHEMA "${DB_SCHEMA}" TO ${role}`)
     }
 
-    await hardenSchema(pool, DB_SCHEMA)
+    await hardenSchema(db(), DB_SCHEMA)
 
-    const { rows } = await pool.query<{ rolname: string; usage: boolean; can_select: boolean }>(
+    const { rows } = await db().query<{ rolname: string; usage: boolean; can_select: boolean }>(
       `SELECT rolname,
               has_schema_privilege(rolname, $1, 'USAGE') AS usage,
               has_table_privilege(rolname, $2, 'SELECT') AS can_select
@@ -1209,9 +1962,46 @@ describe('database layout', () => {
     expect(rows.filter((r) => r.usage || r.can_select)).toEqual([])
   })
 
+  it('does nothing, and does not fail, when the schema does not exist yet', async () => {
+    await expect(hardenSchema(db(), 'payload_schema_that_does_not_exist')).resolves.toBe(false)
+  })
+
+  it('can run again, and covers tables created after an earlier hardening', async () => {
+    await hardenSchema(db(), DB_SCHEMA)
+    await db().query(`CREATE TABLE "${DB_SCHEMA}".hardening_check (id int)`)
+    try {
+      await expect(hardenSchema(db(), DB_SCHEMA)).resolves.toBe(true)
+      const { rows } = await db().query<{ relrowsecurity: boolean }>(
+        `SELECT c.relrowsecurity
+           FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = $1 AND c.relname = 'hardening_check'`,
+        [DB_SCHEMA],
+      )
+      expect(rows).toEqual([{ relrowsecurity: true }])
+    } finally {
+      await db().query(`DROP TABLE "${DB_SCHEMA}".hardening_check`)
+    }
+  })
+
+  it('removes default privileges that would grant the API roles access to future objects', async () => {
+    await ensureApiRoles()
+    await db().query(`ALTER DEFAULT PRIVILEGES IN SCHEMA "${DB_SCHEMA}" GRANT SELECT ON TABLES TO anon`)
+    await db().query(`ALTER DEFAULT PRIVILEGES IN SCHEMA "${DB_SCHEMA}" GRANT USAGE ON SEQUENCES TO authenticated`)
+
+    await hardenSchema(db(), DB_SCHEMA)
+
+    const { rows } = await db().query<{ acl: string }>(
+      `SELECT array_to_string(d.defaclacl, ',') AS acl
+         FROM pg_default_acl d JOIN pg_namespace n ON n.oid = d.defaclnamespace
+        WHERE n.nspname = $1`,
+      [DB_SCHEMA],
+    )
+    expect(rows.filter((r) => /(^|,)(anon|authenticated)=/.test(r.acl))).toEqual([])
+  })
+
   it('still lets Payload read and write after hardening', async () => {
-    await hardenSchema(pool, DB_SCHEMA)
-    const created = await payload.create({
+    await hardenSchema(db(), DB_SCHEMA)
+    const created = await cms().create({
       collection: 'users',
       data: {
         email: 'after-rls@example.com',
@@ -1221,9 +2011,22 @@ describe('database layout', () => {
       },
       overrideAccess: true,
     })
-    const found = await payload.findByID({ collection: 'users', id: created.id, overrideAccess: true })
-    expect(found.email).toBe('after-rls@example.com')
-    await payload.delete({ collection: 'users', id: created.id, overrideAccess: true })
+    try {
+      const found = await cms().findByID({
+        collection: 'users',
+        id: created.id,
+        overrideAccess: true,
+      })
+      expect(found.email).toBe('after-rls@example.com')
+    } finally {
+      // On an empty database this user becomes the owner, which may only be removed deliberately.
+      await cms().delete({
+        collection: 'users',
+        id: created.id,
+        overrideAccess: true,
+        context: allowOwnerChange(),
+      })
+    }
   })
 })
 ```
@@ -1236,38 +2039,68 @@ The test creates the `anon` and `authenticated` roles locally because they exist
 npm run test:int
 ```
 
-Expected: FAIL with `Failed to resolve import "@/lib/harden-database"`.
+Expected: FAIL because `@/lib/harden-database` can't be resolved (`Failed to resolve import` or `Cannot find package`). Once the module exists, the tests check that it returns `false` for a missing schema, runs in one transaction, and revokes default privileges as well.
 
 - [ ] **Step 3: Implement** — `website/src/lib/harden-database.ts`
 
 ```ts
-import type { Pool } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 
 // Supabase publishes a web API (PostgREST) for exposed schemas and grants its `anon` and
-// `authenticated` roles access. Payload's tables must never be reachable that way, so we
-// enable row-level security on every table in the schema (no policies = no rows for those
-// roles) and revoke their privileges. Payload connects as the table owner, which RLS does
-// not restrict. Roles that do not exist (e.g. plain local Postgres) are skipped.
+// `authenticated` roles access. Payload's tables must never be reachable that way. Revoking the
+// roles' privileges (schema USAGE first) is the primary lock; row-level security with no policies
+// is the backstop. Payload connects as the table owner, which RLS (without FORCE) does not
+// restrict. Roles that do not exist (e.g. plain local Postgres) are skipped.
+// Everything runs in one transaction, so a failure leaves the schema exactly as it was.
+// Returns false, and changes nothing, when the schema does not exist yet (e.g. before the first migration).
 const API_ROLES = ['anon', 'authenticated'] as const
+const OBJECT_KINDS = ['TABLES', 'SEQUENCES', 'FUNCTIONS'] as const
 
-export async function hardenSchema(pool: Pool, schema: string): Promise<void> {
-  const { rows } = await pool.query<{ tablename: string }>(
-    'SELECT tablename FROM pg_tables WHERE schemaname = $1',
-    [schema],
-  )
-  for (const { tablename } of rows) {
-    await pool.query(`ALTER TABLE "${schema}"."${tablename}" ENABLE ROW LEVEL SECURITY`)
+const ident = (name: string): string => `"${name.replaceAll('"', '""')}"`
+
+export async function hardenSchema(pool: Pool, schema: string): Promise<boolean> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const hardened = await hardenInTransaction(client, schema)
+    await client.query('COMMIT')
+    return hardened
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally {
+    client.release()
   }
+}
 
-  const { rows: roles } = await pool.query<{ rolname: string }>(
+async function hardenInTransaction(client: PoolClient, schema: string): Promise<boolean> {
+  await client.query("SET LOCAL lock_timeout = '10s'")
+  const { rowCount } = await client.query('SELECT 1 FROM pg_namespace WHERE nspname = $1', [schema])
+  if (!rowCount) return false
+
+  const { rows: roles } = await client.query<{ rolname: string }>(
     'SELECT rolname FROM pg_roles WHERE rolname = ANY($1)',
     [API_ROLES],
   )
   for (const { rolname } of roles) {
-    await pool.query(`REVOKE ALL ON SCHEMA "${schema}" FROM "${rolname}"`)
-    await pool.query(`REVOKE ALL ON ALL TABLES IN SCHEMA "${schema}" FROM "${rolname}"`)
-    await pool.query(`REVOKE ALL ON ALL SEQUENCES IN SCHEMA "${schema}" FROM "${rolname}"`)
+    const role = ident(rolname)
+    await client.query(`REVOKE ALL ON SCHEMA ${ident(schema)} FROM ${role}`)
+    for (const kind of OBJECT_KINDS) {
+      await client.query(`REVOKE ALL ON ALL ${kind} IN SCHEMA ${ident(schema)} FROM ${role}`)
+      await client.query(
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA ${ident(schema)} REVOKE ALL ON ${kind} FROM ${role}`,
+      )
+    }
   }
+
+  const { rows: tables } = await client.query<{ tablename: string }>(
+    'SELECT tablename FROM pg_tables WHERE schemaname = $1',
+    [schema],
+  )
+  for (const { tablename } of tables) {
+    await client.query(`ALTER TABLE ${ident(schema)}.${ident(tablename)} ENABLE ROW LEVEL SECURITY`)
+  }
+  return true
 }
 ```
 
@@ -1279,7 +2112,7 @@ The identifiers interpolated into SQL come only from `pg_tables`, `pg_roles` and
 npm run test:int
 ```
 
-Expected: PASS, `11 passed`.
+Expected: PASS, `32 passed` (7 database + 25 users).
 
 - [ ] **Step 5: Add the command-line entry point** — `website/scripts/harden-database.ts`
 
@@ -1291,12 +2124,27 @@ import { DB_SCHEMA } from '../src/lib/db-schema'
 import { parseServerEnv } from '../src/lib/env'
 import { hardenSchema } from '../src/lib/harden-database'
 
+// Deploys pass --require-schema so that hardening a database the migrations never reached fails loudly.
+const requireSchema = process.argv.includes('--require-schema')
+
 const { DATABASE_URL } = parseServerEnv(process.env)
-const pool = new Pool({ connectionString: DATABASE_URL })
+const pool = new Pool({ connectionString: DATABASE_URL, connectionTimeoutMillis: 10_000 })
 
 try {
-  await hardenSchema(pool, DB_SCHEMA)
-  console.log(`Row-level security enabled on every table in schema "${DB_SCHEMA}".`)
+  const hardened = await hardenSchema(pool, DB_SCHEMA)
+  if (hardened) {
+    console.log(`Row-level security enabled on every table in schema "${DB_SCHEMA}".`)
+  } else if (requireSchema) {
+    console.error(
+      `Schema "${DB_SCHEMA}" does not exist, so it could not be hardened. Did the migrations run against this database?`,
+    )
+    process.exitCode = 1
+  } else {
+    console.log(`Schema "${DB_SCHEMA}" does not exist yet; nothing to harden.`)
+  }
+} catch (error) {
+  console.error('db:harden failed:', error instanceof Error ? error.message : error)
+  process.exitCode = 1
 } finally {
   await pool.end()
 }
@@ -1307,7 +2155,11 @@ npm pkg set "scripts.db:harden=cross-env NODE_OPTIONS=--no-deprecation tsx scrip
 npm run db:harden
 ```
 
-Expected: `Row-level security enabled on every table in schema "payload".` This runs against your local `sagevani` database.
+Expected:
+
+- Your local `sagevani` database has no `payload` schema until the dev server or a migration creates it. So `npm run db:harden` prints `Schema "payload" does not exist yet; nothing to harden.` and exits 0.
+- `npm run db:harden -- --require-schema` fails with exit code 1, saying the migrations didn't run. Deploys use this strict form.
+- Against the test database, `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329/sagevani_test npm run db:harden -- --require-schema` prints `Row-level security enabled on every table in schema "payload".`
 
 - [ ] **Step 6: Verify and commit**
 
@@ -1370,12 +2222,12 @@ head -6 src/migrations/*_initial.ts
 - [ ] **Step 4: Add the deploy scripts**
 
 ```bash
-npm pkg set "scripts.deploy:migrate=cross-env NODE_ENV=production NODE_OPTIONS=--no-deprecation payload migrate && npm run db:harden"
-npm pkg set 'scripts.deploy:build=DATABASE_URL=${DATABASE_MIGRATION_URL:-$DATABASE_URL} npm run deploy:migrate && npm run build'
+npm pkg set "scripts.deploy:migrate=cross-env NODE_ENV=production NODE_OPTIONS=--no-deprecation payload migrate && npm run db:harden -- --require-schema"
+npm pkg set 'scripts.deploy:build=DATABASE_URL=${DATABASE_MIGRATION_URL:?Set DATABASE_MIGRATION_URL to the Supabase session-pooler URL} npm run deploy:migrate && npm run build'
 ```
 
 - `deploy:migrate` runs migrations with schema push disabled (`NODE_ENV=production`), then hardens the schema.
-- `deploy:build` is what Netlify runs. It uses the session-pooler `DATABASE_MIGRATION_URL` for migrations when that's set, and the runtime `DATABASE_URL` for the app build. It uses POSIX shell syntax and runs on Netlify and in CI (Linux), not in Windows `cmd`.
+- `deploy:build` is what Netlify production deploys run. It migrates through the session-pooler `DATABASE_MIGRATION_URL`, and stops if that variable is missing rather than falling back to the transaction pooler. The app build then uses the runtime `DATABASE_URL`. It uses POSIX shell syntax and runs on Netlify and in CI (Linux), not in Windows `cmd`.
 
 - [ ] **Step 5: Verify on the fresh database, then drop it**
 
@@ -1394,6 +2246,9 @@ Expected:
 
 - `Migrated: <timestamp>_initial`, then `Row-level security enabled on every table in schema "payload".`
 - The query returns one row, `payload | 8 | 8`. All 8 tables have RLS, and nothing is in `public`.
+- Before the final `DROP DATABASE`, also run
+  `docker compose exec -T db psql -U postgres -d sagevani_migrate_check -c "SELECT indexdef FROM pg_indexes WHERE indexname = 'users_single_owner_idx'"`.
+  It must return one row: `CREATE UNIQUE INDEX users_single_owner_idx ON payload.users USING btree (role) WHERE (role = 'owner'::payload.enum_users_role)`. That shows the migration path keeps the single-owner guarantee.
 
 - [ ] **Step 6: Commit**
 
@@ -1420,15 +2275,21 @@ On a fresh staging or production database, the first account created becomes the
 
 ```ts
 import { getPayload, type Payload } from 'payload'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { allowOwnerChange } from '@/collections/Users'
 import config from '@/payload.config'
 import { createOwner } from '@/lib/create-owner'
 
 let payload: Payload
 
 const clearUsers = () =>
-  payload.delete({ collection: 'users', where: { id: { exists: true } }, overrideAccess: true })
+  payload.delete({
+    collection: 'users',
+    where: { id: { exists: true } },
+    overrideAccess: true,
+    context: allowOwnerChange(),
+  })
 
 describe('createOwner', () => {
   beforeAll(async () => {
@@ -1454,16 +2315,125 @@ describe('createOwner', () => {
   })
 
   it('refuses when any account already exists', async () => {
-    await createOwner(payload, { email: 'owner@example.com', name: 'Owner', password: 'long-enough-password' })
+    await createOwner(payload, {
+      email: 'owner@example.com',
+      name: 'Owner',
+      password: 'long-enough-password',
+    })
     await expect(
-      createOwner(payload, { email: 'second@example.com', name: 'Second', password: 'long-enough-password' }),
+      createOwner(payload, {
+        email: 'second@example.com',
+        name: 'Second',
+        password: 'long-enough-password',
+      }),
     ).rejects.toThrow('Refusing to create an owner: this database already has user accounts.')
+  })
+
+  it('still works in production, where first sign-ups are refused', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    try {
+      const owner = await createOwner(payload, {
+        email: 'owner@example.com',
+        name: 'Owner',
+        password: 'long-enough-password',
+      })
+      expect(owner.role).toBe('owner')
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('refuses a password shorter than 12 characters', async () => {
     await expect(
       createOwner(payload, { email: 'owner@example.com', name: 'Owner', password: 'short' }),
     ).rejects.toThrow('The owner password must be at least 12 characters.')
+  })
+
+  it('counts characters, not UTF-16 units, toward the minimum length', async () => {
+    await expect(
+      createOwner(payload, {
+        email: 'owner@example.com',
+        name: 'Owner',
+        password: '🙂🙃'.repeat(3),
+      }),
+    ).rejects.toThrow('The owner password must be at least 12 characters.')
+  })
+
+  it('refuses a password that is one repeated character or built from the email or name', async () => {
+    const weak = [
+      { email: 'owner@example.com', name: 'Owner', password: 'aaaaaaaaaaaaaa' },
+      { email: 'lantern@example.com', name: 'Owner', password: 'my-LANTERN-password' },
+      { email: 'owner@example.com', name: 'Marigold', password: 'marigold-garden-2026' },
+    ]
+    for (const input of weak) {
+      await expect(createOwner(payload, input)).rejects.toThrow(
+        'Choose an owner password that is not a repeated character or based on your email or name.',
+      )
+    }
+  })
+
+  it('normalises the email and trims the name', async () => {
+    const owner = await createOwner(payload, {
+      email: '  Owner@Example.COM ',
+      name: '  Owner  ',
+      password: 'long-enough-password',
+    })
+    expect(owner).toMatchObject({ email: 'owner@example.com', name: 'Owner' })
+  })
+
+  it('refuses an empty name', async () => {
+    await expect(
+      createOwner(payload, {
+        email: 'owner@example.com',
+        name: '   ',
+        password: 'long-enough-password',
+      }),
+    ).rejects.toThrow('The owner name must not be empty.')
+  })
+})
+```
+
+Also create `website/tests/int/create-owner-cli.int.spec.ts`. It runs the real command in a child process and proves that no secret is ever printed, even when the database URL is invalid:
+
+```ts
+import { spawnSync } from 'node:child_process'
+import { describe, expect, it } from 'vitest'
+
+// Runs scripts/create-owner.ts the way `npm run owner:create` does, and returns everything it printed.
+const runCli = (env: Record<string, string | undefined>) => {
+  const result = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/create-owner.ts'], {
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      DOTENV_CONFIG_PATH: 'tests/no-such-env-file',
+      ...env,
+    },
+    encoding: 'utf-8',
+    timeout: 90_000,
+  })
+  return { status: result.status, output: `${result.stdout}${result.stderr}` }
+}
+
+describe('owner:create command', () => {
+  it('exits 1 with a clear message when the owner details are missing', () => {
+    const { status, output } = runCli({
+      OWNER_EMAIL: undefined,
+      OWNER_NAME: undefined,
+      OWNER_PASSWORD: undefined,
+    })
+    expect(status).toBe(1)
+    expect(output).toContain('Set OWNER_EMAIL, OWNER_NAME and OWNER_PASSWORD for this command.')
+  })
+
+  it('never prints the database password or the owner password when it fails', () => {
+    const { status, output } = runCli({
+      DATABASE_URL: 'postgres://owner:db-sekret-123@db.invalid:99999/sagevani',
+      OWNER_EMAIL: 'owner@example.com',
+      OWNER_NAME: 'Owner',
+      OWNER_PASSWORD: 'zq-sekret-4567-x',
+    })
+    expect(status).toBe(1)
+    expect(output).not.toMatch(/db-sekret-123|zq-sekret-4567-x/)
   })
 })
 ```
@@ -1474,31 +2444,58 @@ describe('createOwner', () => {
 npm run test:int
 ```
 
-Expected: FAIL with `Failed to resolve import "@/lib/create-owner"`.
+Expected: FAIL because `@/lib/create-owner` can't be resolved (`Failed to resolve import` or `Cannot find package`).
 
 - [ ] **Step 3: Implement** — `website/src/lib/create-owner.ts`
 
 ```ts
 import type { Payload } from 'payload'
 
+import { allowOwnerChange } from '../collections/Users'
+
 export const MIN_OWNER_PASSWORD_LENGTH = 12
+const MIN_IDENTIFIER_LENGTH = 4
 
 export type OwnerInput = { email: string; name: string; password: string }
 
-// Creates the single owner account on a fresh database, before the site is reachable,
-// so nobody else can claim it through the first-user screen.
-export async function createOwner(payload: Payload, input: OwnerInput) {
-  if (input.password.length < MIN_OWNER_PASSWORD_LENGTH) {
+// Rejects passwords that are short (counted in characters, not UTF-16 units), one repeated
+// character, or built from the owner's email name or display name.
+export function checkOwnerPassword({ email, name, password }: OwnerInput): void {
+  if ([...password].length < MIN_OWNER_PASSWORD_LENGTH) {
     throw new Error(`The owner password must be at least ${MIN_OWNER_PASSWORD_LENGTH} characters.`)
   }
+  const lower = password.toLowerCase()
+  const identifiers = [email.split('@')[0], name].map((part) => part.trim().toLowerCase())
+  const basedOnIdentity = identifiers.some(
+    (part) => part.length >= MIN_IDENTIFIER_LENGTH && lower.includes(part),
+  )
+  if (/^(.)\1+$/u.test(password) || basedOnIdentity) {
+    throw new Error(
+      'Choose an owner password that is not a repeated character or based on your email or name.',
+    )
+  }
+}
+
+// Creates the single owner account on a fresh database, before the site is reachable. Outside
+// development and tests the Users collection refuses first sign-ups, so this deliberate server-side
+// path carries the owner-maintenance flag. The flag also skips the single-owner hook, so the
+// database's unique index is what prevents a second owner here. It creates one document; never
+// bulk-write with the flag.
+export async function createOwner(payload: Payload, input: OwnerInput) {
+  const email = input.email.trim().toLowerCase()
+  const name = input.name.trim()
+  if (!name) throw new Error('The owner name must not be empty.')
+  checkOwnerPassword({ email, name, password: input.password })
+
   const { totalDocs } = await payload.count({ collection: 'users', overrideAccess: true })
   if (totalDocs > 0) {
     throw new Error('Refusing to create an owner: this database already has user accounts.')
   }
   return payload.create({
     collection: 'users',
-    data: { ...input, role: 'owner' },
+    data: { email, name, password: input.password, role: 'owner' },
     overrideAccess: true,
+    context: allowOwnerChange(),
   })
 }
 ```
@@ -1509,40 +2506,54 @@ export async function createOwner(payload: Payload, input: OwnerInput) {
 npm run test:int
 ```
 
-Expected: PASS, `14 passed`.
+Expected: PASS, `42 passed` (7 database + 25 users + 8 create-owner + 2 CLI).
 
 - [ ] **Step 5: Add the command-line entry point** — `website/scripts/create-owner.ts`
 
 ```ts
 import 'dotenv/config'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 
-import config from '../src/payload.config'
 import { createOwner } from '../src/lib/create-owner'
 
-const { OWNER_EMAIL, OWNER_NAME, OWNER_PASSWORD } = process.env
-if (!OWNER_EMAIL || !OWNER_NAME || !OWNER_PASSWORD) {
-  console.error('Set OWNER_EMAIL, OWNER_NAME and OWNER_PASSWORD for this command.')
-  process.exit(1)
+// Never print secrets: errors are reduced to their first line, with the database URL and the owner
+// password removed, and no stack traces are shown.
+const secrets = [process.env.DATABASE_URL, process.env.OWNER_PASSWORD].filter(
+  (value): value is string => Boolean(value),
+)
+const describeError = (error: unknown): string => {
+  const firstLine = (error instanceof Error ? error.message : String(error)).split('\n')[0]
+  return secrets.reduce((text, secret) => text.split(secret).join('[redacted]'), firstLine)
 }
 
-const payload = await getPayload({ config })
-try {
-  const owner = await createOwner(payload, {
-    email: OWNER_EMAIL,
-    name: OWNER_NAME,
-    password: OWNER_PASSWORD,
-  })
-  console.log(`Owner account created for ${owner.email}.`)
-  process.exitCode = 0
-} catch (error) {
-  console.error(error instanceof Error ? error.message : error)
-  process.exitCode = 1
-} finally {
-  await payload.destroy()
-  // Payload keeps background handles open after destroy(); exit explicitly so the command ends.
-  process.exit()
+async function main(): Promise<number> {
+  const { OWNER_EMAIL, OWNER_NAME, OWNER_PASSWORD } = process.env
+  if (!OWNER_EMAIL || !OWNER_NAME || !OWNER_PASSWORD) {
+    console.error('Set OWNER_EMAIL, OWNER_NAME and OWNER_PASSWORD for this command.')
+    return 1
+  }
+
+  let payload: Payload | undefined
+  try {
+    const { default: config } = await import('../src/payload.config')
+    payload = await getPayload({ config })
+    const owner = await createOwner(payload, {
+      email: OWNER_EMAIL,
+      name: OWNER_NAME,
+      password: OWNER_PASSWORD,
+    })
+    console.log(`Owner account created for ${owner.email}.`)
+    return 0
+  } catch (error) {
+    console.error(`Could not create the owner: ${describeError(error)}`)
+    return 1
+  } finally {
+    await payload?.destroy().catch(() => undefined)
+  }
 }
+
+// Payload keeps background handles open after destroy(); exit explicitly so the command ends.
+process.exit(await main())
 ```
 
 ```bash
@@ -1566,7 +2577,7 @@ docker compose exec -T db psql -U postgres -c "DROP DATABASE sagevani_owner_chec
 Expected:
 
 1. First run: `Owner account created for me@example.com.` and `exit 0`, within a few seconds.
-2. Second run: `Refusing to create an owner: this database already has user accounts.` and a non-zero exit code.
+2. Second run: `Could not create the owner: Refusing to create an owner: this database already has user accounts.` and exit code 1.
 
 - [ ] **Step 7: Verify and commit**
 
@@ -1636,8 +2647,8 @@ npm run test:coverage
 
 Expected:
 
-- `Tests  25 passed (25)`
-- The coverage table shows 100% for `access/roles.ts`, `collections/Users.ts`, `lib/env.ts`, `lib/db-schema.ts`, `lib/harden-database.ts` and `lib/create-owner.ts`.
+- `Tests  148 passed (148)` (87 unit + 61 integration, after the fixes in [After the final review](#after-the-final-review))
+- The coverage table shows about 97% overall, well above the 80% thresholds. The few uncovered lines are the rollback-failure path in `lib/harden-database.ts` and two fallback branches in `collections/Users.ts`.
 - No threshold errors.
 
 - [ ] **Step 2: Lint, typecheck, production build**
@@ -1670,13 +2681,16 @@ name: Website CI
 on:
   push:
     branches: [main]
-    paths: ['website/**', '.github/workflows/website-ci.yml']
+    paths: ['website/**', 'netlify.toml', '.github/workflows/website-ci.yml']
   pull_request:
-    paths: ['website/**', '.github/workflows/website-ci.yml']
+    paths: ['website/**', 'netlify.toml', '.github/workflows/website-ci.yml']
+
+permissions:
+  contents: read
 
 concurrency:
   group: website-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:
@@ -1687,13 +2701,13 @@ jobs:
         working-directory: website
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: sagevani_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d sagevani_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -1701,9 +2715,11 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/sagevani_test
       PAYLOAD_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: npm
@@ -1711,15 +2727,19 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      - run: npm run format:check
       - run: npm run typecheck
       - run: npm run test:coverage
 
-      - name: Migrate a fresh database and build, exactly as Netlify will
+      - name: Migrate a fresh database and build, as a production deploy does
         env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/sagevani_deploy
+          DATABASE_MIGRATION_URL: postgres://postgres:postgres@localhost:5432/sagevani_deploy
         run: |
           psql postgres://postgres:postgres@localhost:5432/postgres -c "CREATE DATABASE sagevani_deploy"
           npm run deploy:build
+          applied=$(psql "$DATABASE_MIGRATION_URL" -tAc "SELECT count(*) FROM payload.payload_migrations WHERE batch > 0")
+          echo "Migrations applied to sagevani_deploy: $applied"
+          test "$applied" -ge 1
 
       - name: Install the Playwright browser
         if: github.event_name == 'pull_request'
@@ -1747,7 +2767,7 @@ gh pr create --base main --head feat/website-foundation \
 gh pr checks --watch
 ```
 
-Expected: `verify` passes. If `deploy:build` fails, read the log step by step. That step reproduces the first Netlify deploy, so fix the cause here, never on Netlify.
+Expected: `verify` passes. If `deploy:build` fails, read the log step by step. That step reproduces a Netlify production deploy, so fix the cause here, never on Netlify.
 
 ---
 
@@ -1762,61 +2782,201 @@ Expected: `verify` passes. If `deploy:build` fails, read the log step by step. T
 - [ ] **Step 1: Create `netlify.toml`**
 
 ```toml
-# Netlify builds the Next.js app in website/. Deploy-context environment variables
-# (production vs previews) are set in the Netlify UI — see website/docs/environments.md.
+# Netlify builds the Next.js app in website/. Only production deploys migrate the database:
+# deploy previews and branch deploys just build, so unreviewed branch code never runs migrations
+# with database-owner credentials. Staging migrations are run deliberately from the owner's
+# machine. Deploy-context environment variables are set in the Netlify UI; see
+# website/docs/environments.md.
 [build]
   base = "website"
-  command = "npm run deploy:build"
+  command = "npm run build"
   publish = ".next"
 
 [build.environment]
   NODE_VERSION = "24"
+
+[context.production]
+  command = "npm run deploy:build"
 ```
 
 - [ ] **Step 2: Create `website/docs/environments.md`**
 
-```markdown
+````markdown
 # Environments
 
 | Environment | App | Database | Schema changes |
 | --- | --- | --- | --- |
 | Local | `npm run dev` | Postgres 17 in Docker (`npm run db:up`) | Automatic push in development |
-| Preview | Netlify deploy preview per branch | Supabase **staging** project | Migrations on each deploy |
-| Production | Netlify production | Supabase **production** project | Migrations on each deploy |
+| Preview | Netlify deploy previews (one per pull request) and branch deploys | Supabase **staging** project | Run by the owner from their machine |
+| Production | Netlify production (the `main` branch) | Supabase **production** project | Every production deploy migrates, hardens, then builds |
+
+Previews only build. Migrations run with database-owner credentials, so unreviewed branch code never gets them. When a pull request adds a migration, apply it to staging yourself before you check that pull request's preview (see [Migrate and create the owner](#3-migrate-and-create-the-owner)).
 
 ## Variables
 
-| Variable | Where | Value |
+| Variable | Used by | Value |
 | --- | --- | --- |
-| `DATABASE_URL` | Local, Netlify | Local: `postgres://postgres:postgres@127.0.0.1:54329/sagevani`. Netlify: the Supabase **transaction pooler** connection string (port 6543) |
-| `DATABASE_MIGRATION_URL` | Netlify | The Supabase **session pooler** connection string (port 5432), used only for migrations during the build |
-| `PAYLOAD_SECRET` | Local, Netlify | At least 32 random characters, different for each environment: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `DATABASE_URL` | The app, and every command | Local: `postgres://postgres:postgres@127.0.0.1:54329/sagevani`. Netlify: the Supabase **transaction pooler** URL (port 6543) of the matching project |
+| `PAYLOAD_SECRET` | The app, and every command | At least 32 random characters, different for each environment: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `DATABASE_CA_CERT` | The app, and every command that connects to Supabase | Supabase's certificate authority, from the project's **Database → SSL Configuration** settings (**Download certificate**). Not needed for the local database |
+| `DATABASE_MIGRATION_URL` | Netlify **production** builds only | The production Supabase **session pooler** URL (port 5432), used only to migrate |
 
 Never commit `.env`. `.env.test` holds test-only values and is committed on purpose.
+
+Rules for these values:
+
+- **No `sslmode` in any URL.** The app refuses to start if a URL has one. TLS is set up in code: every connection to Supabase is encrypted and checked against `DATABASE_CA_CERT`. A `sslmode` in the URL would silently replace those settings.
+- **The certificate can be multi-line or on one line.** Netlify's form doesn't always keep line breaks, so the app also accepts one line with literal `\n` escapes. This command prints the certificate in that form:
+
+  ```bash
+  awk '{printf "%s\\n", $0}' prod-ca-2021.crt
+  ```
+
+  If the value isn't a PEM certificate, the app refuses to start and says so.
+- **Use only letters and digits in the Supabase database password.** Other characters must be URL-encoded inside the connection strings, which is easy to get wrong.
+- **Use the pooler URLs, not the direct connection.** Supabase's direct database host may not be reachable over IPv4.
+- **Don't set `NODE_ENV`** in Netlify. It would make the install skip development dependencies, such as `tsx`, which the hardening step needs.
 
 ## Run locally
 
 1. Start Docker Desktop.
 2. In `website/`: `npm install`, then `cp .env.example .env` and set `PAYLOAD_SECRET`.
-3. `npm run db:up`, then `npm run dev`, and open http://localhost:3000/admin. The first account you create locally becomes the owner.
+3. `npm run db:up`, then `npm run dev`, and open <http://localhost:3000/admin>. The first account you create locally becomes the owner. Sign-up like this works only in development.
 4. Run the tests with `npm test`, coverage with `npm run test:coverage`, and the browser tests with `npm run test:e2e`.
 5. `npm run db:reset` wipes both local databases.
+6. The dev server builds the local database by "pushing" the schema directly. If you later run `payload migrate` against that same database, Payload asks before it risks data loss. Answer no, and test migrations on a fresh database instead (`db:reset`, or a scratch database).
+
+Rolling back production means restoring a Supabase backup. A migration's `down()` drops every table, so never run it against real data.
 
 ## Set up staging and production (owner)
 
-Do these steps in order. Step 4 must happen before step 5, so that nobody can claim the owner account on a live site.
+Do these steps in order. The owner account must exist before the site is reachable, so that nobody else can claim it.
 
-1. **Supabase:** create two projects, `sagevani-staging` (free plan) and `sagevani-production` (Pro plan), in the agreed region. For each one, copy the transaction pooler and session pooler connection strings from the project's Connect panel.
-2. **Supabase web API:** in each project's API settings, check that `payload` is **not** in the list of exposed schemas. The site never uses Supabase's web API, so you can also turn it off.
-3. **Migrate each database from your machine** (in `website/`, Git Bash):
-   `DATABASE_URL="<session pooler URL>" npm run deploy:migrate`
-4. **Create your owner account in each database:**
-   `DATABASE_URL="<session pooler URL>" OWNER_EMAIL="you@…" OWNER_NAME="…" OWNER_PASSWORD="<12+ characters>" npm run owner:create`
-5. **Netlify:**
-   - Add a new site from the GitHub repository `shashesh/sagevani`. Build settings come from `netlify.toml`.
-   - Under environment variables, set `DATABASE_URL`, `DATABASE_MIGRATION_URL` and `PAYLOAD_SECRET` with production values for the **Production** context, and staging values for **Deploy Previews** and **Branch deploys**.
-6. Deploy, open `/admin` on the Netlify address, and sign in with the owner account from step 4.
+### 1. Create the Supabase projects
+
+- Create two organizations, one for each project, both on the free plan. Supabase sets the plan for a whole organization, so this lets you move only production to Pro at launch.
+- Create `sagevani-staging` in one and `sagevani-production` in the other.
+- Choose the **East US (Ohio)** region for both. Netlify runs the site's server code in US East (Ohio) by default, and every page render queries the database. Readers anywhere in the world are served through Netlify's global network.
+- For each project, from the project's **Connect** panel, copy the **transaction pooler** URL (port 6543) and the **session pooler** URL (port 5432).
+- Download the CA certificate from **Database → SSL Configuration**.
+
+### 2. Close Supabase's web API to Payload's tables
+
+- In each project's API settings, check that `payload` is **not** in the list of exposed schemas.
+- The site never uses Supabase's web API, so you can also turn it off.
+
+### 3. Migrate and create the owner
+
+Do this once for each project, from `website/` in Git Bash. `read -rs` keeps each value off the screen and out of your shell history.
+
+1. Load that environment's values into the shell. At each `read -rs` prompt, paste the value and press Enter.
+
+   ```bash
+   export DATABASE_CA_CERT="$(cat ~/Downloads/prod-ca-2021.crt)"
+   read -rs DATABASE_URL; export DATABASE_URL       # the session pooler URL
+   read -rs PAYLOAD_SECRET; export PAYLOAD_SECRET   # this environment's secret
+   ```
+
+2. Apply the migrations and harden the schema:
+
+   ```bash
+   npm run deploy:migrate
+   ```
+
+   It should end with `Row-level security enabled on every table in schema "payload".`
+
+3. Create your owner account. Use a **different password for staging and production**.
+
+   ```bash
+   read -rs OWNER_PASSWORD; export OWNER_PASSWORD
+   OWNER_EMAIL="you@…" OWNER_NAME="…" npm run owner:create
+   unset OWNER_PASSWORD
+   ```
+
+   Password rules:
+   - It needs at least 12 characters.
+   - It can't be a single repeated character.
+   - It can't contain the part of your email before the `@`, or your name.
+
+   Never put `OWNER_PASSWORD` in `.env`.
+
+4. In the project's SQL editor, run `select * from pg_default_acl` and note any entries for `anon` or `authenticated`.
+   - The hardening step revokes the schema-level defaults.
+   - Revoking schema access is the main lock either way.
+5. Clear the shell (`unset DATABASE_URL PAYLOAD_SECRET DATABASE_CA_CERT`), or close the terminal.
+
+Later, whenever a pull request adds a migration, repeat steps 1, 2 and 5 against staging from that branch.
+
+### 4. Connect Netlify
+
+1. Add a new site from the GitHub repository `shashesh/sagevani`. Build settings come from `netlify.toml`.
+2. Under **Project configuration → Environment variables**, set:
+
+   | Variable | Production | Deploy Previews and Branch deploys |
+   | --- | --- | --- |
+   | `DATABASE_URL` | Production transaction pooler URL | Staging transaction pooler URL |
+   | `PAYLOAD_SECRET` | Production secret | Staging secret |
+   | `DATABASE_CA_CERT` | The certificate | The certificate |
+   | `DATABASE_MIGRATION_URL` | Production session pooler URL | Not set |
+
+   - Tick **Contains secret values** for `DATABASE_URL`, `DATABASE_MIGRATION_URL` and `PAYLOAD_SECRET`. Netlify then masks them, and fails a build that would expose them in the code or the build output.
+   - Builds need these values as well as the running site, because `next build` loads the configuration. Netlify's free plan makes every variable available to both. On a plan with scopes, give `DATABASE_MIGRATION_URL` the **Builds** scope only.
+   - A production deploy without `DATABASE_MIGRATION_URL` stops with `Set DATABASE_MIGRATION_URL to the Supabase session-pooler URL`.
+3. Before the first deploy, set:
+   - **Deploy log visibility: Private logs.** The repository is public, and Netlify makes deploy logs public by default for public repositories.
+   - **Sensitive variable policy: Require approval.** This is the default. It keeps pull requests from people outside your Netlify team, including forks, from building with your variables until you approve them.
+   - **Project visibility for previews: Private,** under **Project configuration → General → Visitor access → Project visibility.** Previews connect to the staging database, so only you should see them. Keep production private as well until launch.
+4. The open pull request's deploy preview builds against staging. Open `/admin` on the preview address and sign in with the staging owner account.
+5. Merging to `main` triggers the first production deploy. Sign in at `/admin` with the production owner account.
+
+## Until production is on Pro
+
+Production stays on Supabase's free plan until the site is launch-ready ([D-005](../../docs/governance/decisions.md#d-005--drafts-in-the-cms-admin-access-region-and-database-plan)). Until then:
+
+- **Projects pause after a week without activity.** Resume a paused project from the Supabase dashboard. A paused project can be restored for 90 days.
+- **There are no automatic backups.** Once you write drafts in production, back them up yourself.
+
+To back up, use Git Bash with Docker Desktop running, from a folder **outside this repository**. The backup contains your drafts, your account email and a password hash, so keep it private and never commit it.
+
+1. Prepare the shell as in [step 3.1](#3-migrate-and-create-the-owner), with the **production session pooler** URL.
+2. Run:
+
+   ```bash
+   docker run --rm -e DATABASE_URL -e DATABASE_CA_CERT postgres:17 sh -c \
+     'echo "$DATABASE_CA_CERT" > /tmp/ca.crt && PGSSLMODE=verify-full PGSSLROOTCERT=/tmp/ca.crt pg_dump "$DATABASE_URL" --schema=payload --no-owner --no-privileges' \
+     > "sagevani-backup-$(date +%F).sql"
+   ```
+
+How the command works:
+
+- The connection is encrypted, and it is refused if the server's certificate doesn't match Supabase's CA.
+- The `postgres` image version must be the same as, or newer than, the project's Postgres version, which Supabase shows in its settings.
+
+At launch, upgrade the production organization to Pro in its billing settings. Daily backups and no pausing start then.
+
+## Recover the owner account
+
+Use this if the owner password is lost, or may be known to someone else. Prepare the shell as in [step 3.1](#3-migrate-and-create-the-owner) with that environment's session pooler URL, then:
+
+```bash
+read -rs OWNER_PASSWORD; export OWNER_PASSWORD   # the new password
+npm run owner:reset-password
+unset OWNER_PASSWORD
 ```
+
+The command does four things:
+
+- It sets the new password, under the same rules as `owner:create`.
+- It signs out every session.
+- It removes any API key on the owner account. There shouldn't be one, because the owner can't be given an API key.
+- It clears a login lock.
+
+Five failed sign-ins lock an account for 15 minutes. A reset ends the current lock, but it can't stop someone from trying again. Rate limits on sign-in are planned for stage 6.
+
+## Later hardening
+
+The migrations and the running site both connect as Supabase's `postgres` role. A tighter setup would give the site its own database role that can read and write the `payload` tables but can't change the schema. Stage 1 doesn't set this up.
+````
 
 - [ ] **Step 3: Add a "Develop" section to `website/README.md`**
 
@@ -1840,18 +3000,21 @@ git push
 
 ### Task 15: [OWNER] Create staging and production, and deploy
 
-Follow `website/docs/environments.md`, "Set up staging and production", steps 1 to 6. Each step needs the owner's accounts and decisions:
+Follow `website/docs/environments.md`, "Set up staging and production", sections 1 to 4. Each step needs the owner's accounts and decisions:
 
-- **Database region.** Mumbai is proposed in the spec (section 18, item 6); the owner confirms it.
-- **The Supabase Pro plan** for production (item 7).
+- **Database region:** East US (Ohio), next to Netlify's default region for server code (D-005).
+- **Plans:** both projects start on the free plan, in separate Supabase organizations. Production moves to Pro when the site is launch-ready (D-005).
 
 An agent may walk the owner through these steps but must not create accounts, enter secrets, or start deploys itself.
 
 - [ ] **Step 1:** Supabase projects exist, and `payload` is not an exposed schema in either.
+- [ ] **Step 1b:** `select * from pg_default_acl` was run in each project and the results noted, as the Task 8 review advised.
 - [ ] **Step 2:** `deploy:migrate` succeeded on staging and on production.
 - [ ] **Step 3:** `owner:create` succeeded on staging and on production.
-- [ ] **Step 4:** The Netlify site is connected, with variables scoped per deploy context.
-- [ ] **Step 5:** A deploy preview of this pull request builds, and signing in at `<preview URL>/admin` works.
+- [ ] **Step 4:** The Netlify site is connected, with variables set per deploy context and the secret ones marked as secret.
+- [ ] **Step 4b:** Deploy logs are private, the sensitive variable policy is "Require approval", and previews are private.
+- [ ] **Step 5:** A deploy preview of this pull request builds, and signing in at `<preview URL>/admin` works with the staging owner account.
+- [ ] **Step 6:** After the merge, the production deploy migrates and builds, and signing in at `/admin` works with the production owner account.
 
 **If the first Netlify build fails:**
 
@@ -1883,6 +3046,42 @@ Once CI is green and the owner has reviewed the PR, the owner merges it (or tell
 
 ---
 
+## After the final review
+
+The final code and security reviews of the whole branch led to these changes. Where this section differs from an earlier task, this section and the code are what was built. The code blocks in Tasks 13 and 14 show the final files.
+
+1. **Deploys** (`1b3f9fa`)
+   - Only Netlify production deploys migrate (`[context.production]` in `netlify.toml`). Previews and branch deploys only build, so unreviewed branch code never runs migrations with database-owner credentials.
+   - `deploy:build` stops if `DATABASE_MIGRATION_URL` is missing.
+   - CI:
+     - read-only `contents` permission
+     - actions pinned to commit hashes
+     - no persisted Git credentials
+     - in-progress runs cancelled only on pull requests
+     - the deploy step asserts that migrations were applied
+2. **TLS** (`6872a5f`, `d538021`)
+   - `pg` reads `sslmode=require` in a URL as full verification, and the URL's settings override the code's. So URLs must not contain `sslmode`, and the app refuses one.
+   - `src/lib/database-pool.ts` builds every connection's settings. For a remote database it verifies the server against `DATABASE_CA_CERT`, which `env.ts` requires.
+   - The certificate may be multi-line or on one line with `\n` escapes. A value that isn't a PEM certificate is rejected at startup.
+   - Before Task 15, this was checked against a throwaway Postgres with TLS. The right CA connected with TLS 1.3, an unrelated CA was refused, and a local connection without a CA worked.
+3. **Owner recovery and safe errors** (`7b61b53`, `7344df3`)
+   - `src/lib/describe-error.ts` is shared by the command-line tools. It removes secrets from the whole message, including a connection string's password on its own, before keeping the first line.
+   - `owner:reset-password` sets a new owner password under the same rules. It also signs out every session, removes any API key and clears a login lock.
+4. **Attack surface** (`437cd2b`, `c1561c0`, `3f7c03f`)
+   - The owner account can never hold an API key. Payload authenticates a key by its index alone and ignores `enableAPIKey`, so the hook refuses any key value.
+   - GraphQL is turned off, and its generated routes are deleted.
+   - Unused test dependencies are gone.
+   - `undici` is overridden to 7.30.0 to patch advisories in the 7.29.0 that Payload pins.
+5. **Documentation**
+   - The environments guide was rewritten: TLS, private deploy logs, the sensitive variable policy, private previews, staging migrations run by the owner, and the owner recovery runbook.
+   - The spec was corrected: the `(frontend)` route group, CI triggers, previews per pull request, and stage markers in section 9.
+
+6. **Owner decisions (D-005)**
+   - Only the owner can use the admin panel (`access.admin` in `Users.ts`). The assistant keeps API access for drafting.
+   - The environments guide now covers the database region (East US, Ohio), separate Supabase organizations, and the free plan until launch, including a tested manual backup.
+
+Final counts: 87 unit tests, 61 integration tests and 3 browser tests, with coverage around 96%.
+
 ## Spec coverage (stage 1)
 
 | Spec requirement | Task |
@@ -1890,12 +3089,38 @@ Once CI is green and the owner has reviewed the PR, the owner merges it (or tell
 | §4 one Next.js + Payload app in `website/` | 2 |
 | §4 dedicated `payload` schema, RLS as a second lock | 6, 8, 9 |
 | §4 connection through Supabase's transaction pooler | 14 (variables), 15 |
-| §5.3 users: owner/assistant roles, lockout, API keys for assistant | 5, 7 |
+| §5.3 users: owner/assistant roles, lockout, API keys for the assistant only | 5, 7, final review |
+| §9 owner recovery, GraphQL off, TLS verified against Supabase's CA | final review |
 | §8.1 only the owner can publish (role foundation for stage 2) | 5, 7 |
 | §9 secrets only in environment, checked at startup | 4, 13, 14 |
 | §9 admin login lockout, secure cookies | 7 |
 | §13 unit, integration, e2e tests; CI; 80% coverage | 3–13 |
 | §14 local, preview and production environments; committed migrations applied on deploy | 2, 9, 13, 14, 15 |
 | §16 stage 1: CI, environments, env checks | all |
+
+## Deferred from the stage 1 reviews
+
+These came out of the stage 1 code reviews. Each was consciously deferred rather than missed.
+
+- **Owner lockout as a nuisance.** Anyone who knows the owner's login email can re-trigger the 15-minute lockout. Existing sessions keep working.
+  - Add edge rate limiting on `/api/users/login` in the hardening stage.
+  - `owner:reset-password` clears a lock, but it can't stop new attempts.
+  - Keep the owner's login email unpublished.
+- **CSRF and `serverURL`.** Set `serverURL` and `csrf: [serverURL]` in `payload.config.ts` once the domain is known. `sameSite: 'Lax'` cookies cover cross-site POSTs in the meantime.
+- **Admin access for the assistant.** Resolved by the owner (D-005): only the owner can use the admin panel, and the assistant drafts through its API key. Implemented after the final review.
+- **Owner maintenance.**
+  - Never bulk-write with `allowOwnerChange()`. A unique-index violation aborts the whole transaction and surfaces raw query errors.
+  - To transfer ownership, demote the old owner first, then promote the new one, one document at a time.
+- **Race test.** If `creates at most one owner when first sign-ups race` ever flakes on `toHaveLength(1)`, assert only the owner count. The index is the real guarantee.
+- **Dependencies.**
+  - **undici override.** Remove the `undici` override once Payload itself depends on 7.30.0 or later.
+  - **Audit findings with no upstream fix.** `npm audit --omit=dev` still reports two:
+    - `braces`, through sass in `@payloadcms/next`. It only runs at build time on trusted input.
+    - `esbuild`, through drizzle-kit. Its development-server flaw needs a drizzle-kit dev server, which this app never runs.
+
+    Neither is exploitable here. Re-check at each Payload upgrade.
+  - **Revisit `legacy-peer-deps`** at the next Payload upgrade.
+  - **Owner API-key rule.** The rule relies on Payload 3.90 authenticating API keys by index alone. Re-check `auth/strategies/apiKey.js` at each Payload upgrade.
+- **A separate database role for the app.** Migrations and the running site both connect as Supabase's `postgres` role. A role limited to reading and writing the `payload` tables would be tighter. Consider it in the hardening stage.
 
 Deferred to later stages, as in the spec: content collections, Supabase Storage for media, the public design system, reader interactions, search, analytics, email, security headers, Sentry.

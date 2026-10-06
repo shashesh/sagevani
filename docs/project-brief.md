@@ -14,16 +14,19 @@
 | Assistance | Assistant may help across the project and draft without separate permission; owner approval is required before publication |
 | Readers | Novice through advanced |
 | Reading guidance | Include a blog difficulty level and suggested prior reading when a topic is advanced |
-| Unfinished drafts | Stay in `content/drafts/` in this workspace; excluded from the website until approved |
+| Unfinished drafts | Written in the website's CMS; never shown on the website until the owner publishes the approved version ([D-005](governance/decisions.md)) |
+| Admin access | Owner only; the assistant drafts through its API key |
+| Readers' location | Worldwide; the database is in Supabase East US (Ohio), next to the site's server code |
+| Database plan | Supabase free plan until the site is launch-ready, then Pro for production |
 | Public identity | Byline: Sagevani; project name: SageVani |
 | Language | English now |
 | Stage | Very beginning; Phase 0 |
 
 ## Unresolved
 
-Domain, maintenance system, voice-guide adoption, privacy for other personal material, difficulty labels, licensing, citation presentation, assistant disclosure, and whether article drafts move into the website's CMS remain open. Indian and Nepali regional languages are possibilities, not commitments.
+Domain, maintenance system, voice-guide adoption, privacy for other personal material, difficulty labels, licensing, citation presentation, and assistant disclosure remain open. Indian and Nepali regional languages are possibilities, not commitments.
 
-The owner clarified that draft privacy means keeping unfinished writing off the website. Drafts may live in the same workspace; files included in a public repository remain readable there.
+The owner clarified that draft privacy means keeping unfinished writing off the website. Article drafts live in the CMS; anything kept in this public repository remains readable there.
 
 ## Authority
 

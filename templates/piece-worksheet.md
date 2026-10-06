@@ -1,6 +1,6 @@
 # Piece worksheet
 
-Completed worksheets contain unfinished writing and belong in `content/drafts/`. They must not be published on the website.
+Completed worksheets contain unfinished writing and belong in `content/drafts/`. They must not be published on the website. The article draft itself is written in the website's CMS (D-005).
 
 ## Living question
 
@@ -60,7 +60,7 @@ Completed worksheets contain unfinished writing and belong in `content/drafts/`.
 - Turn:
 - Ending / unresolved question:
 
-Write the draft here or link a separate file.
+Write the draft in the website's CMS, and note its title here.
 
 ## After drafting
 

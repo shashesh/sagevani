@@ -81,7 +81,7 @@ Owner ───┘   ├ public site         └─ Google Analytics (after cons
   ```text
   website/
     docs/specs/                 design documents
-    src/app/(site)/             public pages
+    src/app/(frontend)/         public pages
     src/app/(payload)/          Payload admin and API
     src/collections/            collection definitions
     src/blocks/                 editor blocks (Verse, Tradition, Practice)
@@ -177,7 +177,7 @@ All collections use Payload access control. "Owner" means the owner role; "assis
 
 **siteSettings** (global) — the featured article, up to three featured picks, the Start-here reading list (ordered articles), navigation, the footer motto, and the tagline ("Where silence learns to speak.").
 
-**users** — email, name, role (owner or assistant). Login is locked after repeated failures. API keys are enabled for the assistant role.
+**users** — email, name, role (owner or assistant). Login is locked after repeated failures. Only assistant accounts can hold an API key; the owner signs in with a password only.
 
 ## 6. Public site
 
@@ -308,9 +308,9 @@ The dark values for `paper-2`, `surface`, `ink-soft` and dark on-accent are prop
 | Role | Can | Cannot |
 | --- | --- | --- |
 | Owner | Everything: write, publish, unpublish, moderate, see statistics, manage settings and users | — |
-| Assistant | Create and edit article drafts, upload media, read published content | Publish or unpublish, delete, read commenter or subscriber emails, read statistics, change settings |
+| Assistant | Through its API key: create and edit article drafts, upload media, read published content | Use the admin panel, publish or unpublish, delete, read commenter or subscriber emails, read statistics, change settings, edit any account (including its own password and API key), unlock accounts |
 
-The assistant role enforces decision D-003: the assistant may draft without asking, and publication requires owner approval. AI drafting uses an assistant API key. The rule that the assistant must not invent personal experiences or verification still applies to drafted content.
+The assistant role enforces decision D-003: the assistant may draft without asking, and publication requires owner approval. AI drafting uses an assistant API key. SageVani is a solo project, so only the owner uses the admin panel (D-005). The rule that the assistant must not invent personal experiences or verification still applies to drafted content.
 
 ### 8.2 Writing
 
@@ -354,18 +354,26 @@ Site settings holds the featured article, the three featured picks and the Start
 
 ## 9. Security
 
+This section describes the finished site. Stage 1 delivers the admin login, database and secrets items. Reader endpoints arrive in stage 4, and rate limits and security headers in stage 6.
+
 - **Admin login**
   - HTTPS only, with secure cookies.
   - Login is locked after repeated failures.
-  - There is one owner account.
-  - On a new staging or production database, the owner account is created from the owner's machine (`owner:create`) before the site is first deployed. That way nobody else can claim it through the first-user screen.
-  - The assistant API key is scoped to the assistant role.
+  - Login attempts are rate-limited, so nobody can keep the owner locked out by guessing (stage 6).
+  - There is one owner account, and only the owner can use the admin panel.
+  - On a new staging or production database, the owner account is created from the owner's machine (`owner:create`) before the site is first deployed.
+  - If the owner password is lost or exposed, `owner:reset-password` sets a new one from the owner's machine. It also signs out every session, removes any API key and clears a login lock.
+  - First-account sign-up is refused everywhere except local development and tests. That includes Payload's built-in `first-register` endpoint, which bypasses access rules, so nobody else can claim the owner account.
+  - A partial unique index means the database can never hold two owners, even under concurrent sign-ups.
+  - Only assistant accounts can hold an API key. The owner account cannot have one, so a leaked key can never act as the owner.
+  - Payload's GraphQL API is turned off. The site uses only the REST and local APIs.
 - **Access control** on every collection and on sensitive fields:
   - Emails are owner-only.
   - The public sees only published articles and approved comments.
 - **Database**
   - Payload's tables live in the dedicated `payload` schema, which Supabase's web API does not publish.
   - Row-level security is enabled on those tables.
+  - Connections use TLS, verified against Supabase's certificate authority (`DATABASE_CA_CERT`).
   - The service and database credentials stay on the server.
 - **Reader endpoints**
   - Comment and subscribe requests are verified by Turnstile on the server.
@@ -386,7 +394,7 @@ Site settings holds the featured article, the three featured picks and the Start
   - daily article statistics without IP addresses
   - hashed IPs only inside short rate-limit windows
 - **Privacy page:** it explains all of the above, the services used (Supabase, Netlify, Resend, Cloudflare Turnstile, Google Analytics) and how to ask for deletion. The owner can delete a commenter's or subscriber's data from the admin.
-- **Region:** the Supabase region is proposed as Mumbai, if most readers are in India and Nepal. Confirm before creating the production project.
+- **Region:** readers are worldwide. The Supabase database is in East US (Ohio), next to Netlify's default region for the site's server code (D-005).
 
 ## 11. Error handling
 
@@ -438,7 +446,7 @@ Site settings holds the featured article, the three featured picks and the Start
   - searching "maya" to find "māyā"
   - the theme toggle and the cookie banner
 - **Visual and accessibility checks:** screenshots at the section 7.3 widths in both themes, plus axe checks.
-- **Continuous integration:** GitHub Actions runs lint, type checks, unit and integration tests on every push, and end-to-end tests on pull requests. Netlify deploy previews come from every branch.
+- **Continuous integration:** on pull requests and pushes to `main`, GitHub Actions runs lint, formatting and type checks, unit and integration tests with coverage, and a migrate-and-build on a fresh database. End-to-end tests run on pull requests. Netlify builds a deploy preview for each pull request.
 - **Coverage:** at least 80%.
 
 ## 14. Environments and deployment
@@ -446,10 +454,11 @@ Site settings holds the featured article, the three featured picks and the Start
 | Environment | App | Database |
 | --- | --- | --- |
 | Local | `next dev` | Postgres 17 in Docker (`docker compose`), with a separate test database |
-| Preview | Netlify deploy preview per branch | A separate staging Supabase project (free plan); never production data |
-| Production | Netlify production | Production Supabase project (paid plan for backups and no pausing) |
+| Preview | Netlify deploy previews (one per pull request) and branch deploys | A separate staging Supabase project (free plan); never production data |
+| Production | Netlify production | Production Supabase project, in its own Supabase organization: free plan until the site is launch-ready, then Pro for backups and no pausing (D-005) |
 
-- **Database changes** are Payload migrations, committed to the repository and applied during deployment, followed by the schema hardening step.
+- **Database changes** are Payload migrations, committed to the repository and followed by the schema hardening step.
+  - Production deploys apply them automatically. Previews only build, so unreviewed branch code never runs migrations with database-owner credentials. The owner applies them to staging from their own machine.
   - Migrations connect through Supabase's session pooler (`DATABASE_MIGRATION_URL`). The running app uses the transaction pooler (`DATABASE_URL`).
   - Scripts that load Payload against a real database run with `NODE_ENV=production`, so that development-mode schema push is off.
 - **Domain:** buy it before launch and point it at Netlify, which issues HTTPS automatically.
@@ -461,7 +470,7 @@ Approximate. Check current pricing before committing.
 
 | Service | Plan |
 | --- | --- |
-| Supabase production | Pro plan, the only expected monthly cost (about US$25/month at last published pricing) |
+| Supabase production | Free until launch-ready, then the Pro plan, the only expected monthly cost (about US$25/month at last published pricing) |
 | Supabase staging | Free |
 | Netlify | Free plan at the start |
 | Resend | Free plan for a small list |
@@ -493,10 +502,10 @@ Each stage ends in something that can be reviewed. Implementation plans may be w
    - Subscribe and the new-article email.
 5. **Discovery and compliance:** search, RSS, sitemap, structured data, Google Analytics with the cookie banner, and the privacy page.
 6. **Hardening and launch**
-   - Security headers and rate limits.
+   - Security headers, and rate limits on admin login and reader endpoints.
    - Sentry.
    - Performance and accessibility passes, and the full end-to-end suite.
-   - Domain, sender verification, the production database, and the six launch pieces.
+   - Domain, sender verification, the production database's move to Supabase Pro, and the six launch pieces.
 
 ## 17. How the handbook shapes the site
 
@@ -517,7 +526,7 @@ Each stage ends in something that can be reviewed. Implementation plans may be w
 ## 18. Open items
 
 1. **Difficulty labels (Q-01).** The build ships with the proposed three, which can be edited in the admin.
-2. **Where article drafts live.** This design puts article drafts in the CMS, which replaces D-003's `content/drafts/` for article text. Seed cards, Vault entries, research and the foundation stay in this repository. Please confirm.
+2. **Where article drafts live.** Confirmed on 2026-10-06 (D-005). Article drafts and their editorial checklist live in the CMS, which replaces D-003's `content/drafts/` for article text. Seed cards, Vault entries, research, the foundation and completed piece worksheets (`content/drafts/`) stay in this repository.
 3. **Interface wording.** Placeholder copy to write or approve:
    - the like label ("found this worth reading")
    - the subscribe text
@@ -526,5 +535,5 @@ Each stage ends in something that can be reviewed. Implementation plans may be w
    - the About, How SageVani writes, Start here and Privacy pages
 4. **Assistant disclosure (Q-09).** Decide what the About or How SageVani writes page says.
 5. **Comment guidelines.** A short policy readers can see.
-6. **Region, domain and sender address.** Proposed: Mumbai for the database; a domain and a "from" address are to be chosen.
-7. **Paid database plan.** Accept the Supabase Pro cost for production.
+6. **Region, domain and sender address.** The audience is worldwide, and the database is in East US (Ohio) (D-005). A domain and a "from" address are to be chosen.
+7. **Paid database plan.** Confirmed (D-005). Production moves to Supabase Pro when the site is launch-ready, and uses the free plan until then.

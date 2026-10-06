@@ -1,5 +1,26 @@
 # Change log
 
+## 2026-10-06 — Drafts in the CMS, admin access, region and database plan
+
+- Recorded [D-005](docs/governance/decisions.md#d-005--drafts-in-the-cms-admin-access-region-and-database-plan):
+  - Article drafts and their editorial reviews live in the website's CMS.
+  - Only the owner uses the admin panel.
+  - The audience is worldwide, and the database sits in Supabase East US (Ohio).
+  - Production moves to Supabase Pro when the site is launch-ready.
+- Limited the website's admin panel to the owner.
+- Updated AGENTS.md, the README, the project brief, the workspace guide, the templates, the spec and the environments guide to match.
+- Added a tested manual backup for production until it moves to Pro.
+- Resolved Q-10: completed piece worksheets stay in `content/drafts/` in this repository.
+
+## 2026-10-06 — Website stage 1: foundation
+
+- Built the Payload CMS 3 and Next.js 16 app in `website/`, with owner and assistant roles, login lockout, and a single owner enforced by the database.
+- Kept every Payload table in a dedicated `payload` schema, with row-level security and Supabase's web API roles revoked.
+- Added the initial migration, production-only migrations on deploy, and TLS verified against Supabase's certificate authority.
+- Added the `owner:create` and `owner:reset-password` commands. The owner account can't hold an API key, and GraphQL is turned off.
+- Added CI on GitHub Actions, Dependabot, the Netlify settings and the [environments guide](website/docs/environments.md).
+- Opened [pull request #1](https://github.com/shashesh/sagevani/pull/1). Supabase, Netlify and the merge await the owner. Nothing is deployed or published.
+
 ## 2026-10-05 — Website platform and design
 
 - Recorded D-004: a database-backed blog built with Payload CMS 3 in Next.js, Supabase and Netlify, plus the approved visual design and reader features.
