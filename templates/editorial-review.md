@@ -4,7 +4,7 @@
 - Reviewer:
 - Review date:
 
-Keep completed draft reviews with the unfinished article in `content/drafts/`, excluded from the website.
+In the website's CMS, this review is the article's admin-only editorial checklist, kept with the draft and excluded from the website (D-005). This file is the reference for the checklist's items.
 
 ## Integrity
 

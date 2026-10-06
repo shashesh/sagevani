@@ -5,7 +5,8 @@ Answers are pending. Blank fields must not be interpreted as agreement.
 | ID | Question | Why it matters |
 | --- | --- | --- |
 | Q-01 | Which difficulty labels and criteria should be adopted? | Novice-to-advanced audience and advanced-topic prior readings are confirmed. |
-| Q-02 | Should standalone personal reflections, Vault entries, and raw research be publicly readable or kept confidential? | Drafts stay in this workspace and off the website; other boundaries remain open. |
+| Q-02 | Should standalone personal reflections, Vault entries, and raw research be publicly readable or kept confidential? | Article drafts live in the website's CMS (D-005); other boundaries remain open. |
+| Q-10 | Where should completed piece worksheets live: in the CMS with the draft, or in this repository? | They contain unfinished writing and owner-supplied reflections (D-005). |
 | Q-03 | Should the handbook voice guide be adopted as written, or adjusted? | Editorial standard |
 | Q-04 | Which maintenance conventions should be adopted: decision log, task list, change log, draft status, and review records? | Keeping work current |
 | Q-06 | What reuse permissions should apply to writing, code, and assets? | Licensing; no license selected |

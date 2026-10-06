@@ -1,5 +1,17 @@
 # Change log
 
+## 2026-10-06 — Drafts in the CMS, admin access, region and database plan
+
+- Recorded [D-005](docs/governance/decisions.md#d-005--drafts-in-the-cms-admin-access-region-and-database-plan):
+  - Article drafts and their editorial reviews live in the website's CMS.
+  - Only the owner uses the admin panel.
+  - The audience is worldwide, and the database sits in Supabase East US (Ohio).
+  - Production moves to Supabase Pro when the site is launch-ready.
+- Limited the website's admin panel to the owner.
+- Updated AGENTS.md, the README, the project brief, the workspace guide, the templates, the spec and the environments guide to match.
+- Added a tested manual backup for production until it moves to Pro.
+- Added Q-10: where completed piece worksheets live.
+
 ## 2026-10-06 — Website stage 1: foundation
 
 - Built the Payload CMS 3 and Next.js 16 app in `website/`, with owner and assistant roles, login lockout, and a single owner enforced by the database.

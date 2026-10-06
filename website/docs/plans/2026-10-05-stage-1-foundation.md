@@ -2647,7 +2647,7 @@ npm run test:coverage
 
 Expected:
 
-- `Tests  144 passed (144)` (87 unit + 57 integration, after the fixes in [After the final review](#after-the-final-review))
+- `Tests  148 passed (148)` (87 unit + 61 integration, after the fixes in [After the final review](#after-the-final-review))
 - The coverage table shows about 97% overall, well above the 80% thresholds. The few uncovered lines are the rollback-failure path in `lib/harden-database.ts` and two fallback branches in `collections/Users.ts`.
 - No threshold errors.
 
@@ -2854,8 +2854,10 @@ Do these steps in order. The owner account must exist before the site is reachab
 
 ### 1. Create the Supabase projects
 
-- Create `sagevani-staging` (free plan) and `sagevani-production` (Pro plan) in the region you choose.
-- For each one, from the project's **Connect** panel, copy the **transaction pooler** URL (port 6543) and the **session pooler** URL (port 5432).
+- Create two organizations, one for each project, both on the free plan. Supabase sets the plan for a whole organization, so this lets you move only production to Pro at launch.
+- Create `sagevani-staging` in one and `sagevani-production` in the other.
+- Choose the **East US (Ohio)** region for both. Netlify runs the site's server code in US East (Ohio) by default, and every page render queries the database. Readers anywhere in the world are served through Netlify's global network.
+- For each project, from the project's **Connect** panel, copy the **transaction pooler** URL (port 6543) and the **session pooler** URL (port 5432).
 - Download the CA certificate from **Database → SSL Configuration**.
 
 ### 2. Close Supabase's web API to Payload's tables
@@ -2927,6 +2929,31 @@ Later, whenever a pull request adds a migration, repeat steps 1, 2 and 5 against
 4. The open pull request's deploy preview builds against staging. Open `/admin` on the preview address and sign in with the staging owner account.
 5. Merging to `main` triggers the first production deploy. Sign in at `/admin` with the production owner account.
 
+## Until production is on Pro
+
+Production stays on Supabase's free plan until the site is launch-ready ([D-005](../../docs/governance/decisions.md#d-005--drafts-in-the-cms-admin-access-region-and-database-plan)). Until then:
+
+- **Projects pause after a week without activity.** Resume a paused project from the Supabase dashboard. A paused project can be restored for 90 days.
+- **There are no automatic backups.** Once you write drafts in production, back them up yourself.
+
+To back up, use Git Bash with Docker Desktop running, from a folder **outside this repository**. The backup contains your drafts, your account email and a password hash, so keep it private and never commit it.
+
+1. Prepare the shell as in [step 3.1](#3-migrate-and-create-the-owner), with the **production session pooler** URL.
+2. Run:
+
+   ```bash
+   docker run --rm -e DATABASE_URL -e DATABASE_CA_CERT postgres:17 sh -c \
+     'echo "$DATABASE_CA_CERT" > /tmp/ca.crt && PGSSLMODE=verify-full PGSSLROOTCERT=/tmp/ca.crt pg_dump "$DATABASE_URL" --schema=payload --no-owner --no-privileges' \
+     > "sagevani-backup-$(date +%F).sql"
+   ```
+
+How the command works:
+
+- The connection is encrypted, and it is refused if the server's certificate doesn't match Supabase's CA.
+- The `postgres` image version must be the same as, or newer than, the project's Postgres version, which Supabase shows in its settings.
+
+At launch, upgrade the production organization to Pro in its billing settings. Daily backups and no pausing start then.
+
 ## Recover the owner account
 
 Use this if the owner password is lost, or may be known to someone else. Prepare the shell as in [step 3.1](#3-migrate-and-create-the-owner) with that environment's session pooler URL, then:
@@ -2975,8 +3002,8 @@ git push
 
 Follow `website/docs/environments.md`, "Set up staging and production", sections 1 to 4. Each step needs the owner's accounts and decisions:
 
-- **Database region.** Mumbai is proposed in the spec (section 18, item 6); the owner confirms it.
-- **The Supabase Pro plan** for production (item 7).
+- **Database region:** East US (Ohio), next to Netlify's default region for server code (D-005).
+- **Plans:** both projects start on the free plan, in separate Supabase organizations. Production moves to Pro when the site is launch-ready (D-005).
 
 An agent may walk the owner through these steps but must not create accounts, enter secrets, or start deploys itself.
 
@@ -3049,7 +3076,11 @@ The final code and security reviews of the whole branch led to these changes. Wh
    - The environments guide was rewritten: TLS, private deploy logs, the sensitive variable policy, private previews, staging migrations run by the owner, and the owner recovery runbook.
    - The spec was corrected: the `(frontend)` route group, CI triggers, previews per pull request, and stage markers in section 9.
 
-Final counts: 87 unit tests, 57 integration tests and 3 browser tests, with coverage around 96%.
+6. **Owner decisions (D-005)**
+   - Only the owner can use the admin panel (`access.admin` in `Users.ts`). The assistant keeps API access for drafting.
+   - The environments guide now covers the database region (East US, Ohio), separate Supabase organizations, and the free plan until launch, including a tested manual backup.
+
+Final counts: 87 unit tests, 61 integration tests and 3 browser tests, with coverage around 96%.
 
 ## Spec coverage (stage 1)
 
@@ -3076,7 +3107,7 @@ These came out of the stage 1 code reviews. Each was consciously deferred rather
   - `owner:reset-password` clears a lock, but it can't stop new attempts.
   - Keep the owner's login email unpublished.
 - **CSRF and `serverURL`.** Set `serverURL` and `csrf: [serverURL]` in `payload.config.ts` once the domain is known. `sameSite: 'Lax'` cookies cover cross-site POSTs in the meantime.
-- **Owner decision: admin access for the assistant.** Restrict `access.admin` to the owner if the assistant will only ever draft through its API key.
+- **Admin access for the assistant.** Resolved by the owner (D-005): only the owner can use the admin panel, and the assistant drafts through its API key. Implemented after the final review.
 - **Owner maintenance.**
   - Never bulk-write with `allowOwnerChange()`. A unique-index violation aborts the whole transaction and surfaces raw query errors.
   - To transfer ownership, demote the old owner first, then promote the new one, one document at a time.

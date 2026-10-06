@@ -22,7 +22,9 @@ This Markdown task list is a proposed maintenance method.
 - [ ] Decide which workspace conventions to adopt.
 - [x] Choose the website platform and design (D-004).
 - [x] Review the written [website design spec](../../website/docs/specs/2026-10-05-sagevani-website-design.md).
-- [ ] Confirm that article drafts are written in the CMS rather than `content/drafts/` (spec section 18, item 2).
+- [x] Confirm that article drafts are written in the CMS rather than `content/drafts/` (D-005).
+- [x] Decide admin access, database region and the Supabase plan (D-005).
+- [ ] Decide where completed piece worksheets live (Q-10).
 
 ## Next work after clarification
 
@@ -34,5 +36,6 @@ This Markdown task list is a proposed maintenance method.
 - [x] Build website stage 1 (foundation): [pull request #1](https://github.com/shashesh/sagevani/pull/1).
 - [ ] Owner: create the Supabase projects, connect Netlify, and merge pull request #1. See the [environments guide](../../website/docs/environments.md).
 - [ ] Plan website stage 2 (content model and admin).
+- [ ] At launch: upgrade the production Supabase organization to Pro. Until then, back up production drafts by hand (see the environments guide).
 
 The website platform is decided (D-004). Stage 1 (foundation) is built and awaits the owner's setup and merge. Nothing is deployed or published. No publishing schedule or series commitment has been made.

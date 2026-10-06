@@ -308,9 +308,9 @@ The dark values for `paper-2`, `surface`, `ink-soft` and dark on-accent are prop
 | Role | Can | Cannot |
 | --- | --- | --- |
 | Owner | Everything: write, publish, unpublish, moderate, see statistics, manage settings and users | — |
-| Assistant | Create and edit article drafts, upload media, read published content | Publish or unpublish, delete, read commenter or subscriber emails, read statistics, change settings, edit any account (including its own password and API key), unlock accounts |
+| Assistant | Through its API key: create and edit article drafts, upload media, read published content | Use the admin panel, publish or unpublish, delete, read commenter or subscriber emails, read statistics, change settings, edit any account (including its own password and API key), unlock accounts |
 
-The assistant role enforces decision D-003: the assistant may draft without asking, and publication requires owner approval. AI drafting uses an assistant API key. The rule that the assistant must not invent personal experiences or verification still applies to drafted content.
+The assistant role enforces decision D-003: the assistant may draft without asking, and publication requires owner approval. AI drafting uses an assistant API key. SageVani is a solo project, so only the owner uses the admin panel (D-005). The rule that the assistant must not invent personal experiences or verification still applies to drafted content.
 
 ### 8.2 Writing
 
@@ -360,7 +360,7 @@ This section describes the finished site. Stage 1 delivers the admin login, data
   - HTTPS only, with secure cookies.
   - Login is locked after repeated failures.
   - Login attempts are rate-limited, so nobody can keep the owner locked out by guessing (stage 6).
-  - There is one owner account.
+  - There is one owner account, and only the owner can use the admin panel.
   - On a new staging or production database, the owner account is created from the owner's machine (`owner:create`) before the site is first deployed.
   - If the owner password is lost or exposed, `owner:reset-password` sets a new one from the owner's machine. It also signs out every session, removes any API key and clears a login lock.
   - First-account sign-up is refused everywhere except local development and tests. That includes Payload's built-in `first-register` endpoint, which bypasses access rules, so nobody else can claim the owner account.
@@ -394,7 +394,7 @@ This section describes the finished site. Stage 1 delivers the admin login, data
   - daily article statistics without IP addresses
   - hashed IPs only inside short rate-limit windows
 - **Privacy page:** it explains all of the above, the services used (Supabase, Netlify, Resend, Cloudflare Turnstile, Google Analytics) and how to ask for deletion. The owner can delete a commenter's or subscriber's data from the admin.
-- **Region:** the Supabase region is proposed as Mumbai, if most readers are in India and Nepal. Confirm before creating the production project.
+- **Region:** readers are worldwide. The Supabase database is in East US (Ohio), next to Netlify's default region for the site's server code (D-005).
 
 ## 11. Error handling
 
@@ -455,7 +455,7 @@ This section describes the finished site. Stage 1 delivers the admin login, data
 | --- | --- | --- |
 | Local | `next dev` | Postgres 17 in Docker (`docker compose`), with a separate test database |
 | Preview | Netlify deploy previews (one per pull request) and branch deploys | A separate staging Supabase project (free plan); never production data |
-| Production | Netlify production | Production Supabase project (paid plan for backups and no pausing) |
+| Production | Netlify production | Production Supabase project, in its own Supabase organization: free plan until the site is launch-ready, then Pro for backups and no pausing (D-005) |
 
 - **Database changes** are Payload migrations, committed to the repository and followed by the schema hardening step.
   - Production deploys apply them automatically. Previews only build, so unreviewed branch code never runs migrations with database-owner credentials. The owner applies them to staging from their own machine.
@@ -470,7 +470,7 @@ Approximate. Check current pricing before committing.
 
 | Service | Plan |
 | --- | --- |
-| Supabase production | Pro plan, the only expected monthly cost (about US$25/month at last published pricing) |
+| Supabase production | Free until launch-ready, then the Pro plan, the only expected monthly cost (about US$25/month at last published pricing) |
 | Supabase staging | Free |
 | Netlify | Free plan at the start |
 | Resend | Free plan for a small list |
@@ -505,7 +505,7 @@ Each stage ends in something that can be reviewed. Implementation plans may be w
    - Security headers, and rate limits on admin login and reader endpoints.
    - Sentry.
    - Performance and accessibility passes, and the full end-to-end suite.
-   - Domain, sender verification, the production database, and the six launch pieces.
+   - Domain, sender verification, the production database's move to Supabase Pro, and the six launch pieces.
 
 ## 17. How the handbook shapes the site
 
@@ -526,7 +526,7 @@ Each stage ends in something that can be reviewed. Implementation plans may be w
 ## 18. Open items
 
 1. **Difficulty labels (Q-01).** The build ships with the proposed three, which can be edited in the admin.
-2. **Where article drafts live.** This design puts article drafts in the CMS, which replaces D-003's `content/drafts/` for article text. Seed cards, Vault entries, research and the foundation stay in this repository. Please confirm.
+2. **Where article drafts live.** Confirmed on 2026-10-06 (D-005). Article drafts and their editorial checklist live in the CMS, which replaces D-003's `content/drafts/` for article text. Seed cards, Vault entries, research and the foundation stay in this repository. Where completed piece worksheets live is still open (Q-10).
 3. **Interface wording.** Placeholder copy to write or approve:
    - the like label ("found this worth reading")
    - the subscribe text
@@ -535,5 +535,5 @@ Each stage ends in something that can be reviewed. Implementation plans may be w
    - the About, How SageVani writes, Start here and Privacy pages
 4. **Assistant disclosure (Q-09).** Decide what the About or How SageVani writes page says.
 5. **Comment guidelines.** A short policy readers can see.
-6. **Region, domain and sender address.** Proposed: Mumbai for the database; a domain and a "from" address are to be chosen.
-7. **Paid database plan.** Accept the Supabase Pro cost for production.
+6. **Region, domain and sender address.** The audience is worldwide, and the database is in East US (Ohio) (D-005). A domain and a "from" address are to be chosen.
+7. **Paid database plan.** Confirmed (D-005). Production moves to Supabase Pro when the site is launch-ready, and uses the free plan until then.

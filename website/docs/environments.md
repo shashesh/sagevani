@@ -50,8 +50,10 @@ Do these steps in order. The owner account must exist before the site is reachab
 
 ### 1. Create the Supabase projects
 
-- Create `sagevani-staging` (free plan) and `sagevani-production` (Pro plan) in the region you choose.
-- For each one, from the project's **Connect** panel, copy the **transaction pooler** URL (port 6543) and the **session pooler** URL (port 5432).
+- Create two organizations, one for each project, both on the free plan. Supabase sets the plan for a whole organization, so this lets you move only production to Pro at launch.
+- Create `sagevani-staging` in one and `sagevani-production` in the other.
+- Choose the **East US (Ohio)** region for both. Netlify runs the site's server code in US East (Ohio) by default, and every page render queries the database. Readers anywhere in the world are served through Netlify's global network.
+- For each project, from the project's **Connect** panel, copy the **transaction pooler** URL (port 6543) and the **session pooler** URL (port 5432).
 - Download the CA certificate from **Database → SSL Configuration**.
 
 ### 2. Close Supabase's web API to Payload's tables
@@ -122,6 +124,31 @@ Later, whenever a pull request adds a migration, repeat steps 1, 2 and 5 against
    - **Project visibility for previews: Private,** under **Project configuration → General → Visitor access → Project visibility.** Previews connect to the staging database, so only you should see them. Keep production private as well until launch.
 4. The open pull request's deploy preview builds against staging. Open `/admin` on the preview address and sign in with the staging owner account.
 5. Merging to `main` triggers the first production deploy. Sign in at `/admin` with the production owner account.
+
+## Until production is on Pro
+
+Production stays on Supabase's free plan until the site is launch-ready ([D-005](../../docs/governance/decisions.md#d-005--drafts-in-the-cms-admin-access-region-and-database-plan)). Until then:
+
+- **Projects pause after a week without activity.** Resume a paused project from the Supabase dashboard. A paused project can be restored for 90 days.
+- **There are no automatic backups.** Once you write drafts in production, back them up yourself.
+
+To back up, use Git Bash with Docker Desktop running, from a folder **outside this repository**. The backup contains your drafts, your account email and a password hash, so keep it private and never commit it.
+
+1. Prepare the shell as in [step 3.1](#3-migrate-and-create-the-owner), with the **production session pooler** URL.
+2. Run:
+
+   ```bash
+   docker run --rm -e DATABASE_URL -e DATABASE_CA_CERT postgres:17 sh -c \
+     'echo "$DATABASE_CA_CERT" > /tmp/ca.crt && PGSSLMODE=verify-full PGSSLROOTCERT=/tmp/ca.crt pg_dump "$DATABASE_URL" --schema=payload --no-owner --no-privileges' \
+     > "sagevani-backup-$(date +%F).sql"
+   ```
+
+How the command works:
+
+- The connection is encrypted, and it is refused if the server's certificate doesn't match Supabase's CA.
+- The `postgres` image version must be the same as, or newer than, the project's Postgres version, which Supabase shows in its settings.
+
+At launch, upgrade the production organization to Pro in its billing settings. Daily backups and no pausing start then.
 
 ## Recover the owner account
 
