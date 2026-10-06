@@ -1,9 +1,15 @@
-# Netlify builds the Next.js app in website/. Deploy-context environment variables
-# (production vs previews) are set in the Netlify UI — see website/docs/environments.md.
+# Netlify builds the Next.js app in website/. Only production deploys migrate the database:
+# deploy previews and branch deploys just build, so unreviewed branch code never runs migrations
+# with database-owner credentials. Staging migrations are run deliberately from the owner's
+# machine. Deploy-context environment variables are set in the Netlify UI; see
+# website/docs/environments.md.
 [build]
   base = "website"
-  command = "npm run deploy:build"
+  command = "npm run build"
   publish = ".next"
 
 [build.environment]
   NODE_VERSION = "24"
+
+[context.production]
+  command = "npm run deploy:build"
