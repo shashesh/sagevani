@@ -1,7 +1,8 @@
 # JapaDhyan in SageVani — design spec
 
 - Date: 2026-10-06
-- Status: Approved by the owner section by section on 2026-10-06; the written spec awaits the owner's review
+- Status: Approved by the owner on 2026-10-06. Corrected the same day, before any work began, to fit stage 1: the decision number (D-006), the database region, stacked pull requests and the content build's layout
+- Implementation plan: [the move](../plans/2026-10-06-japadhyan-move.md)
 - Scope: part 1 of 4 — moving JapaDhyan into SageVani as a browser-only section at `/japa`
 - Decision record: D-006 (added with this move)
 - Source: the [japadhyan repository](https://github.com/shashesh/japadhyan), archived once the move is done
