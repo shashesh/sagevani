@@ -21,6 +21,19 @@ const cms = (): Payload => {
   return payload
 }
 
+// Supabase always has these roles; plain local Postgres does not, so tests create them.
+const ensureApiRoles = async () => {
+  for (const role of ['anon', 'authenticated']) {
+    await db().query(
+      `DO $$ BEGIN
+         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
+           CREATE ROLE ${role} NOLOGIN;
+         END IF;
+       END $$`,
+    )
+  }
+}
+
 describe('database layout', () => {
   beforeAll(async () => {
     payload = await getPayload({ config: await config })
@@ -68,14 +81,8 @@ describe('database layout', () => {
   })
 
   it("revokes Supabase's API roles from the schema when they exist", async () => {
+    await ensureApiRoles()
     for (const role of ['anon', 'authenticated']) {
-      await db().query(
-        `DO $$ BEGIN
-           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
-             CREATE ROLE ${role} NOLOGIN;
-           END IF;
-         END $$`,
-      )
       await db().query(`GRANT USAGE ON SCHEMA "${DB_SCHEMA}" TO ${role}`)
       await db().query(`GRANT SELECT ON ALL TABLES IN SCHEMA "${DB_SCHEMA}" TO ${role}`)
     }
@@ -97,6 +104,39 @@ describe('database layout', () => {
     await expect(hardenSchema(db(), 'payload_schema_that_does_not_exist')).resolves.toBe(false)
   })
 
+  it('can run again, and covers tables created after an earlier hardening', async () => {
+    await hardenSchema(db(), DB_SCHEMA)
+    await db().query(`CREATE TABLE "${DB_SCHEMA}".hardening_check (id int)`)
+    try {
+      await expect(hardenSchema(db(), DB_SCHEMA)).resolves.toBe(true)
+      const { rows } = await db().query<{ relrowsecurity: boolean }>(
+        `SELECT c.relrowsecurity
+           FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = $1 AND c.relname = 'hardening_check'`,
+        [DB_SCHEMA],
+      )
+      expect(rows).toEqual([{ relrowsecurity: true }])
+    } finally {
+      await db().query(`DROP TABLE "${DB_SCHEMA}".hardening_check`)
+    }
+  })
+
+  it('removes default privileges that would grant the API roles access to future objects', async () => {
+    await ensureApiRoles()
+    await db().query(`ALTER DEFAULT PRIVILEGES IN SCHEMA "${DB_SCHEMA}" GRANT SELECT ON TABLES TO anon`)
+    await db().query(`ALTER DEFAULT PRIVILEGES IN SCHEMA "${DB_SCHEMA}" GRANT USAGE ON SEQUENCES TO authenticated`)
+
+    await hardenSchema(db(), DB_SCHEMA)
+
+    const { rows } = await db().query<{ acl: string }>(
+      `SELECT array_to_string(d.defaclacl, ',') AS acl
+         FROM pg_default_acl d JOIN pg_namespace n ON n.oid = d.defaclnamespace
+        WHERE n.nspname = $1`,
+      [DB_SCHEMA],
+    )
+    expect(rows.filter((r) => /(^|,)(anon|authenticated)=/.test(r.acl))).toEqual([])
+  })
+
   it('still lets Payload read and write after hardening', async () => {
     await hardenSchema(db(), DB_SCHEMA)
     const created = await cms().create({
@@ -109,18 +149,21 @@ describe('database layout', () => {
       },
       overrideAccess: true,
     })
-    const found = await cms().findByID({
-      collection: 'users',
-      id: created.id,
-      overrideAccess: true,
-    })
-    expect(found.email).toBe('after-rls@example.com')
-    // On an empty database this user becomes the owner, which may only be removed deliberately.
-    await cms().delete({
-      collection: 'users',
-      id: created.id,
-      overrideAccess: true,
-      context: allowOwnerChange(),
-    })
+    try {
+      const found = await cms().findByID({
+        collection: 'users',
+        id: created.id,
+        overrideAccess: true,
+      })
+      expect(found.email).toBe('after-rls@example.com')
+    } finally {
+      // On an empty database this user becomes the owner, which may only be removed deliberately.
+      await cms().delete({
+        collection: 'users',
+        id: created.id,
+        overrideAccess: true,
+        context: allowOwnerChange(),
+      })
+    }
   })
 })
