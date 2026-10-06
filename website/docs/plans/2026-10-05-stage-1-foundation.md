@@ -880,17 +880,36 @@ Expected:
 import type { PayloadRequest } from 'payload'
 import { describe, expect, it } from 'vitest'
 
-import { isOwner, ownerOnly, ownerOnlyField, ownerOrSelf } from '@/access/roles'
+import { isOwner, ownerOnly, ownerOnlyField, ownerOrOwnAccount } from '@/access/roles'
 
 const reqWith = (user: unknown) => ({ req: { user } as unknown as PayloadRequest })
 
-const owner = { id: 1, role: 'owner' }
-const assistant = { id: 2, role: 'assistant' }
+const owner = { id: 1, collection: 'users', role: 'owner' } as const
+const assistant = { id: 2, collection: 'users', role: 'assistant' } as const
+
+// None of these may be treated as the owner, and none may get even a self-only constraint.
+const untrusted: [string, unknown][] = [
+  ['no role', { id: 3, collection: 'users' }],
+  ['a null role', { id: 3, collection: 'users', role: null }],
+  ['an unknown role', { id: 3, collection: 'users', role: 'admin' }],
+  ['a differently cased role', { id: 3, collection: 'users', role: 'Owner' }],
+  ['a padded role', { id: 3, collection: 'users', role: ' owner' }],
+  ['a role array', { id: 3, collection: 'users', role: ['owner'] }],
+  ['an owner from another auth collection', { id: 1, collection: 'subscribers', role: 'owner' }],
+  ['an assistant from another auth collection', { id: 2, collection: 'subscribers', role: 'assistant' }],
+  ['an owner with no collection', { id: 1, role: 'owner' }],
+  ['an owner with no id', { collection: 'users', role: 'owner' }],
+  ['an assistant with no id', { collection: 'users', role: 'assistant' }],
+  ['an assistant with a null id', { id: null, collection: 'users', role: 'assistant' }],
+  ['an assistant with an empty id', { id: '', collection: 'users', role: 'assistant' }],
+  ['an empty object', {}],
+  ['an undefined user', undefined],
+]
 
 describe('isOwner', () => {
   it('is true only for the owner role', () => {
-    expect(isOwner(owner as never)).toBe(true)
-    expect(isOwner(assistant as never)).toBe(false)
+    expect(isOwner(owner)).toBe(true)
+    expect(isOwner(assistant)).toBe(false)
     expect(isOwner(null)).toBe(false)
     expect(isOwner(undefined)).toBe(false)
   })
@@ -898,30 +917,43 @@ describe('isOwner', () => {
 
 describe('ownerOnly', () => {
   it('allows the owner and denies everyone else', () => {
-    expect(ownerOnly(reqWith(owner) as never)).toBe(true)
-    expect(ownerOnly(reqWith(assistant) as never)).toBe(false)
-    expect(ownerOnly(reqWith(null) as never)).toBe(false)
+    expect(ownerOnly(reqWith(owner))).toBe(true)
+    expect(ownerOnly(reqWith(assistant))).toBe(false)
+    expect(ownerOnly(reqWith(null))).toBe(false)
+  })
+
+  it.each(untrusted)('denies %s', (_label, user) => {
+    expect(ownerOnly(reqWith(user))).toBe(false)
   })
 })
 
 describe('ownerOnlyField', () => {
   it('allows the owner and denies everyone else', () => {
-    expect(ownerOnlyField(reqWith(owner) as never)).toBe(true)
-    expect(ownerOnlyField(reqWith(assistant) as never)).toBe(false)
+    expect(ownerOnlyField(reqWith(owner))).toBe(true)
+    expect(ownerOnlyField(reqWith(assistant))).toBe(false)
+    expect(ownerOnlyField(reqWith(null))).toBe(false)
+  })
+
+  it.each(untrusted)('denies %s', (_label, user) => {
+    expect(ownerOnlyField(reqWith(user))).toBe(false)
   })
 })
 
-describe('ownerOrSelf', () => {
+describe('ownerOrOwnAccount', () => {
   it('gives the owner everything', () => {
-    expect(ownerOrSelf(reqWith(owner) as never)).toBe(true)
+    expect(ownerOrOwnAccount(reqWith(owner))).toBe(true)
   })
 
   it('limits an assistant to their own record', () => {
-    expect(ownerOrSelf(reqWith(assistant) as never)).toEqual({ id: { equals: 2 } })
+    expect(ownerOrOwnAccount(reqWith(assistant))).toEqual({ id: { equals: 2 } })
   })
 
   it('denies anonymous requests', () => {
-    expect(ownerOrSelf(reqWith(null) as never)).toBe(false)
+    expect(ownerOrOwnAccount(reqWith(null))).toBe(false)
+  })
+
+  it.each(untrusted)('denies %s outright', (_label, user) => {
+    expect(ownerOrOwnAccount(reqWith(user))).toBe(false)
   })
 })
 ```
@@ -942,18 +974,35 @@ import type { Access, FieldAccess } from 'payload'
 export const ROLES = ['owner', 'assistant'] as const
 export type Role = (typeof ROLES)[number]
 
-type RoleHolder = { id?: number | string; role?: Role | null } | null | undefined
+/** The only auth collection whose accounts carry a role. Use it as `Users.slug` too. */
+export const USERS_SLUG = 'users'
 
-export const isOwner = (user: RoleHolder): boolean => user?.role === 'owner'
+// req.user is read structurally and every property is checked at runtime, so no cast is needed
+// and anything unexpected (other auth collection, missing id, unknown role) fails closed.
+type RequestUser = { id?: unknown; collection?: unknown; role?: unknown } | null | undefined
+type StaffUser = { id: number | string; collection: typeof USERS_SLUG; role: Role }
 
-export const ownerOnly: Access = ({ req }) => isOwner(req.user as RoleHolder)
+const isRole = (value: unknown): value is Role => (ROLES as readonly unknown[]).includes(value)
 
-export const ownerOnlyField: FieldAccess = ({ req }) => isOwner(req.user as RoleHolder)
+const isStaffUser = (user: RequestUser): user is StaffUser =>
+  user?.collection === USERS_SLUG &&
+  (typeof user.id === 'number' || (typeof user.id === 'string' && user.id !== '')) &&
+  isRole(user.role)
 
-export const ownerOrSelf: Access = ({ req }) => {
-  const user = req.user as RoleHolder
-  if (!user) return false
-  if (isOwner(user)) return true
+export const isOwner = (user: RequestUser): boolean => isStaffUser(user) && user.role === 'owner'
+
+export const ownerOnly: Access = ({ req }) => isOwner(req.user)
+
+export const ownerOnlyField: FieldAccess = ({ req }) => isOwner(req.user)
+
+/**
+ * Users collection only: the owner gets every account, any other staff user only their own.
+ * Never reuse on another collection: it compares the document id with the user's id.
+ */
+export const ownerOrOwnAccount: Access = ({ req }) => {
+  const user = req.user
+  if (!isStaffUser(user)) return false
+  if (user.role === 'owner') return true
   return { id: { equals: user.id } }
 }
 ```
@@ -964,7 +1013,7 @@ export const ownerOrSelf: Access = ({ req }) => {
 npm run test:unit
 ```
 
-Expected: PASS, `22 passed` (16 env and guard + 6 roles).
+Expected: PASS, `67 passed` (16 env and guard + 51 roles).
 
 - [ ] **Step 5: Verify and commit**
 
@@ -1129,6 +1178,7 @@ git commit -m "feat: store Payload tables in a dedicated payload schema"
 import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import { ALLOW_OWNER_CHANGE } from '@/collections/Users'
 import config from '@/payload.config'
 
 let payload: Payload
@@ -1136,12 +1186,24 @@ let payload: Payload
 const password = 'correct-horse-battery-staple'
 
 const clearUsers = () =>
-  payload.delete({ collection: 'users', where: { id: { exists: true } }, overrideAccess: true })
+  payload.delete({
+    collection: 'users',
+    where: { id: { exists: true } },
+    overrideAccess: true,
+    context: { [ALLOW_OWNER_CHANGE]: true },
+  })
 
 const createOwner = () =>
   payload.create({
     collection: 'users',
     data: { email: 'owner@example.com', name: 'Owner', password, role: 'owner' },
+    overrideAccess: true,
+  })
+
+const createAssistant = () =>
+  payload.create({
+    collection: 'users',
+    data: { email: 'assistant@example.com', name: 'Assistant', password, role: 'assistant' },
     overrideAccess: true,
   })
 
@@ -1191,12 +1253,8 @@ describe('users and roles', () => {
   })
 
   it('does not let an assistant promote themselves', async () => {
-    const owner = await createOwner()
-    const assistant = await payload.create({
-      collection: 'users',
-      data: { email: 'assistant@example.com', name: 'Assistant', password, role: 'assistant' },
-      overrideAccess: true,
-    })
+    await createOwner()
+    const assistant = await createAssistant()
     const updated = await payload.update({
       collection: 'users',
       id: assistant.id,
@@ -1205,37 +1263,106 @@ describe('users and roles', () => {
       user: assistant,
     })
     expect(updated.role).toBe('assistant')
-    expect(owner.role).toBe('owner')
   })
 
   it('shows an assistant only their own account', async () => {
     await createOwner()
-    const assistant = await payload.create({
+    const assistant = await createAssistant()
+    const visible = await payload.find({
       collection: 'users',
-      data: { email: 'assistant@example.com', name: 'Assistant', password, role: 'assistant' },
-      overrideAccess: true,
+      overrideAccess: false,
+      user: assistant,
     })
-    const visible = await payload.find({ collection: 'users', overrideAccess: false, user: assistant })
     expect(visible.docs.map((u) => u.email)).toEqual(['assistant@example.com'])
   })
 
   it('does not let an assistant delete accounts', async () => {
     const owner = await createOwner()
-    const assistant = await payload.create({
-      collection: 'users',
-      data: { email: 'assistant@example.com', name: 'Assistant', password, role: 'assistant' },
-      overrideAccess: true,
-    })
+    const assistant = await createAssistant()
     await expect(
       payload.delete({ collection: 'users', id: owner.id, overrideAccess: false, user: assistant }),
     ).rejects.toThrow(/not allowed/i)
+  })
+
+  it('does not let an assistant unlock the owner', async () => {
+    await createOwner()
+    const assistant = await createAssistant()
+    await expect(
+      payload.unlock({
+        collection: 'users',
+        // The generated auth types require a password here, although unlock does not use it.
+        data: { email: 'owner@example.com', password: '' },
+        overrideAccess: false,
+        req: { user: { ...assistant, collection: 'users' } },
+      }),
+    ).rejects.toThrow(/not allowed/i)
+  })
+
+  it('refuses a second owner account', async () => {
+    const owner = await createOwner()
+    await expect(
+      payload.create({
+        collection: 'users',
+        data: { email: 'second@example.com', name: 'Second', password, role: 'owner' },
+        overrideAccess: false,
+        user: owner,
+      }),
+    ).rejects.toThrow('There can only be one owner account.')
+  })
+
+  it('refuses to demote the owner', async () => {
+    const owner = await createOwner()
+    await expect(
+      payload.update({
+        collection: 'users',
+        id: owner.id,
+        data: { role: 'assistant' },
+        overrideAccess: false,
+        user: owner,
+      }),
+    ).rejects.toThrow('The owner account cannot be demoted.')
+  })
+
+  it('refuses to delete the owner', async () => {
+    const owner = await createOwner()
+    await expect(
+      payload.delete({ collection: 'users', id: owner.id, overrideAccess: false, user: owner }),
+    ).rejects.toThrow('The owner account cannot be deleted.')
+  })
+
+  it('ignores a plain string flag, which an outside request could send', async () => {
+    const owner = await createOwner()
+    await expect(
+      payload.delete({
+        collection: 'users',
+        id: owner.id,
+        overrideAccess: false,
+        user: owner,
+        context: { allowOwnerChange: true },
+      }),
+    ).rejects.toThrow('The owner account cannot be deleted.')
+  })
+
+  it('still lets the owner edit their own details', async () => {
+    const owner = await createOwner()
+    const updated = await payload.update({
+      collection: 'users',
+      id: owner.id,
+      data: { name: 'Renamed' },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(updated).toMatchObject({ name: 'Renamed', role: 'owner' })
   })
 
   it('locks login after five failed attempts', async () => {
     await createOwner()
     for (let attempt = 0; attempt < 5; attempt++) {
       await expect(
-        payload.login({ collection: 'users', data: { email: 'owner@example.com', password: 'wrong' } }),
+        payload.login({
+          collection: 'users',
+          data: { email: 'owner@example.com', password: 'wrong' },
+        }),
       ).rejects.toThrow()
     }
     await expect(
@@ -1251,26 +1378,52 @@ describe('users and roles', () => {
 npm run test:int
 ```
 
-Expected: FAIL, with several of the 7 new tests failing. The template's Users collection has no `role` field (`expected undefined to be 'owner'`), uses default access, and has no lockout.
+Expected: FAIL, with several of the 13 new tests failing. The test file can't import `ALLOW_OWNER_CHANGE` from the template's Users collection, and that collection has no `role` field, uses default access, and has no lockout, unlock rule or single-owner guard.
 
 - [ ] **Step 3: Implement** — replace `website/src/collections/Users.ts`
 
 ```ts
-import type { Access, CollectionBeforeChangeHook, CollectionConfig } from 'payload'
+import {
+  APIError,
+  type Access,
+  type CollectionBeforeChangeHook,
+  type CollectionBeforeDeleteHook,
+  type CollectionConfig,
+  type PayloadRequest,
+} from 'payload'
 
-import { ROLES, isOwner, ownerOnly, ownerOnlyField, ownerOrSelf } from '../access/roles'
+import {
+  ROLES,
+  USERS_SLUG,
+  isOwner,
+  ownerOnly,
+  ownerOnlyField,
+  ownerOrOwnAccount,
+} from '../access/roles'
 
 const LOCK_TIME_MS = 15 * 60 * 1000
 const SESSION_SECONDS = 8 * 60 * 60
 
-const countUsers = async (req: Parameters<Access>[0]['req']): Promise<number> => {
-  const { totalDocs } = await req.payload.count({ collection: 'users', overrideAccess: true, req })
+// Server-side code (tests, maintenance scripts) can pass this flag in a Local API call's context to
+// demote or delete the owner deliberately. It is a module-private Symbol, so no HTTP request can set it.
+export const ALLOW_OWNER_CHANGE = Symbol('allowOwnerChange')
+
+const ownerChangeAllowed = (context: object): boolean =>
+  (context as Record<PropertyKey, unknown>)[ALLOW_OWNER_CHANGE] === true
+
+const countUsers = async (req: PayloadRequest, ownersOnly = false): Promise<number> => {
+  const { totalDocs } = await req.payload.count({
+    collection: USERS_SLUG,
+    where: ownersOnly ? { role: { equals: 'owner' } } : undefined,
+    overrideAccess: true,
+    req,
+  })
   return totalDocs
 }
 
 // Anyone may create the very first account (it becomes the owner); after that only the owner can.
 const ownerOrFirstUser: Access = async ({ req }) => {
-  if (isOwner(req.user as { role?: 'owner' | 'assistant' } | null)) return true
+  if (isOwner(req.user)) return true
   return (await countUsers(req)) === 0
 }
 
@@ -1280,8 +1433,30 @@ const firstUserIsOwner: CollectionBeforeChangeHook = async ({ data, operation, r
   return { ...data, role: 'owner' }
 }
 
+// The spec allows exactly one owner: refuse a second one, and refuse demoting the owner.
+const keepSingleOwner: CollectionBeforeChangeHook = async ({ context, data, originalDoc, req }) => {
+  if (ownerChangeAllowed(context)) return data
+  const wasOwner = originalDoc?.role === 'owner'
+  const willBeOwner = (data.role ?? originalDoc?.role) === 'owner'
+  if (willBeOwner && !wasOwner && (await countUsers(req, true)) > 0) {
+    throw new APIError('There can only be one owner account.', 400, undefined, true)
+  }
+  if (wasOwner && !willBeOwner) {
+    throw new APIError('The owner account cannot be demoted.', 400, undefined, true)
+  }
+  return data
+}
+
+const ownerCannotBeDeleted: CollectionBeforeDeleteHook = async ({ context, id, req }) => {
+  if (ownerChangeAllowed(context)) return
+  const user = await req.payload.findByID({ collection: USERS_SLUG, id, overrideAccess: true, req })
+  if (user.role === 'owner') {
+    throw new APIError('The owner account cannot be deleted.', 400, undefined, true)
+  }
+}
+
 export const Users: CollectionConfig = {
-  slug: 'users',
+  slug: USERS_SLUG,
   admin: {
     useAsTitle: 'email',
     defaultColumns: ['email', 'name', 'role'],
@@ -1298,12 +1473,16 @@ export const Users: CollectionConfig = {
   },
   access: {
     create: ownerOrFirstUser,
-    read: ownerOrSelf,
-    update: ownerOrSelf,
+    read: ownerOrOwnAccount,
+    update: ownerOrOwnAccount,
     delete: ownerOnly,
+    // Payload's default lets any signed-in user unlock any account, which would let the
+    // assistant lift the owner's lockout and keep guessing the password.
+    unlock: ownerOnly,
   },
   hooks: {
-    beforeChange: [firstUserIsOwner],
+    beforeChange: [firstUserIsOwner, keepSingleOwner],
+    beforeDelete: [ownerCannotBeDeleted],
   },
   fields: [
     {
@@ -1333,18 +1512,45 @@ export const Users: CollectionConfig = {
 npm run test:int
 ```
 
-Expected: PASS, `8 passed` (database layout + users).
+Expected: PASS, `14 passed` (1 database layout + 13 users).
 
-- [ ] **Step 5: Regenerate types, then verify and commit**
+- [ ] **Step 5: Regenerate types and keep the role list in step with them**
 
 ```bash
 npm run generate:types
-npm run lint && npm run typecheck && npm test
-git add website
-git commit -m "feat: add owner and assistant roles, first-user ownership and login lockout"
 ```
 
-Expected: `npm test` shows the unit tests (22) and integration tests (8) passing.
+In `website/tests/unit/roles.unit.spec.ts`, change the first two imports to:
+
+```ts
+import { describe, expect, expectTypeOf, it } from 'vitest'
+
+import { isOwner, ownerOnly, ownerOnlyField, ownerOrOwnAccount, type Role } from '@/access/roles'
+import type { User } from '@/payload-types'
+```
+
+and append at the end of the file:
+
+```ts
+describe('ROLES', () => {
+  // Checked by `npm run typecheck`: fails if the roles and Payload's generated User type drift apart.
+  it('stays in step with the role type Payload generates for users', () => {
+    expectTypeOf<User['role']>().toEqualTypeOf<Role>()
+  })
+})
+```
+
+This was verified in a throwaway copy. Adding `'editor'` to `ROLES` without regenerating types makes `npm run typecheck` fail with `Type '"owner" | "assistant" | "editor"' does not satisfy the constraint …`.
+
+- [ ] **Step 6: Verify and commit**
+
+```bash
+npm run lint && npm run typecheck && npm test
+git add website
+git commit -m "feat: add owner and assistant roles, single-owner rule, owner-only unlock and login lockout"
+```
+
+Expected: `npm test` shows the unit tests (68) and integration tests (14) passing.
 
 ---
 
@@ -1364,6 +1570,7 @@ import { Pool } from 'pg'
 import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { ALLOW_OWNER_CHANGE } from '@/collections/Users'
 import config from '@/payload.config'
 import { DB_SCHEMA } from '@/lib/db-schema'
 import { hardenSchema } from '@/lib/harden-database'
@@ -1444,9 +1651,19 @@ describe('database layout', () => {
       },
       overrideAccess: true,
     })
-    const found = await payload.findByID({ collection: 'users', id: created.id, overrideAccess: true })
+    const found = await payload.findByID({
+      collection: 'users',
+      id: created.id,
+      overrideAccess: true,
+    })
     expect(found.email).toBe('after-rls@example.com')
-    await payload.delete({ collection: 'users', id: created.id, overrideAccess: true })
+    // On an empty database this user becomes the owner, which may only be removed deliberately.
+    await payload.delete({
+      collection: 'users',
+      id: created.id,
+      overrideAccess: true,
+      context: { [ALLOW_OWNER_CHANGE]: true },
+    })
   })
 })
 ```
@@ -1459,7 +1676,7 @@ The test creates the `anon` and `authenticated` roles locally because they exist
 npm run test:int
 ```
 
-Expected: FAIL with `Failed to resolve import "@/lib/harden-database"`.
+Expected: FAIL because `@/lib/harden-database` can't be resolved (`Failed to resolve import` or `Cannot find package`).
 
 - [ ] **Step 3: Implement** — `website/src/lib/harden-database.ts`
 
@@ -1502,7 +1719,7 @@ The identifiers interpolated into SQL come only from `pg_tables`, `pg_roles` and
 npm run test:int
 ```
 
-Expected: PASS, `11 passed`.
+Expected: PASS, `17 passed`.
 
 - [ ] **Step 5: Add the command-line entry point** — `website/scripts/harden-database.ts`
 
@@ -1645,13 +1862,19 @@ On a fresh staging or production database, the first account created becomes the
 import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import { ALLOW_OWNER_CHANGE } from '@/collections/Users'
 import config from '@/payload.config'
 import { createOwner } from '@/lib/create-owner'
 
 let payload: Payload
 
 const clearUsers = () =>
-  payload.delete({ collection: 'users', where: { id: { exists: true } }, overrideAccess: true })
+  payload.delete({
+    collection: 'users',
+    where: { id: { exists: true } },
+    overrideAccess: true,
+    context: { [ALLOW_OWNER_CHANGE]: true },
+  })
 
 describe('createOwner', () => {
   beforeAll(async () => {
@@ -1677,9 +1900,17 @@ describe('createOwner', () => {
   })
 
   it('refuses when any account already exists', async () => {
-    await createOwner(payload, { email: 'owner@example.com', name: 'Owner', password: 'long-enough-password' })
+    await createOwner(payload, {
+      email: 'owner@example.com',
+      name: 'Owner',
+      password: 'long-enough-password',
+    })
     await expect(
-      createOwner(payload, { email: 'second@example.com', name: 'Second', password: 'long-enough-password' }),
+      createOwner(payload, {
+        email: 'second@example.com',
+        name: 'Second',
+        password: 'long-enough-password',
+      }),
     ).rejects.toThrow('Refusing to create an owner: this database already has user accounts.')
   })
 
@@ -1697,7 +1928,7 @@ describe('createOwner', () => {
 npm run test:int
 ```
 
-Expected: FAIL with `Failed to resolve import "@/lib/create-owner"`.
+Expected: FAIL because `@/lib/create-owner` can't be resolved (`Failed to resolve import` or `Cannot find package`).
 
 - [ ] **Step 3: Implement** — `website/src/lib/create-owner.ts`
 
@@ -1732,7 +1963,7 @@ export async function createOwner(payload: Payload, input: OwnerInput) {
 npm run test:int
 ```
 
-Expected: PASS, `14 passed`.
+Expected: PASS, `20 passed`.
 
 - [ ] **Step 5: Add the command-line entry point** — `website/scripts/create-owner.ts`
 
@@ -1859,7 +2090,7 @@ npm run test:coverage
 
 Expected:
 
-- `Tests  36 passed (36)` (22 unit + 14 integration)
+- `Tests  88 passed (88)` (68 unit + 20 integration)
 - The coverage table shows 100% for `access/roles.ts`, `collections/Users.ts`, `lib/env.ts`, `lib/db-schema.ts`, `lib/harden-database.ts` and `lib/create-owner.ts`.
 - No threshold errors.
 
