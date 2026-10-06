@@ -86,6 +86,50 @@ describe('parseServerEnv', () => {
     expect(env.DATABASE_CA_CERT).toBe(CA)
   })
 
+  it('converts a single-line certificate with literal backslash-n escapes to multi-line form', () => {
+    const escaped = CA.replaceAll('\n', '\\n')
+
+    const env = parseServerEnv({
+      ...VALID,
+      DATABASE_URL: 'postgres://u:p@aws-0-ap-south-1.pooler.supabase.com:6543/postgres',
+      DATABASE_CA_CERT: escaped,
+    })
+
+    expect(escaped).not.toContain('\n')
+    expect(env.DATABASE_CA_CERT).toBe(CA)
+  })
+
+  it('treats an empty or whitespace-only certificate as absent for a local database', () => {
+    for (const value of ['', '  \r\n ']) {
+      const env = parseServerEnv({ ...VALID, DATABASE_CA_CERT: value })
+
+      expect(env).toEqual(VALID)
+    }
+  })
+
+  it('still requires a certificate for a remote database when the value is empty', () => {
+    for (const value of ['', '  \r\n ']) {
+      expect(() =>
+        parseServerEnv({
+          ...VALID,
+          DATABASE_URL: 'postgres://u:p@aws-0-ap-south-1.pooler.supabase.com:6543/postgres',
+          DATABASE_CA_CERT: value,
+        }),
+      ).toThrowError(/DATABASE_CA_CERT: is required for a database that is not local/)
+    }
+  })
+
+  it('rejects a certificate value that is not a PEM certificate, without echoing it', () => {
+    const attempt = () => parseServerEnv({ ...VALID, DATABASE_CA_CERT: 'not-a-certificate-value' })
+
+    expect(attempt).toThrowError(
+      /DATABASE_CA_CERT: must be a PEM certificate \(from -----BEGIN CERTIFICATE----- to -----END CERTIFICATE-----\)/,
+    )
+    expect(attempt).toThrowError(
+      expect.objectContaining({ message: expect.not.stringMatching(/not-a-certificate-value/) }),
+    )
+  })
+
   it('does not require a CA certificate for a local database', () => {
     for (const host of ['localhost', '127.0.0.1', '[::1]']) {
       expect(() =>
