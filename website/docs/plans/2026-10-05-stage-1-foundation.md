@@ -2785,7 +2785,7 @@ Expected: `verify` passes. If `deploy:build` fails, read the log step by step. T
 
 - [ ] **Step 2: Create `website/docs/environments.md`**
 
-```markdown
+````markdown
 # Environments
 
 | Environment | App | Database | Schema changes |
@@ -2847,7 +2847,7 @@ Do these steps in order. Step 4 must happen before step 5, so that nobody can cl
    - Add a new site from the GitHub repository `shashesh/sagevani`. Build settings come from `netlify.toml`.
    - Under environment variables, set `DATABASE_URL`, `DATABASE_MIGRATION_URL` and `PAYLOAD_SECRET` with production values for the **Production** context, and staging values for **Deploy Previews** and **Branch deploys**.
 6. Deploy, open `/admin` on the Netlify address, and sign in with the owner account from step 4.
-```
+````
 
 - [ ] **Step 3: Add a "Develop" section to `website/README.md`**
 
