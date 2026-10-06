@@ -12,8 +12,8 @@ The app works fully without an account. An account is for **backup and sync acro
 
 ## Guest first (P1)
 
-- On first launch the app creates a **local profile**. Everything the devotee does belongs to it, stays on the device, and is never sent anywhere.
-- Everything works as a guest: every chanting mode, the library, favourites, sankalpas, charts, reminders.
+- On the first visit, `/japa` creates a **local profile**. Everything the devotee does belongs to it and stays in the browser; nothing is uploaded without an account and consent.
+- Everything works as a guest: every chanting mode, the library, favourites, sankalpas, charts. Reminders need web push from a server; whether guests get them, and what the server may know, is decided in part 3 ([Q-12](../../../../../docs/governance/open-questions.md)).
 
 ## Where sign-in appears (P1)
 
@@ -72,7 +72,7 @@ Nothing is asked, and **no count is ever lost**: counts are append-only events, 
 
 Afterwards the devotee sees what happened, e.g. "Added 2,340 repetitions from this device to your account."
 
-A devotee signing in on a fresh install whose account has `onboarded_at` set skips onboarding and lands on their last practice.
+A devotee signing in on a new device or browser whose account has `onboarded_at` set skips onboarding and lands on their last practice.
 
 ## Signing out (P1)
 
@@ -107,7 +107,7 @@ For everyone, including guests.
 ## Web
 
 - Guest data lives in the browser's storage, which the browser can clear. `/japa` asks the browser to keep it and offers backup sooner.
-- The site opens offline after the first visit ([data-model](../../architecture/data-model.md#web)).
+- `/japa` opens offline after the first visit; the blog does not ([data-model](../../architecture/data-model.md#web)).
 
 ## Security and privacy
 

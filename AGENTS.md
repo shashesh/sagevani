@@ -24,6 +24,9 @@ Read `README.md`, `docs/project-brief.md`, and relevant foundation sections befo
 
 JapaDhyan is the naam japam section at `/japa` (D-006). Its documents are in `website/docs/japa/`.
 
+- No account is needed, ever. An account is only for backup and sync, after explicit consent.
+- Counting works offline, with no connection and no account.
+- Hindu, Sikh, Buddhist and Jain traditions. Every mala, mantra and mode is open from day one; nothing is unlocked by counts or streaks.
 - Every chanting mode records count events. Totals are always derived from events, never stored as a counter.
 - Count events are sealed, then never edited. Fixes are `correction` events; practice done elsewhere is a `manual` event. Group days by an event's `local_day`, never by converting `created_at`.
 - Every practice is an ordered list of steps. Counts are in repetitions: a full namavali is one recitation. A place in a namavali is a position, never a count.

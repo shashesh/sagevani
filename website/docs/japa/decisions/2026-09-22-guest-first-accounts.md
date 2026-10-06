@@ -12,7 +12,7 @@ The core app must work offline and without registration. Some devotees want back
 
 ## Decision
 
-- **No account needed, ever.** Guests have the full app; their data stays on the device.
+- **No account needed, ever.** Guests have the full app; their data stays on the device. Reminders, which need web push from a server, are decided in part 3.
 - **Sign-in methods:** Google, Apple and an email one-time code, to be confirmed in part 3 with the sign-in provider ([Q-11](../../../../docs/governance/open-questions.md)). Phone sign-in is deferred for cost and fraud reasons.
 - **Where it appears:** an "I already have an account" link on the welcome screen, a limited backup offer after a few days of practice, and Settings. Never between opening the app and chanting.
 - **Explicit consent** before the first sync.

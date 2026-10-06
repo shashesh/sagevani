@@ -19,6 +19,6 @@ phases: P3
 
 ## Accessibility (baseline from P1, full audit in P3)
 
-- Screen reader support (VoiceOver, TalkBack) for all counting modes.
-- Dynamic text sizes, colour-contrast compliance.
+- Screen reader support (VoiceOver, TalkBack, NVDA) for all counting modes.
+- Respects the browser's text size and zoom; colour-contrast compliance.
 - Audio feedback, and vibration where the browser supports it, so counting works without sight.

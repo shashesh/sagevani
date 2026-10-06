@@ -51,7 +51,7 @@ Adding, moving or retiring a document here: update this index in the same commit
 - [Zod schemas](decisions/2026-09-23-schema-library-zod.md) — a strict content form and a forward-compatible export form
 - [transliteration](decisions/2026-09-23-transliteration-library.md) — vidyut-lipi generates the Indic scripts; our own rules produce `latin`
 
-The tech-stack, PowerSync, CI and app-name decisions were dropped with the native apps (D-006). They stay in the archived repository.
+The tech-stack and PowerSync decisions, and the app-name decision's domains, store listings and app identifiers, are superseded by D-006; the name JapaDhyan stays. The CI-only-when-ready decision went with the old repository's tooling. All of them stay in the archived repository.
 
 ## Research
 

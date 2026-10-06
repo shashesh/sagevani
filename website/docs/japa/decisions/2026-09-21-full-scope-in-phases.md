@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-09-21
+updated: 2026-10-06
 ---
 
 # Keep the full scope, deliver in phases
@@ -24,3 +25,4 @@ Each phase must ship something complete for the devotee.
 
 - Hard features (voice counting, live rooms, handwriting) are scheduled after the easy modes are solid.
 - Other faiths wait until P4 so each can be done with an advisor, but the P1 data model must accommodate them.
+- **Partly superseded by [D-006](../../../../docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa)** (2026-10-06): features that need a native app (wearables, volume buttons, flip to pause, Bluetooth rings) are dropped.

@@ -28,6 +28,6 @@ Goal: from opening `/japa` to first repetition in **under one minute**. No accou
 
 Never between opening the app and chanting.
 
-- **Backup offer** on the session-end or Progress screen after the 3rd day of practice or at 1,008 repetitions, whichever comes first. At most 3 offers in total; earlier on the web ([accounts](accounts-and-sync.md#where-sign-in-appears-p1)).
+- **Backup offer** on the session-end or Progress screen after the 3rd day of practice or at 1,008 repetitions, whichever comes first. At most 3 offers in total; part 3 may make the first offer sooner, since browsers can clear stored data ([accounts](accounts-and-sync.md#where-sign-in-appears-p1)).
 - Introduction to other chanting modes, offered gradually, one at a time.
 - Suggest a [sankalpa](sankalpa-and-progress.md) after a week of practice.

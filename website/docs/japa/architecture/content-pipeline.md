@@ -28,7 +28,7 @@ Text is manageable; audio and images are not. Many devotees in India and Nepal u
 Text and metadata only, as YAML:
 
 ```text
-content/
+japa-catalog/content/
 ├─ traditions/hindu.yaml
 ├─ deities/hindu/shiva.yaml
 ├─ practices/hindu/shiva/om-namah-shivaya.yaml
@@ -38,9 +38,9 @@ content/
 
 - **Layout.** A file's name is its id. Deities sit in their tradition's folder, and practices in their tradition's and their **primary deity's** folder (the first of `deity_ids`), so Hare Krishna is `practices/hindu/krishna/hare-krishna.yaml`. Any other file is an error, except `japa-catalog/content/README.md`.
 - **Audio and images are not in git.** They live in object storage, named by their SHA-256. YAML refers to them by id, checksum, size and (for audio) duration.
-- **Schema.** Every file is checked against a schema in `src/japa/domain` (`src/schemas`, [Zod](../decisions/2026-09-23-schema-library-zod.md)), which is platform-agnostic and also used by the app to read packs. Each entity has two forms:
+- **Schema.** Every file is checked against a schema in `src/japa/domain/schemas` ([Zod](../decisions/2026-09-23-schema-library-zod.md)), which is platform-agnostic and also used by `/japa` to read packs. Each entity has two forms:
   - **Content** schemas are strict: a field the schema doesn't know is an error, not ignored. A practice's step text, words and names carry the master scripts — the source script and IAST. Generated scripts may not be written by hand, except a `latin` that overrides the rules ([how `latin` is produced](../decisions/2026-09-23-transliteration-library.md#how-latin-is-produced)).
-  - **Export** schemas drop fields they don't know, so an app can read a pack with fields added after its release. A practice's step text, words and names carry at least the source script, IAST and `latin`; script add-on packs bring more.
+  - **Export** schemas drop fields they don't know, so an older cached `/japa` can read a pack with fields added after it was built. A practice's step text, words and names carry at least the source script, IAST and `latin`; script add-on packs bring more.
   - **Deity names** have no source script, so neither rule applies: they are written by hand per language, each in the scripts that language uses (`en` in `latin`, `hi` in `devanagari`), and are never generated.
   - Both enforce the rules within a single entity, among them: catalog ids, language tags as language, optional script and optional region in canonical case (`en`, `pt-BR`, `sa-Latn`), a source script other than `latin`, one step for a mantra, words only on a mantra, a name on every namavali step, a namavali round of one recitation, a duration on every recording, audio positions inside the recording, program days within the program, and an absent meaning or reading written as `null`, never as an empty map. Rules that span files — a practice's deities exist, versions only go up — belong to the build.
 - **Review.** Each practice carries `review: { advisor, reviewed_on, version }`, `source` and `licence`. A review covers the version it names: a practice whose chanted text changed since is unreviewed again (`isReviewed` in `src/japa/domain`), so that change goes back to the advisor. Titles, intros and meanings can change without a version bump ([versions](#source-content)), so they keep the review; the advisor sees them in the PR like any other change. Production packs refuse unreviewed content; development packs include it, flagged.
@@ -51,7 +51,7 @@ content/
 ### Transliteration
 
 - The master text is the practice's source script (Devanagari for Sanskrit, Gurmukhi for Sikh practice) plus IAST.
-- `latin` (common spelling such as "Om Namah Shivaya") and other Indic scripts are **generated at build time**, not in the browser, using an established transliteration library chosen in M2 ([vidyut-lipi](../decisions/2026-09-23-transliteration-library.md), with our own rules for `latin` and for each script's conventions).
+- `latin` (common spelling such as "Om Namah Shivaya") and other Indic scripts are **generated at build time**, not in the browser, using an established transliteration library chosen on 2026-09-23 ([vidyut-lipi](../decisions/2026-09-23-transliteration-library.md), with our own rules for `latin` and for each script's conventions).
 - From Devanagari, the build generates Tamil, Telugu, Kannada, Gujarati and Bengali; Gurmukhi and Tibetan wait for P2. `latin` comes from the IAST by rules, unless the step carries a hand-written one. A step's text, words and name are each generated, words one by one.
 - The build checks what it generates (`src/japa/catalog-build/generate.ts`):
   - The source script, read as IAST, must match the hand-written IAST, ignoring punctuation (daṇḍas, hyphens, brackets; never the avagraha). IAST must be lower case with `ṃ`, not `ṁ`.
@@ -109,11 +109,10 @@ Steps 1 to 4 are `src/japa/catalog-build`, run by `scripts/japa-content-build.ts
 
 - **Format.** Plain JSON, hashed exactly as stored. Compression happens in transit (HTTP `Content-Encoding`, which the browser decodes), so `/japa` needs no decompression library and the SHA-256 covers exactly the bytes it parses.
 - **Names.** A pack is published as `packs/<id>.<first 16 hex digits of its SHA-256>.json`, so new content always has a new name and a cache can never serve a stale copy under it. Only `manifest.json` keeps a fixed name.
-- **Schema version.** Every pack and the manifest carry `schema_version`, the format's major version. A pack with one the app doesn't understand is ignored; the app keeps what it has and suggests updating. Fields added within a major version are dropped by older apps.
+- **Schema version.** Every pack and the manifest carry `schema_version`, the format's major version. A pack with one `/japa` doesn't understand is ignored; `/japa` keeps what it has and asks the devotee to reload for the new version. Fields added within a major version are dropped by older cached versions.
 - **Releases, not pack versions.** A pack has no version of its own: the app fetches a pack when its SHA-256 changes. The manifest carries a `release` number that only goes up. `/japa` remembers the highest it has accepted and rejects a manifest with a lower one, so a stale cached manifest can't roll a correction back.
 - **Add-ons** carry the `version` of each practice they were built from and apply only to that version, step by step.
-- **Shapes:** `src/japa/domain/types/packs.ts`. The build checks every pack against the schemas in `src/schemas/packs.ts` before writing it, and the app reads packs with the same schemas. The schemas check each pack on its own; that `core` holds every pack and that packs agree with one another is the build's job.
-
+- **Shapes:** `src/japa/domain/types/packs.ts`. The build checks every pack against the schemas in `src/japa/domain/schemas/packs.ts` before writing it, and `/japa` reads packs with the same schemas. The schemas check each pack on its own; that `core` holds every pack and that packs agree with one another is the build's job.
 - Packs are **data only**: text and references, never code or markup. `/japa` renders text as text.
 
 ## Device
@@ -142,4 +141,4 @@ Which deity someone chants to reveals their religion, so a request for that deit
 - **P1 avoids the problem:** the launch library's text is all in the core pack, so opening a deity needs no request of its own.
 - **As the library grows,** packs are fetched in **groups** (a tradition, or a batch of deities including ones the devotee didn't open) rather than one deity at a time, and "Download everything for offline" is offered, so one request doesn't map to one deity.
 - **Audio stays per practice.** Whoever hosts the audio can see which recording was fetched, and from which IP address. The privacy policy says so plainly, logs are kept for the shortest period the provider allows, and audio can be downloaded in bulk instead.
-- If this turns out to matter more than expected, the next step is serving content through a proxy that strips the IP address. Not needed for P1, since nothing is fetched.
+- If this turns out to matter more than expected, the next step is serving content through a proxy that strips the IP address. Not needed for P1, since no request names a deity.

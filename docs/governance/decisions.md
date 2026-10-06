@@ -111,11 +111,11 @@
   - **Catalog in the repository.** Traditions, deities and practices stay as YAML in `website/japa-catalog/`, built into packs by the content build. Content signing is dropped, since packs come from the same site as the code that reads them.
   - **Articles are SageVani articles.** JapaDhyan has no article system of its own.
   - **Google Analytics never records `/japa`.** Which practice someone chants is religious data.
-  - **Order.** The move lands now. An offline spike proves `/japa` works offline inside the Next.js app. The `/japa` screens are built after stage 3. The blog launches on its own plan.
+  - **Order.** The move lands now. An offline spike proves `/japa` works offline inside the Next.js app. The `/japa` screens are built after stage 3. The blog launches on its own plan. If the spike fails, `/japa` becomes a second app served under the same domain through a Netlify rewrite.
 - Reason: The owner wants JapaDhyan as SageVani's naam japam feature. One site gives one deploy, one design and one database, and a browser reaches desktop and mobile without app stores.
 - Owner approval: Owner's answers and section-by-section approvals in the 2026-10-06 design session.
 - Documents affected: [JapaDhyan's documents](../../website/docs/japa/README.md), the [website design spec](../../website/docs/specs/2026-10-05-sagevani-website-design.md) (section 19), the project brief, open questions, `AGENTS.md`, the README.
-- Supersedes: JapaDhyan's own tech-stack (React Native and Expo), sync-engine (PowerSync) and app-name decisions, which stay in the [archived JapaDhyan repository](https://github.com/shashesh/japadhyan).
+- Supersedes: JapaDhyan's own tech-stack (React Native and Expo) and sync-engine (PowerSync) decisions, and the domains, store listings and app identifiers in its app-name decision (the name JapaDhyan stays). They stay in the [archived JapaDhyan repository](https://github.com/shashesh/japadhyan).
 - Pending:
   - How devotees sign in to JapaDhyan (Q-11).
   - Web-push reminders (Q-12).

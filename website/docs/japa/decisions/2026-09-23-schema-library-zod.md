@@ -8,7 +8,7 @@ updated: 2026-10-06
 
 ## Context
 
-Content in `japa-catalog/content/` and the packs built from it are checked against one schema in `src/japa/domain` ([content-pipeline](../architecture/content-pipeline.md#source-content)). Two programs run it: the content build, on Node, and the app, on iOS, Android and web, when it reads a pack. The app can't trust a pack's shape just because the manifest signature verifies, since a build bug would still ship. The types in `src/japa/domain/types` are hand-written from the [data model](../architecture/data-model.md) and stay the contract.
+Content in `japa-catalog/content/` and the packs built from it are checked against one schema in `src/japa/domain` ([content-pipeline](../architecture/content-pipeline.md#source-content)). Two programs run it: the content build, on Node, and `/japa`, in the browser, when it reads a pack. `/japa` can't trust a pack's shape just because its SHA-256 matches the manifest, since a build bug would still ship. The types in `src/japa/domain/types` are hand-written from the [data model](../architecture/data-model.md) and stay the contract.
 
 ## Decision
 
@@ -19,7 +19,7 @@ The schemas are written against the existing types, not the other way round. A c
 Each catalog entity has two forms, built from one set of shapes:
 
 - **Content** — the YAML in `japa-catalog/content/`. Strict, so a misspelt field is an error. A practice's text carries exactly the master scripts: the source script and IAST.
-- **Export** — what packs carry. Unknown fields are dropped, so an app can read a pack with fields added after it was released. A practice's text carries at least the source script, IAST and `latin`. Deity names are written per language and exempt from both.
+- **Export** — what packs carry. Unknown fields are dropped, so an older cached `/japa` can read a pack with fields added after it was built. A practice's text carries at least the source script, IAST and `latin`. Deity names are written per language and exempt from both.
 
 ## Alternatives
 

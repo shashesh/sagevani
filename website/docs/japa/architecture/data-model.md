@@ -125,7 +125,7 @@ Every record in this section has:
 | Field               | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `id`                | **UUIDv7**, generated on the device, so it works offline and sorts by time. Rows unique per devotee, the profile among them, derive theirs instead ([why](#ids-for-rows-that-are-unique-per-devotee)). The profile's id is not the owner key                                                                                                                                                                                                                                                             |
-| `user_id`           | The owner. Before sign-in: the **local owner id**, a UUIDv7 generated on the first visit; the local profile's own id is derived from it. On first sign-in, the device's rows are combined with the account's first, and only then given the account's id, before their first upload ([order of steps](../product/features/accounts-and-sync.md#signing-in-on-a-device-that-already-has-data)). On the server: the Supabase auth user id, a UUID but not necessarily v7, not null. One profile per `user_id` |
+| `user_id`           | The owner. Before sign-in: the **local owner id**, a UUIDv7 generated on the first visit; the local profile's own id is derived from it. On first sign-in, the device's rows are combined with the account's first, and only then given the account's id, before their first upload ([order of steps](../product/features/accounts-and-sync.md#signing-in-on-a-device-that-already-has-data)). On the server: the account's user id from the sign-in provider part 3 chooses ([Q-11](../../../../docs/governance/open-questions.md)): a UUID, though not necessarily v7, and not null. Payload's default ids are integers, so Payload would need UUID ids. One profile per `user_id` |
 | `hlc`, `deleted_at` | On records where the latest edit wins: `hlc` orders edits ([conflict rule](#conflict-rule)); `deleted_at` marks a deletion so it syncs                                                                                                                                                                                                                                                                                                                                                                   |
 
 Uniqueness is per user: one saved practice per `(user_id, practice_id)`, one default per `(user_id, deity_id)`, one position per `(user_id, practice_id)`.
@@ -289,11 +289,12 @@ Progress is derived from count events for the practice (or the program's practic
 
 Never synced:
 
-- **Reminders:** a fixed time or a solar anchor (Brahma muhurta, sunrise, sunset) with an offset, days of the week, optional practice. Browsers can't schedule notifications, so reminders need web push from a server; part 3 designs them, and what the server may know.
 - **Location for sunrise times:** a city or an approximate position, used on the device only.
 - **Open (unsealed) count events.**
 - **Installed content packs and cached audio.**
 - **Voice templates** (P2): never leave the device.
+
+**Reminders** are the exception: a fixed time or a solar anchor (Brahma muhurta, sunrise, sunset) with an offset, days of the week and an optional practice. Browsers can't schedule notifications, so reminders need web push from a server, which must then hold at least when to send them. Part 3 designs this and what else the server may know ([Q-12](../../../../docs/governance/open-questions.md)).
 
 ### Private fields
 
@@ -342,11 +343,11 @@ src/japa/domain   pure logic: totals, streaks, local_day, event sealing,
 
 | Behaviour                        | Tables                                                                                                 | Rule                                                                                                                                                                                                                              |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Never changed once sealed        | `count_events`                                                                                         | Server inserts and ignores an id it already has. Row-level security blocks updates and deletes                                                                                                                                    |
-| Set once, then never changed     | `sessions`                                                                                             | Inserted like count events. One update is allowed: filling in an empty `ended_at`. Once set, it can't change; a column-level grant and a trigger enforce this. No deletes                                                         |
+| Never changed once sealed        | `count_events`                                                                                         | Server inserts and ignores an id it already has. The server refuses updates and deletes (part 3 chooses how)                                                                                                                                    |
+| Set once, then never changed     | `sessions`                                                                                             | Inserted like count events. One update is allowed: filling in an empty `ended_at`. Once set, it can't change; the server enforces this (the archived schema used a column-level grant and a trigger). No deletes                                                         |
 | Latest edit wins, deletions kept | `profiles`, `saved_practices`, `deity_defaults`, `custom_practices`, `practice_positions`, `sankalpas` | `hlc` and `deleted_at` on every row; the edit with the highest `hlc` wins ([conflict rule](#conflict-rule)). Positions are merged instead ([merging positions](#practiceposition))                                                |
-| Device only                      | reminders, device settings, open events, voice templates                                               | Never synced                                                                                                                                                                                                                      |
-| Catalog                          | `catalog_deities`, `catalog_practices`, `catalog_steps`, plus a full-text search index                 | Updated per practice when a pack changes, never wiped. A practice dropped from the catalog is kept and marked hidden, so history and saved practices keep their names ([content-pipeline](content-pipeline.md#device)). Read-only |
+| Device only                      | open events, voice templates, location for sunrise times                                               | Never synced                                                                                                                                                                                                                      |
+| Catalog                          | catalog deities, practices and steps, plus a full-text search index, in the browser storage part 3 chooses                 | Updated per practice when a pack changes, never wiped. A practice dropped from the catalog is kept and marked hidden, so history and saved practices keep their names ([content-pipeline](content-pipeline.md#device)). Read-only |
 
 ### Conflict rule
 
@@ -436,9 +437,9 @@ Requirements for part 3. The [first version](https://github.com/shashesh/japadhy
   - With no catalog, the server can't check marks against the step count. So within one generation it ORs them whatever their lengths, padding the shorter with zeros.
 - **The server's time** is available to signed-in users, so a device can correct its clock offset before uploading ([conflict rule](#conflict-rule)).
 
-## Changes to existing code
+## Changes made before the move
 
-Nothing has shipped, so there is no data to migrate.
+These were made in the archived repository; `src/japa/domain` arrives with them. Nothing has shipped, so there is no data to migrate.
 
 - `Mantra` becomes `Practice` (with `kind`, `steps`, `version`); `mantra_id` becomes `practice_id` everywhere.
 - `Script` gains `iast`; `latin` means the simple common spelling.
@@ -448,4 +449,6 @@ Nothing has shipped, so there is no data to migrate.
 - `STARTER_MANTRAS` moves out of code into `japa-catalog/content/`.
 - `totalCount` and `dailyTotals` sum each session's events and floor the session at zero before adding sessions together.
 - `computeStreak` takes days with a positive net count.
-- New in `shared`: hybrid logical clock helpers (create, compare, advance on receive).
+- New in `src/japa/domain`: hybrid logical clock helpers (create, compare, advance on receive).
+
+When it moves, `ChantMode` loses `volume_button`, `watch` and `ring` ([D-006](../../../../docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa)); `handwriting` stays.

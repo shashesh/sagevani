@@ -21,7 +21,7 @@ Special naam japam programs for festivals and observances.
 - Programs start automatically when a festival approaches (with a heads-up a few days before):
   - Maha Shivratri, Janmashtami, Ganesh Chaturthi, Ram Navami, Hanuman Jayanti, Diwali, Kartik month, Shravan month, Guru Purnima, Pitru Paksha
 - Recurring observances: **Ekadashi** and **Pradosh** reminders.
-- Brahma muhurta alarm from local sunrise.
+- Brahma muhurta reminder from local sunrise (web push, part 3).
 
 ## P3 — together
 
