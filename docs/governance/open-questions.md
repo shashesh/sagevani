@@ -11,6 +11,8 @@ Answers are pending. Blank fields must not be interpreted as agreement.
 | Q-06 | What reuse permissions should apply to writing, code, and assets? | Licensing; no license selected |
 | Q-07 | What citation format should readers see? | Public sourcing presentation |
 | Q-09 | How should assistant involvement be disclosed? | Drafting without separate permission and owner approval before publication are confirmed. |
+| Q-11 | How do devotees sign in to JapaDhyan: Supabase Auth or Payload, and with which methods? | D-004 has no reader accounts, and JapaDhyan's optional account needs one (D-006). Decided in its sync design. |
+| Q-12 | Should JapaDhyan offer reminders through web push? | Browsers can't schedule local notifications, and on iPhone push needs a home-screen install (D-006, [design spec](../../website/docs/specs/2026-10-06-japadhyan-in-sagevani-design.md#43-changed)). Decided in its sync design. |
 
 Resolved Q-05: the byline is `Sagevani`. See [D-003](decisions.md#d-003--draft-location-publication-approval-and-byline).
 

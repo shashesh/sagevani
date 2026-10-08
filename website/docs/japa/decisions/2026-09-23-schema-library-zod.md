@@ -1,0 +1,33 @@
+---
+status: accepted
+date: 2026-09-23
+updated: 2026-10-06
+---
+
+# Catalog schemas use Zod
+
+## Context
+
+Content in `japa-catalog/content/` and the packs built from it are checked against one schema in `src/japa/domain` ([content-pipeline](../architecture/content-pipeline.md#source-content)). Two programs run it: the content build, on Node, and `/japa`, in the browser, when it reads a pack. `/japa` can't trust a pack's shape just because its SHA-256 matches the manifest, since a build bug would still ship. The types in `src/japa/domain/types` are hand-written from the [data model](../architecture/data-model.md) and stay the contract.
+
+## Decision
+
+**Use [Zod](https://zod.dev) 4 as a runtime dependency of `src/japa/domain`.** It is the most widely used TypeScript schema library, it has no platform dependencies (so `src/japa/domain` stays platform-agnostic), and it has what the catalog needs: discriminated unions for practice kinds, partial records for text by script and language, and refinements for rules that span fields.
+
+The schemas are written against the existing types, not the other way round. A compile-time test checks each schema's output against its type in both directions, so neither can change without the other.
+
+Each catalog entity has two forms, built from one set of shapes:
+
+- **Content** — the YAML in `japa-catalog/content/`. Strict, so a misspelt field is an error. A practice's text carries exactly the master scripts: the source script and IAST.
+- **Export** — what packs carry. Unknown fields are dropped, so an older cached `/japa` can read a pack with fields added after it was built. A practice's text carries at least the source script, IAST and `latin`. Deity names are written per language and exempt from both.
+
+## Alternatives
+
+- **Valibot.** Smaller when tree-shaken, but less familiar, and bundle size is not the constraint: text packs are parsed rarely and the schema code is a few kilobytes either way.
+- **Hand-written validators.** No dependency, but the discriminated unions and error paths are exactly the fiddly parts, and they would drift from the types unnoticed.
+
+## Consequences
+
+- One more runtime dependency in the browser bundle. The website already depends on Zod.
+- A pack that fails its schema is rejected like one whose checksum doesn't match, and the app keeps what it has.
+- Rules that span files — a practice's deities exist, a deity's parent exists, a version never goes down, a new step count comes with a new version — belong to the content build, not the schemas.

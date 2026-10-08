@@ -100,6 +100,27 @@
   - Domain and sender address.
   - Difficulty labels (Q-01).
 
+## D-006 — JapaDhyan joins SageVani at /japa
+
+- Date: 2026-10-06
+- Status: Confirmed by owner. The [design spec](../../website/docs/specs/2026-10-06-japadhyan-in-sagevani-design.md) was approved on 2026-10-06.
+- Question: JapaDhyan, the owner's naam japam app, was planned as a React Native app for iOS, Android and the web. Should it stay a separate native app, or join SageVani?
+- Decision:
+  - **A section of the website.** JapaDhyan becomes `/japa` inside the website's Next.js app, for desktop and mobile browsers. It deploys with the site and uses the same Supabase project, in its own `japa` schema. There are no iOS, Android or watch apps.
+  - **Offline-first, with our own sync.** A devotee's practice is stored in the browser and works with no connection and no account. An optional account syncs through code written against Supabase. PowerSync is dropped.
+  - **Catalog in the repository.** Traditions, deities and practices stay as YAML in `website/japa-catalog/`, built into packs by the content build. Content signing is dropped, since packs come from the same site as the code that reads them.
+  - **Articles are SageVani articles.** JapaDhyan has no article system of its own.
+  - **Google Analytics never records `/japa`.** Which practice someone chants is religious data.
+  - **Order.** The move lands now. An offline spike proves `/japa` works offline inside the Next.js app. The `/japa` screens are built after stage 3. The blog launches on its own plan. If the spike fails, `/japa` becomes a second app served under the same domain through a Netlify rewrite.
+- Reason: The owner wants JapaDhyan as SageVani's naam japam feature. One site gives one deploy, one design and one database, and a browser reaches desktop and mobile without app stores.
+- Owner approval: Owner's answers and section-by-section approvals in the 2026-10-06 design session.
+- Documents affected: [JapaDhyan's documents](../../website/docs/japa/README.md), the [website design spec](../../website/docs/specs/2026-10-05-sagevani-website-design.md) (section 19), the project brief, open questions, `AGENTS.md`, the README.
+- Supersedes: JapaDhyan's own tech-stack (React Native and Expo) and sync-engine (PowerSync) decisions, and the domains, store listings and app identifiers in its app-name decision (the name JapaDhyan stays). They stay in the [archived JapaDhyan repository](https://github.com/shashesh/japadhyan).
+- Pending:
+  - How devotees sign in to JapaDhyan (Q-11).
+  - Web-push reminders (Q-12).
+  - The offline spike (part 2) and our own sync (part 3).
+
 ## New decision template
 
 - ID and title:

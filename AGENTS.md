@@ -19,3 +19,23 @@ Read `README.md`, `docs/project-brief.md`, and relevant foundation sections befo
 - Preserve the original handbook. Keep approved revisions traceable.
 - Record verified evidence and exact source locations during research. AI output is not a source.
 - Do not impose posting quotas, activate dormant series, or select platforms, licenses, and technology without a decision.
+
+## JapaDhyan
+
+JapaDhyan is the naam japam section at `/japa` (D-006). Its documents are in `website/docs/japa/`.
+
+- No account is needed, ever. An account is only for backup and sync, after explicit consent.
+- Counting works offline, with no connection and no account.
+- Hindu, Sikh, Buddhist and Jain traditions. Every mala, mantra and mode is open from day one; nothing is unlocked by counts or streaks.
+- Every chanting mode records count events. Totals are always derived from events, never stored as a counter.
+- Count events are sealed, then never edited. Fixes are `correction` events; practice done elsewhere is a `manual` event. Group days by an event's `local_day`, never by converting `created_at`.
+- Every practice is an ordered list of steps. Counts are in repetitions: a full namavali is one recitation. A place in a namavali is a position, never a count.
+- Catalog content lives in `website/japa-catalog/content/`. Never hard-code mantras or deities in code.
+- The owner reviews every practice, and production packs refuse unreviewed ones. Do not invent mantra text, meanings or transliterations.
+- Listening japa is counted separately and never added to the chanted total.
+- Private guru mantras never store their words, and are excluded from sharing, community and analytics.
+- Voice audio never leaves the device.
+- Nothing stands between opening `/japa` and chanting: no ads, upsells or articles.
+- No leaderboards. Community features are shared goals.
+- Google Analytics never records `/japa`.
+- `website/src/japa/domain` stays free of React, Next, Payload, Node and browser globals. Its types keep snake_case field names.
