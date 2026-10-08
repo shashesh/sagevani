@@ -2,7 +2,7 @@ import { getPayload, ValidationError, type Payload } from 'payload'
 import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { OWNER_PUBLISHES_MESSAGE } from '@/collections/articles/approval'
+import { BULK_PUBLISH_MESSAGE, OWNER_PUBLISHES_MESSAGE } from '@/collections/articles/approval'
 import { PUBLISH_MESSAGES } from '@/lib/publish-rules'
 import config from '@/payload.config'
 import type { Article, DifficultyLevel, User } from '@/payload-types'
@@ -302,6 +302,26 @@ describe('articles: publishing', () => {
       })
       expect(article.approval?.approvedAt ?? null).toBeNull()
       expect(article.publishedAt ?? null).toBeNull()
+    })
+  })
+
+  describe('bulk publishing', () => {
+    it('is refused, the owner included, but a bulk unpublish works', async () => {
+      const a = await publish({ title: 'A', difficulty: beginner.id })
+      const b = await publish({ title: 'B', difficulty: beginner.id })
+      const where = { id: { in: [a.id, b.id] } }
+      const bulk = (status: 'draft' | 'published') =>
+        payload.update({
+          collection: 'articles',
+          where,
+          data: { _status: status },
+          overrideAccess: false,
+          user: owner,
+        })
+
+      expect((await bulk('draft')).docs.map((doc) => doc._status)).toEqual(['draft', 'draft'])
+      await expect(bulk('published')).rejects.toThrow(BULK_PUBLISH_MESSAGE)
+      expect((await liveRow(a.id))._status).toBe('draft')
     })
   })
 

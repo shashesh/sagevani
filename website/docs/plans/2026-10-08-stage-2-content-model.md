@@ -3643,7 +3643,7 @@ import { getPayload, ValidationError, type Payload } from 'payload'
 import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { OWNER_PUBLISHES_MESSAGE } from '@/collections/articles/approval'
+import { BULK_PUBLISH_MESSAGE, OWNER_PUBLISHES_MESSAGE } from '@/collections/articles/approval'
 import { PUBLISH_MESSAGES } from '@/lib/publish-rules'
 import config from '@/payload.config'
 import type { Article, DifficultyLevel, User } from '@/payload-types'
@@ -3946,6 +3946,26 @@ describe('articles: publishing', () => {
     })
   })
 
+  describe('bulk publishing', () => {
+    it('is refused, the owner included, but a bulk unpublish works', async () => {
+      const a = await publish({ title: 'A', difficulty: beginner.id })
+      const b = await publish({ title: 'B', difficulty: beginner.id })
+      const where = { id: { in: [a.id, b.id] } }
+      const bulk = (status: 'draft' | 'published') =>
+        payload.update({
+          collection: 'articles',
+          where,
+          data: { _status: status },
+          overrideAccess: false,
+          user: owner,
+        })
+
+      expect((await bulk('draft')).docs.map((doc) => doc._status)).toEqual(['draft', 'draft'])
+      await expect(bulk('published')).rejects.toThrow(BULK_PUBLISH_MESSAGE)
+      expect((await liveRow(a.id))._status).toBe('draft')
+    })
+  })
+
   describe('the publish rules', () => {
     it('need a difficulty level', async () => {
       expect(await problemsOf(publish({}))).toEqual([
@@ -4088,6 +4108,7 @@ import {
   APIError,
   type CollectionAfterChangeHook,
   type CollectionBeforeChangeHook,
+  type CollectionBeforeOperationHook,
   type CollectionSlug,
   type PayloadRequest,
 } from 'payload'
@@ -4208,26 +4229,45 @@ export const recordApprovedVersion: CollectionAfterChangeHook = async ({
   })
   return doc.approval ? { ...doc, approval: { ...doc.approval, versionId } } : doc
 }
+
+export const BULK_PUBLISH_MESSAGE = 'Publish articles one at a time, from each article’s page.'
+
+/**
+ * Publishing is one article at a time (stage 2 design, 4.3), for everyone, the owner included:
+ * the approval names one version, so each article is published from its own page. A bulk update
+ * has no id. Bulk unpublishing and other bulk edits stay allowed.
+ */
+export const refuseBulkPublish: CollectionBeforeOperationHook = ({ args, operation }) => {
+  const write = args as { data?: { _status?: unknown }; id?: unknown }
+  if (operation === 'update' && write.id === undefined && write.data?._status === 'published') {
+    throw new APIError(BULK_PUBLISH_MESSAGE, 403, undefined, true)
+  }
+  return args
+}
 ```
 
-The live row is the only source of truth for the approval: it is read from the database, never from the request or from a version snapshot, so nothing sent to the API can forge it. Only the owner publishes. `recordApprovedVersion` finds the version this publish made by its published status and its approval time, not by creation order, and throws (rolling the save back) rather than record a wrong or empty id. The admin's unpublish marks the approved version itself as a draft, while the record keeps its id.
+The live row is the only source of truth for the approval: it is read from the database, never from the request or from a version snapshot, so nothing sent to the API can forge it. Only the owner publishes. `recordApprovedVersion` finds the version this publish made by its published status and its approval time, not by creation order, and throws (rolling the save back) rather than record a wrong or empty id. The admin's unpublish marks the approved version itself as a draft, while the record keeps its id. `refuseBulkPublish` refuses a bulk update that publishes, for everyone: each article is published from its own page.
 
 - [ ] **Step 5: Wire them in.** In `src/collections/articles/Articles.ts`, add:
 
 ```ts
-import { recordApproval, recordApprovedVersion } from './approval'
+import { recordApproval, recordApprovedVersion, refuseBulkPublish } from './approval'
 import { enforcePublishRules } from './publish-rules'
 ```
 
 and replace:
 
 ```ts
+    beforeOperation: [draftsOnlyForAssistant],
+    beforeValidate: [deriveSlug('title')],
     beforeChange: [bodyLinksOnlyTo(['articles']), checkSlug, deriveArticleText],
 ```
 
 with:
 
 ```ts
+    beforeOperation: [draftsOnlyForAssistant, refuseBulkPublish],
+    beforeValidate: [deriveSlug('title')],
     beforeChange: [
       bodyLinksOnlyTo(['articles']),
       checkSlug,

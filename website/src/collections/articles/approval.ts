@@ -2,6 +2,7 @@ import {
   APIError,
   type CollectionAfterChangeHook,
   type CollectionBeforeChangeHook,
+  type CollectionBeforeOperationHook,
   type CollectionSlug,
   type PayloadRequest,
 } from 'payload'
@@ -121,4 +122,19 @@ export const recordApprovedVersion: CollectionAfterChangeHook = async ({
     req,
   })
   return doc.approval ? { ...doc, approval: { ...doc.approval, versionId } } : doc
+}
+
+export const BULK_PUBLISH_MESSAGE = 'Publish articles one at a time, from each article’s page.'
+
+/**
+ * Publishing is one article at a time (stage 2 design, 4.3), for everyone, the owner included:
+ * the approval names one version, so each article is published from its own page. A bulk update
+ * has no id. Bulk unpublishing and other bulk edits stay allowed.
+ */
+export const refuseBulkPublish: CollectionBeforeOperationHook = ({ args, operation }) => {
+  const write = args as { data?: { _status?: unknown }; id?: unknown }
+  if (operation === 'update' && write.id === undefined && write.data?._status === 'published') {
+    throw new APIError(BULK_PUBLISH_MESSAGE, 403, undefined, true)
+  }
+  return args
 }

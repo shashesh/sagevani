@@ -110,6 +110,7 @@ Publishing is the owner's approval (parent spec, section 8.3).
   - a Text / Story Study has at least one source;
   - every image in the body links to a `media` item whose alt text isn't blank.
 - **Only the owner publishes.** A publish by anyone else, or by a request with no user, is refused.
+- **Publishing is one article at a time.** A bulk update that publishes is refused for everyone, the owner included; each article is published from its own page. Bulk unpublishing stays allowed.
 - **On publish** the server records the approver, the time and the published version's id in `approval`, and sets `publishedAt` the first time. Both are read from the stored article, never from the request, so nothing sent to the API can forge them.
 - **The approval names the exact version.** The server finds it by its published status and its approval time, not by creation order. If it can't find that version, the save fails rather than record a wrong or empty id.
 - **Editing a published article** and publishing again records a new approval.
