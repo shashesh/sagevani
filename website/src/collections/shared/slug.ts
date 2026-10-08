@@ -16,7 +16,6 @@ export const slugField = (description: string): TextField => ({
   name: 'slug',
   type: 'text',
   unique: true,
-  index: true,
   admin: { position: 'sidebar', description },
 })
 

@@ -1,4 +1,4 @@
-import { getPayload, type Payload } from 'payload'
+import { getPayload, ValidationError, type Payload } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { SLUG_REQUIRED_MESSAGE } from '@/collections/shared/slug'
@@ -107,8 +107,60 @@ describe('topics and difficulty levels', () => {
   it('keeps level names unique', async () => {
     const level = { name: 'Advanced', order: 3, needsPriorReading: true }
     await payload.create({ collection: 'difficultyLevels', data: level, overrideAccess: true })
-    await expect(
-      payload.create({ collection: 'difficultyLevels', data: level, overrideAccess: true }),
-    ).rejects.toThrow()
+    const error = await payload
+      .create({ collection: 'difficultyLevels', data: level, overrideAccess: true })
+      .catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(ValidationError)
+    const paths = (error as ValidationError).data.errors.map((entry) => entry.path)
+    expect(paths).toContain('name')
+  })
+
+  it('keeps the slug when an update leaves it out', async () => {
+    const topic = await createTopic({ name: 'Dharma' })
+    const withIntro = await payload.update({
+      collection: 'topics',
+      id: topic.id,
+      data: { intro: 'An intro.' },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(withIntro.slug).toBe('dharma')
+    expect(withIntro.intro).toBe('An intro.')
+    const renamed = await payload.update({
+      collection: 'topics',
+      id: topic.id,
+      data: { name: 'Renamed Door' },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(renamed.slug).toBe('dharma')
+  })
+
+  it('lets a topic keep its own slug on update', async () => {
+    const topic = await createTopic({ name: 'Dharma' })
+    const updated = await payload.update({
+      collection: 'topics',
+      id: topic.id,
+      data: { slug: 'dharma' },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(updated.slug).toBe('dharma')
+  })
+
+  it('refuses a clash on update too', async () => {
+    await createTopic({ name: 'Dharma' })
+    const bhakti = await createTopic({ name: 'Bhakti' })
+    expect(
+      await validationMessages(
+        payload.update({
+          collection: 'topics',
+          id: bhakti.id,
+          data: { slug: 'dharma' },
+          overrideAccess: false,
+          user: owner,
+        }),
+      ),
+    ).toEqual(['The slug "dharma" is already used. Choose another.'])
   })
 })
