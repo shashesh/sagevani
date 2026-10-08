@@ -9,7 +9,9 @@ import { fileURLToPath } from 'url'
 
 import { s3Storage } from '@payloadcms/storage-s3'
 
+import { DifficultyLevels } from './collections/DifficultyLevels'
 import { MAX_UPLOAD_BYTES, Media } from './collections/Media'
+import { Topics } from './collections/Topics'
 import { Users } from './collections/Users'
 import { databasePoolConfig } from './lib/database-pool'
 import { DB_SCHEMA } from './lib/db-schema'
@@ -28,7 +30,7 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media],
+  collections: [Users, Topics, DifficultyLevels, Media],
   editor: lexicalEditor(),
   upload: { limits: { fileSize: MAX_UPLOAD_BYTES } },
   // The site only uses the REST and Local APIs; GraphQL would add query-depth, introspection and

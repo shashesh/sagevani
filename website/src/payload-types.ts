@@ -68,6 +68,8 @@ export interface Config {
   blocks: {};
   collections: {
     users: User;
+    topics: Topic;
+    difficultyLevels: DifficultyLevel;
     media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -77,6 +79,8 @@ export interface Config {
   collectionsJoins: {};
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
+    topics: TopicsSelect<false> | TopicsSelect<true>;
+    difficultyLevels: DifficultyLevelsSelect<false> | DifficultyLevelsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -151,6 +155,43 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "topics".
+ */
+export interface Topic {
+  id: number;
+  name: string;
+  /**
+   * Plain ASCII, made from the name when left empty.
+   */
+  slug?: string | null;
+  question: string;
+  intro?: string | null;
+  order: number;
+  coverTint: {
+    background: string;
+    text: string;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "difficultyLevels".
+ */
+export interface DifficultyLevel {
+  id: number;
+  name: string;
+  description?: string | null;
+  order: number;
+  /**
+   * Articles at this level need at least one suggested prior reading to publish.
+   */
+  needsPriorReading?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media".
  */
 export interface Media {
@@ -201,6 +242,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'users';
         value: number | User;
+      } | null)
+    | ({
+        relationTo: 'topics';
+        value: number | Topic;
+      } | null)
+    | ({
+        relationTo: 'difficultyLevels';
+        value: number | DifficultyLevel;
       } | null)
     | ({
         relationTo: 'media';
@@ -276,6 +325,37 @@ export interface UsersSelect<T extends boolean = true> {
         createdAt?: T;
         expiresAt?: T;
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "topics_select".
+ */
+export interface TopicsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  question?: T;
+  intro?: T;
+  order?: T;
+  coverTint?:
+    | T
+    | {
+        background?: T;
+        text?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "difficultyLevels_select".
+ */
+export interface DifficultyLevelsSelect<T extends boolean = true> {
+  name?: T;
+  description?: T;
+  order?: T;
+  needsPriorReading?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
