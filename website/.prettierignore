@@ -6,3 +6,6 @@ src/migrations/
 # Authored documents keep their hand formatting
 docs/
 *.md
+
+# JapaDhyan catalog: the owner writes it; the content build writes the snapshot byte for byte
+japa-catalog/
