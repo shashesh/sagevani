@@ -11,6 +11,8 @@
 - Moved JapaDhyan's types, schemas and pure logic into `website/src/japa/domain`, with their tests, under the 80% coverage floor. A lint rule keeps it free of React, Next, Payload, Node and browser globals.
 - Moved the catalog to `website/japa-catalog/` and its content build to `website/src/japa/catalog-build`, run with `npm run japa:content:validate` and `npm run japa:content:build`. A development build in the new place matches the old repository's byte for byte.
 - Dropped content signing, the PowerSync row codecs, and the volume-button, watch and ring chanting modes (D-006).
+- Dropped the hard-coded development mantras (`devPractices`). They had fallen behind the catalog, and a development content build gives `/japa` the same practices from `japa-catalog/content/`.
+- Likhita typing no longer counts the mantra inside a longer word ("Om" in "Soma"), and compares case the same way in every locale.
 - Nothing is wired into the site or its deploys yet.
 
 ## 2026-10-06 — JapaDhyan joins the website
