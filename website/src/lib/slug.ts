@@ -4,7 +4,10 @@
  * left as they are: Devanagari vowel signs and the virama are marks too, and are not diacritics.
  */
 export function foldDiacritics(text: string): string {
-  return text.normalize('NFD').replace(/[̀-ͯ]+/g, '').normalize('NFC')
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]+/g, '')
+    .normalize('NFC')
 }
 
 /**
