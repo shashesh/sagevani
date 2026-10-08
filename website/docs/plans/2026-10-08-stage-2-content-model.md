@@ -3643,6 +3643,7 @@ import { getPayload, ValidationError, type Payload } from 'payload'
 import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import { OWNER_PUBLISHES_MESSAGE } from '@/collections/articles/approval'
 import { PUBLISH_MESSAGES } from '@/lib/publish-rules'
 import config from '@/payload.config'
 import type { Article, DifficultyLevel, User } from '@/payload-types'
@@ -3665,16 +3666,30 @@ const publish = (data: ArticleData) =>
     user: owner,
   })
 
-const newestVersionId = async (id: number) => {
+const allVersions = async () => {
   const { docs } = await payload.findVersions({
     collection: 'articles',
-    where: { parent: { equals: id } },
-    sort: '-createdAt',
-    limit: 1,
+    pagination: false,
+    limit: 0,
     overrideAccess: true,
   })
-  return String(docs[0].id)
+  return docs
 }
+
+/**
+ * Runs a publish and returns the one version it created. Computed as the set difference of the
+ * version ids before and after, so it does not depend on how versions sort.
+ */
+const publishedVersionOf = async <T>(action: () => Promise<T>) => {
+  const before = new Set((await allVersions()).map((version) => String(version.id)))
+  const result = await action()
+  const created = (await allVersions()).filter((version) => !before.has(String(version.id)))
+  expect(created).toHaveLength(1)
+  return { result, version: created[0] }
+}
+
+const liveRow = (id: number) =>
+  payload.findByID({ collection: 'articles', id, overrideAccess: true })
 
 /** The rule problems a publish attempt fails with, as `{ path, message }` pairs. */
 const problemsOf = async (attempt: Promise<unknown>) => {
@@ -3713,10 +3728,13 @@ describe('articles: publishing', () => {
 
   describe('the approval record', () => {
     it('records the approver, the time and the published version', async () => {
-      const article = await publish({ difficulty: beginner.id, summary: 'One line.' })
-      const stored = await payload.findByID({ collection: 'articles', id: article.id, overrideAccess: true })
+      const { result: article, version } = await publishedVersionOf(() =>
+        publish({ difficulty: beginner.id, summary: 'One line.' }),
+      )
+      const stored = await liveRow(article.id)
 
-      expect(stored.approval?.versionId).toBe(await newestVersionId(article.id))
+      expect(stored.approval?.versionId).toBe(String(version.id))
+      expect(version.version.title).toBe(stored.title)
       const approvedBy = stored.approval?.approvedBy
       expect(typeof approvedBy === 'object' ? approvedBy?.id : approvedBy).toBe(owner.id)
       expect(stored.approval?.approvedAt).toBeTruthy()
@@ -3726,26 +3744,193 @@ describe('articles: publishing', () => {
 
     it('keeps publishedAt from the first publish and records a new approval each time', async () => {
       const first = await publish({ difficulty: beginner.id })
-      const second = await payload.update({
-        collection: 'articles',
-        id: first.id,
-        data: { title: 'Edited', _status: 'published' },
-        overrideAccess: false,
-        user: owner,
-      })
+      const { result: second, version } = await publishedVersionOf(() =>
+        payload.update({
+          collection: 'articles',
+          id: first.id,
+          data: { title: 'Edited', _status: 'published' },
+          overrideAccess: false,
+          user: owner,
+        }),
+      )
       expect(second.publishedAt).toBe(first.publishedAt)
       expect(second.approval?.versionId).not.toBe(first.approval?.versionId)
-      expect(second.approval?.versionId).toBe(await newestVersionId(first.id))
+      expect(second.approval?.versionId).toBe(String(version.id))
+      expect(version.version.title).toBe('Edited')
     })
 
     it('is not changed by a later draft', async () => {
       const article = await publish({ difficulty: beginner.id })
-      await rest('PATCH', `articles/${article.id}?draft=true`, {
+      const response = await rest('PATCH', `articles/${article.id}?draft=true`, {
         key: ASSISTANT_KEY,
         body: { title: 'Proposed' },
       })
-      const stored = await payload.findByID({ collection: 'articles', id: article.id, overrideAccess: true })
+      expect(response.status).toBe(200)
+      const stored = await liveRow(article.id)
       expect(stored.approval?.versionId).toBe(article.approval?.versionId)
+    })
+
+    it('names each of two publishes in a row, with its own version', async () => {
+      const first = await publishedVersionOf(() => publish({ difficulty: beginner.id }))
+      const second = await publishedVersionOf(() =>
+        payload.update({
+          collection: 'articles',
+          id: first.result.id,
+          data: { title: 'Second', _status: 'published' },
+          overrideAccess: false,
+          user: owner,
+        }),
+      )
+      expect(first.result.approval?.versionId).toBe(String(first.version.id))
+      expect(second.result.approval?.versionId).toBe(String(second.version.id))
+      expect((await liveRow(first.result.id)).approval?.versionId).toBe(String(second.version.id))
+    })
+
+    it('names the new version made by restoring an older published one', async () => {
+      const first = await publishedVersionOf(() =>
+        publish({ title: 'First', difficulty: beginner.id }),
+      )
+      await payload.update({
+        collection: 'articles',
+        id: first.result.id,
+        data: { title: 'Second', _status: 'published' },
+        overrideAccess: false,
+        user: owner,
+      })
+      const restored = await publishedVersionOf(() =>
+        payload.restoreVersion({
+          collection: 'articles',
+          id: String(first.version.id),
+          overrideAccess: false,
+          user: owner,
+        }),
+      )
+      const stored = await liveRow(first.result.id)
+      expect(restored.version.id).not.toBe(first.version.id)
+      expect(stored.approval?.versionId).toBe(String(restored.version.id))
+      expect(restored.version.version.title).toBe('First')
+      expect(stored.title).toBe('First')
+    })
+
+    it('is recorded when the publish asks for only some fields back', async () => {
+      const article = await publish({ difficulty: beginner.id })
+      await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { title: 'Selected', _status: 'published' },
+        select: { title: true },
+        overrideAccess: false,
+        user: owner,
+      })
+      const stored = await liveRow(article.id)
+      expect(stored.approval?.versionId).toBeTruthy()
+      expect(stored.approval?.versionId).not.toBe(article.approval?.versionId)
+    })
+
+    it('is kept by the admin unpublish', async () => {
+      const article = await publish({ difficulty: beginner.id })
+      await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { _status: 'draft' },
+        unpublishAllLocales: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      const stored = await liveRow(article.id)
+      expect(stored._status).toBe('draft')
+      expect(stored.publishedAt).toBe(article.publishedAt)
+      expect(stored.approval).toEqual(article.approval)
+    })
+
+    it('cannot be forged through the Local API, even across an unpublish and a republish', async () => {
+      const article = await publish({ difficulty: beginner.id })
+      await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: {
+          title: 'Forger',
+          approval: { versionId: 'forged' },
+          publishedAt: '2000-01-01T00:00:00.000Z',
+        },
+        draft: true,
+        overrideAccess: true,
+      })
+      expect((await liveRow(article.id)).approval?.versionId).toBe(article.approval?.versionId)
+      await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { _status: 'draft' },
+        unpublishAllLocales: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      const republished = await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { _status: 'published' },
+        overrideAccess: false,
+        user: owner,
+      })
+      const stored = await liveRow(article.id)
+      expect(stored.approval?.versionId).not.toBe('forged')
+      expect(republished.approval?.versionId).not.toBe('forged')
+      expect(stored.publishedAt).toBe(article.publishedAt)
+    })
+
+    it('is refused when nobody is signed in', async () => {
+      await expect(
+        payload.create({
+          collection: 'articles',
+          data: {
+            title: 'Anon',
+            shape: 'vani-note',
+            difficulty: beginner.id,
+            _status: 'published',
+          },
+          overrideAccess: true,
+        }),
+      ).rejects.toThrow(OWNER_PUBLISHES_MESSAGE)
+    })
+
+    it('lets a bare publish rely on the stored difficulty and shape', async () => {
+      const article = await publish({ difficulty: beginner.id })
+      await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { title: 'Changed' },
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      const republished = await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { _status: 'published' },
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(republished._status).toBe('published')
+      expect(republished.title).toBe('Changed')
+    })
+
+    it('leaves the live row and its approval alone when a publish is refused', async () => {
+      const article = await publish({ difficulty: beginner.id })
+      const before = await liveRow(article.id)
+      const attempt = payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { difficulty: null, title: 'Half done', _status: 'published' },
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(await problemsOf(attempt)).toEqual([
+        { path: 'difficulty', message: PUBLISH_MESSAGES.difficulty },
+      ])
+      const after = await liveRow(article.id)
+      expect(after.title).toBe(before.title)
+      expect(after.approval).toEqual(before.approval)
+      expect(after.publishedAt).toBe(before.publishedAt)
     })
 
     it('is not made when saving a draft', async () => {
@@ -3780,12 +3965,16 @@ describe('articles: publishing', () => {
     })
 
     it('need a source for a Text / Story Study, and list every problem at once', async () => {
-      const problems = await problemsOf(publish({ shape: 'text-story-study', difficulty: advanced.id }))
+      const problems = await problemsOf(
+        publish({ shape: 'text-story-study', difficulty: advanced.id }),
+      )
       expect(problems.map((problem) => problem.path)).toEqual(['readFirst', 'sources'])
     })
 
     it('need alt text on every image in the body', async () => {
-      const data = await sharp({ create: { width: 10, height: 10, channels: 3, background: '#000' } })
+      const data = await sharp({
+        create: { width: 10, height: 10, channels: 3, background: '#000' },
+      })
         .png()
         .toBuffer()
       const blank = await payload.create({
@@ -3895,7 +4084,17 @@ export const enforcePublishRules: CollectionBeforeChangeHook = async ({
 - [ ] **Step 4: Create** `src/collections/articles/approval.ts`:
 
 ```ts
-import type { CollectionAfterChangeHook, CollectionBeforeChangeHook } from 'payload'
+import {
+  APIError,
+  type CollectionAfterChangeHook,
+  type CollectionBeforeChangeHook,
+  type CollectionSlug,
+  type PayloadRequest,
+} from 'payload'
+
+import { isOwner } from '../../access/roles'
+
+export const OWNER_PUBLISHES_MESSAGE = 'Only the owner publishes.'
 
 type Approval = {
   approvedAt?: string | null
@@ -3903,74 +4102,115 @@ type Approval = {
   versionId?: string | null
 }
 
-type ApprovableDoc = {
+type LiveRow = {
   _status?: 'draft' | 'published' | null
   approval?: Approval | null
   id: number | string
+  publishedAt?: string | null
 }
 
 const idOf = (value: Approval['approvedBy']): number | string | null =>
   value !== null && typeof value === 'object' ? value.id : (value ?? null)
 
+/** The stored row, straight from the database: the only source of truth for the approval. */
+async function readLiveRow(
+  req: PayloadRequest,
+  collection: CollectionSlug,
+  id: number | string,
+): Promise<LiveRow | null> {
+  const row = await req.payload.db.findOne<LiveRow>({
+    collection,
+    where: { id: { equals: id } },
+    req,
+  })
+  return row ?? null
+}
+
 /**
- * Publishing is the owner's approval (website design, 8.3). Every save that publishes records
- * who approved it and when, and sets publishedAt the first time. The version id is not known
- * until Payload saves the version, so it starts empty and recordApprovedVersion fills it in.
+ * Publishing is the owner's approval (website design, 8.3). Only the owner publishes. A save
+ * that publishes records who approved it and when, and sets publishedAt the first time. Every
+ * other save keeps both exactly as stored: they come from the live row, never from the request
+ * or from a version snapshot, so nothing sent to the API can forge them. The version id is not
+ * known until Payload saves the version, so it starts empty and recordApprovedVersion fills it in.
  */
-export const recordApproval: CollectionBeforeChangeHook = ({ data, originalDoc, req }) => {
-  if (data._status !== 'published') return data
+export const recordApproval: CollectionBeforeChangeHook = async ({
+  collection,
+  data,
+  originalDoc,
+  req,
+}) => {
+  const live = originalDoc?.id ? await readLiveRow(req, collection.slug, originalDoc.id) : null
+
+  if (data._status !== 'published') {
+    return {
+      ...data,
+      publishedAt: live?.publishedAt ?? null,
+      // An empty group, not null: Payload reads the group's fields, so null would crash it.
+      approval: {
+        approvedBy: idOf(live?.approval?.approvedBy),
+        approvedAt: live?.approval?.approvedAt ?? null,
+        versionId: live?.approval?.versionId ?? null,
+      },
+    }
+  }
+
+  if (!req.user || !isOwner(req.user)) {
+    throw new APIError(OWNER_PUBLISHES_MESSAGE, 403, undefined, true)
+  }
   const now = new Date().toISOString()
   return {
     ...data,
-    publishedAt: originalDoc?.publishedAt ?? now,
-    approval: { approvedBy: req.user?.id ?? null, approvedAt: now, versionId: null },
+    publishedAt: live?.publishedAt ?? now,
+    approval: { approvedBy: req.user.id, approvedAt: now, versionId: null },
   }
 }
 
 /**
- * Runs after Payload has saved the version, so the newest version is the one just published.
- * Writes its id onto the live document only, through the database adapter, so no extra version
- * is created and no hooks run again.
+ * Runs after Payload has saved the version. It reads the live row, not the document it is
+ * handed (which a `select` can trim), and finds the version this publish made by its published
+ * status and its approval time. It never guesses by creation order. If that version is not
+ * found it throws, which rolls the whole save back: a wrong or empty id is never recorded. The id
+ * is written to the live row only, through the database adapter, so no extra version is created
+ * and no hooks run again.
  */
-export const recordApprovedVersion: CollectionAfterChangeHook<ApprovableDoc> = async ({
+export const recordApprovedVersion: CollectionAfterChangeHook = async ({
   collection,
   doc,
   req,
 }) => {
-  if (doc._status !== 'published' || !doc.approval || doc.approval.versionId) return doc
+  const live = await readLiveRow(req, collection.slug, doc.id)
+  const approvedAt = live?.approval?.approvedAt
+  if (!live || live._status !== 'published' || !approvedAt || live.approval?.versionId) return doc
 
   const { docs } = await req.payload.db.findVersions({
     collection: collection.slug,
-    where: { parent: { equals: doc.id } },
-    sort: '-createdAt',
+    where: {
+      and: [
+        { parent: { equals: live.id } },
+        { 'version._status': { equals: 'published' } },
+        { 'version.approval.approvedAt': { equals: approvedAt } },
+      ],
+    },
+    sort: '-id',
     limit: 1,
     pagination: false,
     req,
   })
-  const versionId = docs[0] ? String(docs[0].id) : null
-  const approval = { ...doc.approval, approvedBy: idOf(doc.approval.approvedBy), versionId }
+  if (!docs[0]) throw new APIError('The published version could not be identified.', 500)
 
+  const versionId = String(docs[0].id)
+  const approval = { ...live.approval, approvedBy: idOf(live.approval?.approvedBy), versionId }
   await req.payload.db.updateOne({
     collection: collection.slug,
-    id: doc.id,
+    id: live.id,
     data: { approval },
     req,
   })
-  // The version's own snapshot must carry its id too: a later unpublish builds the live document
-  // from the newest version, and would otherwise write an empty versionId back.
-  if (docs[0]) {
-    await req.payload.db.updateVersion({
-      collection: collection.slug,
-      id: docs[0].id,
-      versionData: { version: { approval } },
-      req,
-    })
-  }
-  return { ...doc, approval: { ...doc.approval, versionId } }
+  return doc.approval ? { ...doc, approval: { ...doc.approval, versionId } } : doc
 }
 ```
 
-On unpublish, Payload rebuilds the live document from the newest version's snapshot, so the snapshot must carry the version id too. Without the `db.updateVersion` call, the unpublish would write an empty `versionId` back to the live document.
+The live row is the only source of truth for the approval: it is read from the database, never from the request or from a version snapshot, so nothing sent to the API can forge it. Only the owner publishes. `recordApprovedVersion` finds the version this publish made by its published status and its approval time, not by creation order, and throws (rolling the save back) rather than record a wrong or empty id. The admin's unpublish marks the approved version itself as a draft, while the record keeps its id.
 
 - [ ] **Step 5: Wire them in.** In `src/collections/articles/Articles.ts`, add:
 
@@ -4050,7 +4290,8 @@ const article = (title: string, status: 'draft' | 'published') =>
     ? payload.create({
         collection: 'articles',
         data: { title, shape: 'vani-note', difficulty: level.id, _status: 'published' },
-        overrideAccess: true,
+        user: owner,
+        overrideAccess: false,
       })
     : payload.create({ collection: 'articles', data: { title }, draft: true, overrideAccess: true })
 

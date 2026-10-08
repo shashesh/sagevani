@@ -1,4 +1,14 @@
-import type { CollectionAfterChangeHook, CollectionBeforeChangeHook } from 'payload'
+import {
+  APIError,
+  type CollectionAfterChangeHook,
+  type CollectionBeforeChangeHook,
+  type CollectionSlug,
+  type PayloadRequest,
+} from 'payload'
+
+import { isOwner } from '../../access/roles'
+
+export const OWNER_PUBLISHES_MESSAGE = 'Only the owner publishes.'
 
 type Approval = {
   approvedAt?: string | null
@@ -6,68 +16,109 @@ type Approval = {
   versionId?: string | null
 }
 
-type ApprovableDoc = {
+type LiveRow = {
   _status?: 'draft' | 'published' | null
   approval?: Approval | null
   id: number | string
+  publishedAt?: string | null
 }
 
 const idOf = (value: Approval['approvedBy']): number | string | null =>
   value !== null && typeof value === 'object' ? value.id : (value ?? null)
 
+/** The stored row, straight from the database: the only source of truth for the approval. */
+async function readLiveRow(
+  req: PayloadRequest,
+  collection: CollectionSlug,
+  id: number | string,
+): Promise<LiveRow | null> {
+  const row = await req.payload.db.findOne<LiveRow>({
+    collection,
+    where: { id: { equals: id } },
+    req,
+  })
+  return row ?? null
+}
+
 /**
- * Publishing is the owner's approval (website design, 8.3). Every save that publishes records
- * who approved it and when, and sets publishedAt the first time. The version id is not known
- * until Payload saves the version, so it starts empty and recordApprovedVersion fills it in.
+ * Publishing is the owner's approval (website design, 8.3). Only the owner publishes. A save
+ * that publishes records who approved it and when, and sets publishedAt the first time. Every
+ * other save keeps both exactly as stored: they come from the live row, never from the request
+ * or from a version snapshot, so nothing sent to the API can forge them. The version id is not
+ * known until Payload saves the version, so it starts empty and recordApprovedVersion fills it in.
  */
-export const recordApproval: CollectionBeforeChangeHook = ({ data, originalDoc, req }) => {
-  if (data._status !== 'published') return data
+export const recordApproval: CollectionBeforeChangeHook = async ({
+  collection,
+  data,
+  originalDoc,
+  req,
+}) => {
+  const live = originalDoc?.id ? await readLiveRow(req, collection.slug, originalDoc.id) : null
+
+  if (data._status !== 'published') {
+    return {
+      ...data,
+      publishedAt: live?.publishedAt ?? null,
+      // An empty group, not null: Payload reads the group's fields, so null would crash it.
+      approval: {
+        approvedBy: idOf(live?.approval?.approvedBy),
+        approvedAt: live?.approval?.approvedAt ?? null,
+        versionId: live?.approval?.versionId ?? null,
+      },
+    }
+  }
+
+  if (!req.user || !isOwner(req.user)) {
+    throw new APIError(OWNER_PUBLISHES_MESSAGE, 403, undefined, true)
+  }
   const now = new Date().toISOString()
   return {
     ...data,
-    publishedAt: originalDoc?.publishedAt ?? now,
-    approval: { approvedBy: req.user?.id ?? null, approvedAt: now, versionId: null },
+    publishedAt: live?.publishedAt ?? now,
+    approval: { approvedBy: req.user.id, approvedAt: now, versionId: null },
   }
 }
 
 /**
- * Runs after Payload has saved the version, so the newest version is the one just published.
- * Writes its id onto the live document only, through the database adapter, so no extra version
- * is created and no hooks run again.
+ * Runs after Payload has saved the version. It reads the live row, not the document it is
+ * handed (which a `select` can trim), and finds the version this publish made by its published
+ * status and its approval time. It never guesses by creation order. If that version is not
+ * found it throws, which rolls the whole save back: a wrong or empty id is never recorded. The id
+ * is written to the live row only, through the database adapter, so no extra version is created
+ * and no hooks run again.
  */
-export const recordApprovedVersion: CollectionAfterChangeHook<ApprovableDoc> = async ({
+export const recordApprovedVersion: CollectionAfterChangeHook = async ({
   collection,
   doc,
   req,
 }) => {
-  if (doc._status !== 'published' || !doc.approval || doc.approval.versionId) return doc
+  const live = await readLiveRow(req, collection.slug, doc.id)
+  const approvedAt = live?.approval?.approvedAt
+  if (!live || live._status !== 'published' || !approvedAt || live.approval?.versionId) return doc
 
   const { docs } = await req.payload.db.findVersions({
     collection: collection.slug,
-    where: { parent: { equals: doc.id } },
-    sort: '-createdAt',
+    where: {
+      and: [
+        { parent: { equals: live.id } },
+        { 'version._status': { equals: 'published' } },
+        { 'version.approval.approvedAt': { equals: approvedAt } },
+      ],
+    },
+    sort: '-id',
     limit: 1,
     pagination: false,
     req,
   })
-  const versionId = docs[0] ? String(docs[0].id) : null
-  const approval = { ...doc.approval, approvedBy: idOf(doc.approval.approvedBy), versionId }
+  if (!docs[0]) throw new APIError('The published version could not be identified.', 500)
 
+  const versionId = String(docs[0].id)
+  const approval = { ...live.approval, approvedBy: idOf(live.approval?.approvedBy), versionId }
   await req.payload.db.updateOne({
     collection: collection.slug,
-    id: doc.id,
+    id: live.id,
     data: { approval },
     req,
   })
-  // The version's own snapshot must carry its id too: a later unpublish builds the live document
-  // from the newest version, and would otherwise write an empty versionId back.
-  if (docs[0]) {
-    await req.payload.db.updateVersion({
-      collection: collection.slug,
-      id: docs[0].id,
-      versionData: { version: { approval } },
-      req,
-    })
-  }
-  return { ...doc, approval: { ...doc.approval, versionId } }
+  return doc.approval ? { ...doc, approval: { ...doc.approval, versionId } } : doc
 }

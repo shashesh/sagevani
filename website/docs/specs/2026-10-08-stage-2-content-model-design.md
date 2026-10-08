@@ -109,9 +109,11 @@ Publishing is the owner's approval (parent spec, section 8.3).
   - if that level needs prior reading, there is at least one `readFirst` item;
   - a Text / Story Study has at least one source;
   - every image in the body links to a `media` item whose alt text isn't blank.
-- **On publish** the server records the approver, the time and the published version's id in `approval`, and sets `publishedAt` the first time.
+- **Only the owner publishes.** A publish by anyone else, or by a request with no user, is refused.
+- **On publish** the server records the approver, the time and the published version's id in `approval`, and sets `publishedAt` the first time. Both are read from the stored article, never from the request, so nothing sent to the API can forge them.
+- **The approval names the exact version.** The server finds it by its published status and its approval time, not by creation order. If it can't find that version, the save fails rather than record a wrong or empty id.
 - **Editing a published article** and publishing again records a new approval.
-- **Unpublishing** is owner only. It takes the article off the site and keeps its record and history.
+- **Unpublishing** is owner only. It takes the article off the site and keeps its record and history. The admin's unpublish marks the approved version itself as a draft, while the record keeps its id.
 
 ## 5. Media storage
 
