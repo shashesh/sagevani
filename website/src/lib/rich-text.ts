@@ -87,35 +87,34 @@ export function findUploadIds(value: unknown, relationTo = 'media'): (number | s
 export type LinkedKind = 'link' | 'relationship' | 'upload'
 export interface LinkedDocument {
   kind: LinkedKind
-  relationTo: string
+  /** The raw value, whatever its type: callers must check it, never assume a string. */
+  relationTo: unknown
 }
 
-const linkedKindOf = (node: LexicalNode): LinkedKind | undefined => {
-  if (node.type === 'link' || node.type === 'autolink') return 'link'
-  if (node.type === 'relationship') return 'relationship'
-  if (node.type === 'upload') return 'upload'
+const linkedDocumentOf = (node: LexicalNode): LinkedDocument | undefined => {
+  if (node.type === 'relationship' || node.type === 'upload') {
+    return { kind: node.type, relationTo: node.relationTo }
+  }
+  if (node.type === 'link' || node.type === 'autolink') {
+    const doc = (node.fields as { doc?: unknown } | null | undefined)?.doc
+    if (doc === undefined || doc === null) return undefined
+    return { kind: 'link', relationTo: isNode(doc) ? doc.relationTo : undefined }
+  }
   return undefined
 }
 
-const relationOf = (node: LexicalNode, kind: LinkedKind): unknown => {
-  if (kind !== 'link') return node.relationTo
-  const fields = node.fields as { linkType?: unknown; doc?: unknown } | null | undefined
-  if (!isNode(fields) || fields.linkType !== 'internal' || !isNode(fields.doc)) return undefined
-  return fields.doc.relationTo
-}
-
 /**
- * Every document the content points at: internal links (link and autolink nodes whose
- * fields.linkType is 'internal' and fields.doc.relationTo is a string), relationship nodes
- * (relationTo) and uploads (relationTo). Payload doesn't check these on the server, so
- * collections do (see bodyLinksOnlyTo).
+ * Every document the content might point at, with the raw `relationTo` and no filtering by type,
+ * so a caller can refuse anything it doesn't expect: every relationship and upload node, and
+ * every link or autolink that carries `fields.doc`, whatever its `linkType` says (Payload
+ * populates `doc` regardless). A link with no `doc` is external and reports nothing. Payload
+ * doesn't check these on the server, so collections do (see bodyLinksOnlyTo).
  */
 export function findLinkedDocuments(value: unknown): LinkedDocument[] {
   const found: LinkedDocument[] = []
   const visit = (node: LexicalNode): void => {
-    const kind = linkedKindOf(node)
-    const relationTo = kind ? relationOf(node, kind) : undefined
-    if (kind && typeof relationTo === 'string') found.push({ kind, relationTo })
+    const linked = linkedDocumentOf(node)
+    if (linked) found.push(linked)
     childrenOf(node).forEach(visit)
   }
   const root = rootOf(value)

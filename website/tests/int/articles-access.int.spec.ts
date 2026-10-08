@@ -1,4 +1,4 @@
-import { getPayload, type Payload } from 'payload'
+import { getPayload, ValidationError, type Payload } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { BODY_LINKS_MESSAGE } from '@/collections/shared/body-links'
@@ -66,6 +66,17 @@ const bodyLinkingTo = (relationTo: string, id: number) => ({
         ],
       },
     ],
+  },
+})
+
+const bodyOf = (...children: Record<string, unknown>[]) => ({
+  root: {
+    type: 'root',
+    version: 1,
+    format: '' as const,
+    indent: 0,
+    direction: 'ltr' as const,
+    children,
   },
 })
 
@@ -323,6 +334,63 @@ describe('articles: who can do what', () => {
       expect(response.status).toBe(201)
     })
 
+    it('accepts a body with an external link that has no doc', async () => {
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: {
+          title: 'External',
+          body: bodyOf({
+            type: 'link',
+            version: 3,
+            fields: { linkType: 'custom', newTab: false, url: 'https://example.com' },
+            children: [],
+          }),
+        },
+      })
+      expect(response.status).toBe(201)
+    })
+
+    const usersDoc = (owner: User) => ({ relationTo: 'users', value: owner.id })
+    it.each([
+      [
+        'B2: an internal link with an array relationTo',
+        (o: User) => ({
+          type: 'link',
+          fields: { linkType: 'internal', doc: { relationTo: ['users'], value: o.id } },
+        }),
+      ],
+      [
+        'B3: a custom link that carries a doc',
+        (o: User) => ({
+          type: 'link',
+          fields: { linkType: 'custom', url: 'https://example.com', doc: usersDoc(o) },
+        }),
+      ],
+      [
+        'B4: a link with no linkType that carries a doc',
+        (o: User) => ({ type: 'link', fields: { doc: usersDoc(o) } }),
+      ],
+      [
+        'B5: a link with linkType Internal that carries a doc',
+        (o: User) => ({ type: 'link', fields: { linkType: 'Internal', doc: usersDoc(o) } }),
+      ],
+      [
+        'B9: an upload with an array relationTo',
+        (o: User) => ({ type: 'upload', relationTo: ['users'], value: o.id }),
+      ],
+      [
+        'B11: a relationship with an array relationTo',
+        (o: User) => ({ type: 'relationship', relationTo: ['users'], value: o.id }),
+      ],
+    ])('refuses %s', async (_name, makeNode) => {
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: { title: 'Sneaky', body: bodyOf(makeNode(owner)) },
+      })
+      expect(response.status).toBe(400)
+      expect(JSON.stringify(await response.json())).toContain(BODY_LINKS_MESSAGE)
+    })
+
     it('reads drafts and versions', async () => {
       await payload.create({
         collection: 'articles',
@@ -384,6 +452,34 @@ describe('articles: who can do what', () => {
       expect(unpublished.approval).toEqual(article.approval)
       expect((await rest('GET', 'articles')).ok).toBe(true)
       expect((await (await rest('GET', 'articles')).json()).docs).toEqual([])
+    })
+
+    it('cannot publish with a prior reading that is only a draft', async () => {
+      const draft = await payload.create({
+        collection: 'articles',
+        data: { title: 'Unfinished' },
+        draft: true,
+        overrideAccess: true,
+      })
+      const attempt = payload.create({
+        collection: 'articles',
+        data: {
+          title: 'Reads a draft',
+          shape: 'vani-note',
+          difficulty: level.id,
+          readFirst: [{ kind: 'internal', article: draft.id }],
+          _status: 'published',
+        },
+        overrideAccess: false,
+        user: owner,
+      })
+      const error = await attempt.then(
+        () => undefined,
+        (thrown: unknown) => thrown,
+      )
+      expect(error).toBeInstanceOf(ValidationError)
+      const paths = (error as ValidationError).data.errors.map(({ path }) => path)
+      expect(paths.some((path) => path.startsWith('readFirst.0.article'))).toBe(true)
     })
 
     it('deletes', async () => {

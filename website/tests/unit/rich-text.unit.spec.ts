@@ -137,11 +137,49 @@ describe('findLinkedDocuments', () => {
     ])
   })
 
-  it('ignores malformed nodes', () => {
+  it('reports malformed relationship and upload nodes, so they can be refused', () => {
     const value = root(
-      paragraph(internal('link', 7), { type: 'link', fields: 'oops' }, { type: 'link' }),
       { type: 'upload', value: 2 },
       { type: 'relationship' },
+      { type: 'upload', relationTo: ['users'], value: 2 },
+      { type: 'relationship', relationTo: ['users'], value: 2 },
+    )
+    expect(findLinkedDocuments(value)).toEqual([
+      { kind: 'upload', relationTo: undefined },
+      { kind: 'relationship', relationTo: undefined },
+      { kind: 'upload', relationTo: ['users'] },
+      { kind: 'relationship', relationTo: ['users'] },
+    ])
+  })
+
+  it('reports a link that carries a doc, whatever its linkType says', () => {
+    const doc = { relationTo: 'users', value: 1 }
+    const value = root(
+      paragraph(
+        { type: 'link', fields: { linkType: 'custom', url: 'https://example.com', doc } },
+        { type: 'link', fields: { doc } },
+        { type: 'link', fields: { linkType: 'Internal', doc } },
+        {
+          type: 'link',
+          fields: { linkType: 'internal', doc: { relationTo: ['users'], value: 1 } },
+        },
+      ),
+    )
+    expect(findLinkedDocuments(value)).toEqual([
+      { kind: 'link', relationTo: 'users' },
+      { kind: 'link', relationTo: 'users' },
+      { kind: 'link', relationTo: 'users' },
+      { kind: 'link', relationTo: ['users'] },
+    ])
+  })
+
+  it('does not report a link with no doc, or content that is not a tree', () => {
+    const value = root(
+      paragraph(
+        { type: 'link', fields: { linkType: 'custom', url: 'https://example.com' } },
+        { type: 'link', fields: 'oops' },
+        { type: 'link' },
+      ),
       'text',
       null,
     )

@@ -2217,7 +2217,7 @@ This task builds the collection with every field and its access. Tasks 13 and 14
 - [ ] **Step 1: Write the failing test** in `tests/int/articles-access.int.spec.ts`:
 
 ```ts
-import { getPayload, type Payload } from 'payload'
+import { getPayload, ValidationError, type Payload } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { BODY_LINKS_MESSAGE } from '@/collections/shared/body-links'
@@ -2285,6 +2285,17 @@ const bodyLinkingTo = (relationTo: string, id: number) => ({
         ],
       },
     ],
+  },
+})
+
+const bodyOf = (...children: Record<string, unknown>[]) => ({
+  root: {
+    type: 'root',
+    version: 1,
+    format: '' as const,
+    indent: 0,
+    direction: 'ltr' as const,
+    children,
   },
 })
 
@@ -2542,6 +2553,63 @@ describe('articles: who can do what', () => {
       expect(response.status).toBe(201)
     })
 
+    it('accepts a body with an external link that has no doc', async () => {
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: {
+          title: 'External',
+          body: bodyOf({
+            type: 'link',
+            version: 3,
+            fields: { linkType: 'custom', newTab: false, url: 'https://example.com' },
+            children: [],
+          }),
+        },
+      })
+      expect(response.status).toBe(201)
+    })
+
+    const usersDoc = (owner: User) => ({ relationTo: 'users', value: owner.id })
+    it.each([
+      [
+        'B2: an internal link with an array relationTo',
+        (o: User) => ({
+          type: 'link',
+          fields: { linkType: 'internal', doc: { relationTo: ['users'], value: o.id } },
+        }),
+      ],
+      [
+        'B3: a custom link that carries a doc',
+        (o: User) => ({
+          type: 'link',
+          fields: { linkType: 'custom', url: 'https://example.com', doc: usersDoc(o) },
+        }),
+      ],
+      [
+        'B4: a link with no linkType that carries a doc',
+        (o: User) => ({ type: 'link', fields: { doc: usersDoc(o) } }),
+      ],
+      [
+        'B5: a link with linkType Internal that carries a doc',
+        (o: User) => ({ type: 'link', fields: { linkType: 'Internal', doc: usersDoc(o) } }),
+      ],
+      [
+        'B9: an upload with an array relationTo',
+        (o: User) => ({ type: 'upload', relationTo: ['users'], value: o.id }),
+      ],
+      [
+        'B11: a relationship with an array relationTo',
+        (o: User) => ({ type: 'relationship', relationTo: ['users'], value: o.id }),
+      ],
+    ])('refuses %s', async (_name, makeNode) => {
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: { title: 'Sneaky', body: bodyOf(makeNode(owner)) },
+      })
+      expect(response.status).toBe(400)
+      expect(JSON.stringify(await response.json())).toContain(BODY_LINKS_MESSAGE)
+    })
+
     it('reads drafts and versions', async () => {
       await payload.create({
         collection: 'articles',
@@ -2603,6 +2671,34 @@ describe('articles: who can do what', () => {
       expect(unpublished.approval).toEqual(article.approval)
       expect((await rest('GET', 'articles')).ok).toBe(true)
       expect((await (await rest('GET', 'articles')).json()).docs).toEqual([])
+    })
+
+    it('cannot publish with a prior reading that is only a draft', async () => {
+      const draft = await payload.create({
+        collection: 'articles',
+        data: { title: 'Unfinished' },
+        draft: true,
+        overrideAccess: true,
+      })
+      const attempt = payload.create({
+        collection: 'articles',
+        data: {
+          title: 'Reads a draft',
+          shape: 'vani-note',
+          difficulty: level.id,
+          readFirst: [{ kind: 'internal', article: draft.id }],
+          _status: 'published',
+        },
+        overrideAccess: false,
+        user: owner,
+      })
+      const error = await attempt.then(
+        () => undefined,
+        (thrown: unknown) => thrown,
+      )
+      expect(error).toBeInstanceOf(ValidationError)
+      const paths = (error as ValidationError).data.errors.map(({ path }) => path)
+      expect(paths.some((path) => path.startsWith('readFirst.0.article'))).toBe(true)
     })
 
     it('deletes', async () => {
@@ -2812,11 +2908,49 @@ describe('findLinkedDocuments', () => {
     ])
   })
 
-  it('ignores malformed nodes', () => {
+  it('reports malformed relationship and upload nodes, so they can be refused', () => {
     const value = root(
-      paragraph(internal('link', 7), { type: 'link', fields: 'oops' }, { type: 'link' }),
       { type: 'upload', value: 2 },
       { type: 'relationship' },
+      { type: 'upload', relationTo: ['users'], value: 2 },
+      { type: 'relationship', relationTo: ['users'], value: 2 },
+    )
+    expect(findLinkedDocuments(value)).toEqual([
+      { kind: 'upload', relationTo: undefined },
+      { kind: 'relationship', relationTo: undefined },
+      { kind: 'upload', relationTo: ['users'] },
+      { kind: 'relationship', relationTo: ['users'] },
+    ])
+  })
+
+  it('reports a link that carries a doc, whatever its linkType says', () => {
+    const doc = { relationTo: 'users', value: 1 }
+    const value = root(
+      paragraph(
+        { type: 'link', fields: { linkType: 'custom', url: 'https://example.com', doc } },
+        { type: 'link', fields: { doc } },
+        { type: 'link', fields: { linkType: 'Internal', doc } },
+        {
+          type: 'link',
+          fields: { linkType: 'internal', doc: { relationTo: ['users'], value: 1 } },
+        },
+      ),
+    )
+    expect(findLinkedDocuments(value)).toEqual([
+      { kind: 'link', relationTo: 'users' },
+      { kind: 'link', relationTo: 'users' },
+      { kind: 'link', relationTo: 'users' },
+      { kind: 'link', relationTo: ['users'] },
+    ])
+  })
+
+  it('does not report a link with no doc, or content that is not a tree', () => {
+    const value = root(
+      paragraph(
+        { type: 'link', fields: { linkType: 'custom', url: 'https://example.com' } },
+        { type: 'link', fields: 'oops' },
+        { type: 'link' },
+      ),
       'text',
       null,
     )
@@ -2833,35 +2967,34 @@ Then add this to the end of `src/lib/rich-text.ts`:
 export type LinkedKind = 'link' | 'relationship' | 'upload'
 export interface LinkedDocument {
   kind: LinkedKind
-  relationTo: string
+  /** The raw value, whatever its type: callers must check it, never assume a string. */
+  relationTo: unknown
 }
 
-const linkedKindOf = (node: LexicalNode): LinkedKind | undefined => {
-  if (node.type === 'link' || node.type === 'autolink') return 'link'
-  if (node.type === 'relationship') return 'relationship'
-  if (node.type === 'upload') return 'upload'
+const linkedDocumentOf = (node: LexicalNode): LinkedDocument | undefined => {
+  if (node.type === 'relationship' || node.type === 'upload') {
+    return { kind: node.type, relationTo: node.relationTo }
+  }
+  if (node.type === 'link' || node.type === 'autolink') {
+    const doc = (node.fields as { doc?: unknown } | null | undefined)?.doc
+    if (doc === undefined || doc === null) return undefined
+    return { kind: 'link', relationTo: isNode(doc) ? doc.relationTo : undefined }
+  }
   return undefined
 }
 
-const relationOf = (node: LexicalNode, kind: LinkedKind): unknown => {
-  if (kind !== 'link') return node.relationTo
-  const fields = node.fields as { linkType?: unknown; doc?: unknown } | null | undefined
-  if (!isNode(fields) || fields.linkType !== 'internal' || !isNode(fields.doc)) return undefined
-  return fields.doc.relationTo
-}
-
 /**
- * Every document the content points at: internal links (link and autolink nodes whose
- * fields.linkType is 'internal' and fields.doc.relationTo is a string), relationship nodes
- * (relationTo) and uploads (relationTo). Payload doesn't check these on the server, so
- * collections do (see bodyLinksOnlyTo).
+ * Every document the content might point at, with the raw `relationTo` and no filtering by type,
+ * so a caller can refuse anything it doesn't expect: every relationship and upload node, and
+ * every link or autolink that carries `fields.doc`, whatever its `linkType` says (Payload
+ * populates `doc` regardless). A link with no `doc` is external and reports nothing. Payload
+ * doesn't check these on the server, so collections do (see bodyLinksOnlyTo).
  */
 export function findLinkedDocuments(value: unknown): LinkedDocument[] {
   const found: LinkedDocument[] = []
   const visit = (node: LexicalNode): void => {
-    const kind = linkedKindOf(node)
-    const relationTo = kind ? relationOf(node, kind) : undefined
-    if (kind && typeof relationTo === 'string') found.push({ kind, relationTo })
+    const linked = linkedDocumentOf(node)
+    if (linked) found.push(linked)
     childrenOf(node).forEach(visit)
   }
   const root = rootOf(value)
@@ -2875,27 +3008,31 @@ Then create `src/collections/shared/body-links.ts`:
 ```ts
 import { ValidationError, type CollectionBeforeChangeHook } from 'payload'
 
-import { findLinkedDocuments } from '../../lib/rich-text'
+import { findLinkedDocuments, type LinkedDocument } from '../../lib/rich-text'
 
 export const BODY_LINKS_MESSAGE = 'The body can link to articles and show images from media only.'
 
 const UPLOAD_COLLECTION = 'media'
 
+const isAllowed = ({ kind, relationTo }: LinkedDocument, linkTo: readonly string[]): boolean => {
+  if (typeof relationTo !== 'string') return false
+  if (kind === 'link') return linkTo.includes(relationTo)
+  if (kind === 'upload') return relationTo === UPLOAD_COLLECTION
+  return false
+}
+
 /**
- * A beforeChange hook: on every save, drafts included, refuses links outside `linkTo`, any
- * embedded relationship, and uploads outside media. The editor's settings only shape its menus;
- * Payload doesn't check the saved content, so this does.
+ * A beforeChange hook: on every save, drafts included, refuses anything the body points at except
+ * a link to a collection in `linkTo` and an upload from media, each by a plain string
+ * `relationTo`. It fails closed: any other shape (an array, a missing value, an embedded
+ * relationship) is refused. The editor's settings only shape its menus; Payload doesn't check
+ * the saved content, so this does.
  */
 export const bodyLinksOnlyTo =
   (linkTo: readonly string[]): CollectionBeforeChangeHook =>
   ({ collection, data }) => {
-    const breaksRules = findLinkedDocuments((data as { body?: unknown } | undefined)?.body).some(
-      ({ kind, relationTo }) =>
-        kind === 'relationship' ||
-        (kind === 'link' && !linkTo.includes(relationTo)) ||
-        (kind === 'upload' && relationTo !== UPLOAD_COLLECTION),
-    )
-    if (breaksRules) {
+    const linked = findLinkedDocuments((data as { body?: unknown } | undefined)?.body)
+    if (!linked.every((document) => isAllowed(document, linkTo))) {
       throw new ValidationError({
         collection: collection.slug,
         errors: [{ path: 'body', message: BODY_LINKS_MESSAGE }],
