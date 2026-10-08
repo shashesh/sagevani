@@ -2,7 +2,7 @@ name: Website CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths: ['website/**', 'netlify.toml', '.github/workflows/website-ci.yml']
   pull_request:
     paths: ['website/**', 'netlify.toml', '.github/workflows/website-ci.yml']

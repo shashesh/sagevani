@@ -1,5 +1,11 @@
 # Change log
 
+## 2026-10-08 — Default branch renamed to `master`
+
+- Renamed the repository's default branch from `main` to `master` at the owner's request. GitHub redirects old `main` links.
+- Website CI now runs on pushes to `master`. The environments guide and the website design spec say `master`, so importing the site makes Netlify deploy `master` to production.
+- The JapaDhyan move plan's remaining steps now target `master`, open draft pull requests, and leave the Copilot review to the owner.
+
 ## 2026-10-06 — JapaDhyan joins the website
 
 - Recorded [D-006](docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa): JapaDhyan, the owner's naam japam app, becomes the website's `/japa` section, for browsers only, with its own offline storage and sync.

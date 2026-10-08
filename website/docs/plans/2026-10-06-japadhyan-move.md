@@ -1505,26 +1505,25 @@ git commit -m "docs: changelog for JapaDhyan's domain logic and catalog"
 
 - [ ] **Step 2: Wait for the docs pull request.** Continue once the Phase A pull request is merged (`gh pr list --repo shashesh/sagevani --state merged --head docs/japadhyan-move`).
 
-- [ ] **Step 3: Rebase onto `main`, push, open**
+- [ ] **Step 3: Rebase onto `master`, push, open a draft pull request**
 
 ```bash
 cd /c/Users/shash/Documents/personal-github-repos/Sagevani-japa
 git fetch origin
 FIRST=$(git log --format=%H --grep="^chore: add JapaDhyan's dependencies$" feat/japa-domain-and-catalog)
-git rebase --onto origin/main "$FIRST^" feat/japa-domain-and-catalog
-git log --oneline origin/main..feat/japa-domain-and-catalog
+git rebase --onto origin/master "$FIRST^" feat/japa-domain-and-catalog
+git log --oneline origin/master..feat/japa-domain-and-catalog
 cd website && npm ci && npm run lint && npm run typecheck && npm run test:unit && cd ..
 git push -u origin feat/japa-domain-and-catalog
-gh pr create --base main --head feat/japa-domain-and-catalog \
+gh pr create --draft --base master --head feat/japa-domain-and-catalog \
   --title "feat: JapaDhyan's domain logic and catalog in the website" \
   --body "Part 1 of website/docs/specs/2026-10-06-japadhyan-in-sagevani-design.md, Phase B of website/docs/plans/2026-10-06-japadhyan-move.md: src/japa/domain, the catalog and its content build, with tests. A development build matches the old repository byte for byte. Nothing is wired into the site or its deploys."
-gh pr edit --add-reviewer @copilot
 gh pr checks --watch
 ```
 
 Expected: the log shows only Phase B's commits, the local checks pass, and CI passes.
 
-- [ ] **Step 4: [OWNER] Review and merge.**
+- [ ] **Step 4: [OWNER] Verify, mark ready, and merge.** The owner requests any Copilot review.
 
 ---
 
@@ -1550,7 +1549,7 @@ git switch -c docs/moved-to-sagevani origin/master
 ```markdown
 # JapaDhyan (archived)
 
-JapaDhyan, a naam japam app for Hindu, Sikh, Buddhist and Jain practice, now lives in [SageVani](https://github.com/shashesh/sagevani) as the website's `/japa` section, for desktop and mobile browsers. Its documents are in [`website/docs/japa/`](https://github.com/shashesh/sagevani/tree/main/website/docs/japa), and the reasons are in [D-006](https://github.com/shashesh/sagevani/blob/main/docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa).
+JapaDhyan, a naam japam app for Hindu, Sikh, Buddhist and Jain practice, now lives in [SageVani](https://github.com/shashesh/sagevani) as the website's `/japa` section, for desktop and mobile browsers. Its documents are in [`website/docs/japa/`](https://github.com/shashesh/sagevani/tree/master/website/docs/japa), and the reasons are in [D-006](https://github.com/shashesh/sagevani/blob/master/docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa).
 
 This repository is read-only. It keeps the history of the React Native and PowerSync version: the Expo app, the PowerSync client and sync lab, the Supabase schema and merge function with their pgTAP tests, and the decisions and plans that were dropped. SageVani's sync design (part 3) and its `/japa` screens (part 4) use them as a reference.
 ```
@@ -1584,7 +1583,7 @@ The README and CLAUDE.md say JapaDhyan now lives in SageVani as its /japa sectio
 
 ## Why
 
-D-006 in SageVani: https://github.com/shashesh/sagevani/blob/main/docs/governance/decisions.md
+D-006 in SageVani: https://github.com/shashesh/sagevani/blob/master/docs/governance/decisions.md
 
 ## Checks
 
@@ -1593,7 +1592,6 @@ D-006 in SageVani: https://github.com/shashesh/sagevani/blob/main/docs/governanc
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
-gh pr edit --add-reviewer @copilot
 ```
 
 If the `npm run format` step changes files other than these two, discard those changes (`git checkout -- <file>`) before committing.
@@ -1629,7 +1627,7 @@ git worktree remove ../Sagevani-japa
   - JapaDhyan lives in SageVani.
   - The JapaDhyan repository is archived.
   - Drop the Android, Maestro and `C:\jd` tooling note.
-  - Record that SageVani pull requests are ordinary pull requests, reviewed by Copilot and squash-merged by the owner.
+  - Record that SageVani pull requests target `master` and open as drafts. The owner marks them ready, requests any Copilot review, and squash-merges.
 
 ---
 
