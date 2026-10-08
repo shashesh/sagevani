@@ -4,9 +4,11 @@ import { nobody, ownerOnly, publishedOrStaff, staffOnly, staffOnlyField } from '
 import { contentEditor } from '../../blocks/content-editor'
 import { bodyLinksOnlyTo } from '../shared/body-links'
 import { checkSlug, deriveSlug, slugField } from '../shared/slug'
+import { recordApproval, recordApprovedVersion } from './approval'
 import { deriveArticleText } from './derived-text'
 import { draftsOnlyForAssistant } from './drafts-only'
 import { editorialChecklist } from './editorial-checklist'
+import { enforcePublishRules } from './publish-rules'
 
 export const ARTICLE_SHAPES = [
   { label: 'Vani Note', value: 'vani-note' },
@@ -57,7 +59,14 @@ export const Articles: CollectionConfig = {
   hooks: {
     beforeOperation: [draftsOnlyForAssistant],
     beforeValidate: [deriveSlug('title')],
-    beforeChange: [bodyLinksOnlyTo(['articles']), checkSlug, deriveArticleText],
+    beforeChange: [
+      bodyLinksOnlyTo(['articles']),
+      checkSlug,
+      deriveArticleText,
+      enforcePublishRules,
+      recordApproval,
+    ],
+    afterChange: [recordApprovedVersion],
   },
   fields: [
     { name: 'title', type: 'text', required: true },
