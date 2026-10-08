@@ -1,6 +1,6 @@
 /**
- * Where each kind of catalog file lives in `content/`, and the ids its path
- * implies. See docs/japa/architecture/content-pipeline.md.
+ * Where each kind of catalog file lives in `japa-catalog/content/`, and the
+ * ids its path implies. See docs/japa/architecture/content-pipeline.md.
  *
  * ```text
  * traditions/<id>.yaml
@@ -24,7 +24,7 @@ export interface Placement {
 
 const EXTENSION = '.yaml'
 
-/** Files in `content/` that aren't catalog entries. */
+/** Files in `japa-catalog/content/` that aren't catalog entries. */
 const IGNORED = new Set(['README.md'])
 
 /**
@@ -54,7 +54,7 @@ export function placementOf(path: string): Placement | 'ignored' | null {
   }
 }
 
-/** Where a practice lives in `content/`, which the layout check guarantees. */
+/** Where a practice lives in `japa-catalog/content/`, which the layout check guarantees. */
 export function practicePath(practice: {
   id: string
   tradition_id: string

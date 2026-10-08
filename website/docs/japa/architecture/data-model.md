@@ -451,4 +451,4 @@ These were made in the archived repository; `src/japa/domain` arrives with them.
 - `computeStreak` takes days with a positive net count.
 - New in `src/japa/domain`: hybrid logical clock helpers (create, compare, advance on receive).
 
-When it moves, `ChantMode` loses `volume_button`, `watch` and `ring` ([D-006](../../../../docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa)); `handwriting` stays.
+The move dropped `volume_button`, `watch` and `ring` from `ChantMode` ([D-006](../../../../docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa)); `handwriting` stays.

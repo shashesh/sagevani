@@ -115,8 +115,9 @@ export interface LanguagePack extends PackBase {
 export type BundledPack = IndexPack | ProgramsPack | DeityPack | ScriptPack | LanguagePack
 
 /**
- * What ships inside the app: whole packs, each installed as if downloaded.
- * In P1 it holds every pack, so using the library fetches nothing.
+ * Everything /japa caches on the first visit: whole packs, each installed as
+ * if downloaded. In P1 it holds every pack, so using the library fetches
+ * nothing more.
  */
 export interface CorePack extends PackBase {
   id: 'core'
@@ -139,8 +140,9 @@ export interface Manifest {
   schema_version: typeof PACK_SCHEMA_VERSION
   channel: Channel
   /**
-   * Only goes up. The app rejects a manifest older than one it has accepted,
-   * so a stale cached manifest can't roll content back.
+   * Only goes up. /japa rejects a manifest older than one it has accepted,
+   * so a stale cached manifest can't roll content back. Manifests are
+   * unsigned, so this guards against stale caches, not tampering.
    */
   release: number
   /** Sorted by id, each once. */

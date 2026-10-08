@@ -293,6 +293,15 @@ describe('parseBuildArgs', () => {
     expect(parseBuildArgs(['--channel', 'staging'])).toMatchObject({ ok: false })
   })
 
+  test('the usage names the command to run', () => {
+    expect(parseBuildArgs(['--channel', 'staging'])).toMatchObject({
+      ok: false,
+      message: expect.stringContaining(
+        'Usage: npm run japa:content:build -- --channel development|production',
+      ),
+    })
+  })
+
   test('a release is a whole number, zero or more', () => {
     for (const release of ['-1', '1.5', 'one', '']) {
       expect(

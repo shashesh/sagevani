@@ -36,9 +36,9 @@ const ENGLISH_FIELDS: Partial<Record<Kind, readonly string[]>> = {
 const NEEDS_EN = 'Needs `en`: base packs are English'
 
 /**
- * Checks every file in `content/`: its place in the layout, its YAML, its
- * content schema, a practice's generated scripts, and its references to
- * other files.
+ * Checks every file in `japa-catalog/content/`: its place in the layout, its
+ * YAML, its content schema, a practice's generated scripts, and its
+ * references to other files.
  */
 export function validateContent(files: readonly ContentFile[]): Validation {
   const issues: ContentIssue[] = []

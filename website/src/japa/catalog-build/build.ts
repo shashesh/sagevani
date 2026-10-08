@@ -1,8 +1,7 @@
 /**
  * The content build: validate → generate → version rules → packs → manifest,
  * then write the packs, the manifest and the reviewed snapshot. Nothing is
- * written unless every check passes. `build-cli.ts` runs it; `run.mjs` runs
- * that under Node's permission model.
+ * written unless every check passes. `scripts/japa-content-build.ts` runs it.
  * See docs/japa/architecture/content-pipeline.md#build.
  */
 
@@ -34,7 +33,7 @@ export interface BuildOptions {
   release: number
   contentRoot: string
   snapshotRoot: string
-  /** The channel's folder, e.g. `dist/content/development`. Emptied first. */
+  /** The channel's folder, e.g. `japa-catalog/dist/development`. Emptied first. */
   outDir: string
 }
 
@@ -121,7 +120,8 @@ function writeOutput(outDir: string, files: readonly PackFile[], manifest: Manif
 export type BuildArgs =
   { ok: true; channel: Channel; release: number } | { ok: false; message: string }
 
-const USAGE = 'Usage: content:build --channel development|production [--release <number>]'
+const USAGE =
+  'Usage: npm run japa:content:build -- --channel development|production [--release <number>]'
 
 /** `--channel` and `--release`. Production needs a release; development defaults to 0. */
 export function parseBuildArgs(argv: readonly string[]): BuildArgs {

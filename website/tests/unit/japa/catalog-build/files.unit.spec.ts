@@ -40,8 +40,8 @@ describe('readContentTree', () => {
   })
 })
 
-// The repo's own catalog: this is what runs content validation in `npm test`.
-test('content/ is valid', () => {
+// The website's own catalog: this is what runs content validation in `npm run test:unit`.
+test('japa-catalog/content/ is valid', () => {
   const { issues } = validateContent(readContentTree(CONTENT_ROOT))
 
   expect(issues).toEqual([])

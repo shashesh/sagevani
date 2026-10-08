@@ -1,13 +1,13 @@
 import type { Practice } from '../types'
 
 /**
- * **Development fixtures only — delete in M6.**
+ * **Development fixtures only — delete in Part 4.**
  *
- * Catalog content belongs in `content/` and reaches the app as packs
+ * Catalog content belongs in `japa-catalog/content/` and reaches /japa as packs
  * ([content-pipeline](../../../../docs/japa/architecture/content-pipeline.md)).
- * Until the pipeline (M2) and the on-device catalog (M3) exist, the app needs
- * something to chant, so these few practices stand in. They are unreviewed
- * (`review: null`) and must never ship in a production build.
+ * Until /japa reads those packs, it needs something to chant, so these few
+ * practices stand in. They are unreviewed (`review: null`) and must never ship
+ * in a production build.
  *
  * Read them through {@link devPractices}, which refuses to hand them out in
  * a production build: `review: null` only labels the content, it does not
@@ -186,6 +186,11 @@ const DEV_PRACTICES: readonly Practice[] = [
  * ([content-pipeline](../../../../docs/japa/architecture/content-pipeline.md)), and
  * these fixtures are unreviewed. A production build that reaches for them
  * fails loudly and immediately rather than shipping them to a devotee.
+ *
+ * Only where a real `process` exists: on the server, in tests and in the
+ * content build. Next replaces only the literal `process.env.NODE_ENV` in a
+ * browser bundle, so there this check never sees production. Client code must
+ * not call it.
  */
 export function devPractices(): readonly Practice[] {
   const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
