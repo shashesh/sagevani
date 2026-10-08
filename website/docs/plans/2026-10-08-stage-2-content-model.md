@@ -3312,7 +3312,7 @@ The slug field is written out here. Task 13 replaces it with `slugField(…)` an
   collections: [Users, Articles, Topics, DifficultyLevels, Media],
 ```
 
-- [ ] **Step 7: Regenerate types and the import map, run, and see only the expected failure**
+- [ ] **Step 7: Regenerate types and the import map, run, and see them pass**
 
 ```bash
 npm run generate:types && npm run generate:importmap
@@ -3618,7 +3618,7 @@ npm run generate:types
 npx cross-env NODE_OPTIONS=--no-deprecation vitest run tests/int/articles-fields.int.spec.ts tests/int/articles-access.int.spec.ts
 ```
 
-Expected: `articles-fields` passes. `articles-access` has the same single expected failure as in Task 12.
+Expected: `articles-fields` passes. `articles-access` passes too; no failures are expected.
 
 - [ ] **Step 7: Commit**
 
@@ -3840,7 +3840,10 @@ const idOf = (value: unknown): number | string | null => {
   return null
 }
 
-async function difficultyOf(value: unknown, req: PayloadRequest): Promise<PublishCheckInput['difficulty']> {
+async function difficultyOf(
+  value: unknown,
+  req: PayloadRequest,
+): Promise<PublishCheckInput['difficulty']> {
   const id = idOf(value)
   if (id === null) return null
   const level = await req.payload.findByID({
@@ -3870,7 +3873,11 @@ async function imagesOf(body: unknown, req: PayloadRequest): Promise<PublishChec
 }
 
 /** Runs the publish rules whenever an article is published; drafts may be incomplete. */
-export const enforcePublishRules: CollectionBeforeChangeHook = async ({ collection, data, req }) => {
+export const enforcePublishRules: CollectionBeforeChangeHook = async ({
+  collection,
+  data,
+  req,
+}) => {
   if (data._status !== 'published') return data
   const problems = publishProblems({
     shape: data.shape,
@@ -3879,7 +3886,8 @@ export const enforcePublishRules: CollectionBeforeChangeHook = async ({ collecti
     sourceCount: Array.isArray(data.sources) ? data.sources.length : 0,
     images: await imagesOf(data.body, req),
   })
-  if (problems.length > 0) throw new ValidationError({ collection: collection.slug, errors: problems })
+  if (problems.length > 0)
+    throw new ValidationError({ collection: collection.slug, errors: problems })
   return data
 }
 ```
@@ -3948,9 +3956,21 @@ export const recordApprovedVersion: CollectionAfterChangeHook<ApprovableDoc> = a
     data: { approval },
     req,
   })
+  // The version's own snapshot must carry its id too: a later unpublish builds the live document
+  // from the newest version, and would otherwise write an empty versionId back.
+  if (docs[0]) {
+    await req.payload.db.updateVersion({
+      collection: collection.slug,
+      id: docs[0].id,
+      versionData: { version: { approval } },
+      req,
+    })
+  }
   return { ...doc, approval: { ...doc.approval, versionId } }
 }
 ```
+
+On unpublish, Payload rebuilds the live document from the newest version's snapshot, so the snapshot must carry the version id too. Without the `db.updateVersion` call, the unpublish would write an empty `versionId` back to the live document.
 
 - [ ] **Step 5: Wire them in.** In `src/collections/articles/Articles.ts`, add:
 
@@ -3984,7 +4004,7 @@ with:
 npx cross-env NODE_OPTIONS=--no-deprecation vitest run tests/int/articles-publishing.int.spec.ts tests/int/articles-access.int.spec.ts tests/int/articles-fields.int.spec.ts
 ```
 
-Expected: PASS, including the `publishedAt` test in `articles-access` that failed since Task 12.
+Expected: PASS, including the `articles-access` tests, which now pass with no failures.
 
 - [ ] **Step 7: Commit**
 
