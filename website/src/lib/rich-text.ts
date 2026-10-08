@@ -65,13 +65,17 @@ const idOf = (value: unknown): number | string | null => {
   return null
 }
 
-/** The ids of images from a collection (`media` by default) anywhere in editor content. */
+/** The ids of images from a collection (`media` by default) anywhere in editor content, each once. */
 export function findUploadIds(value: unknown, relationTo = 'media'): (number | string)[] {
   const ids: (number | string)[] = []
+  const seen = new Set<string>()
   const visit = (node: LexicalNode): void => {
     if (node.type === 'upload' && node.relationTo === relationTo) {
       const id = idOf(node.value)
-      if (id !== null) ids.push(id)
+      if (id !== null && !seen.has(String(id))) {
+        seen.add(String(id))
+        ids.push(id)
+      }
     }
     childrenOf(node).forEach(visit)
   }

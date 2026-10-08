@@ -91,4 +91,13 @@ describe('findUploadIds', () => {
     )
     expect(findUploadIds(value)).toEqual([])
   })
+
+  it('lists an image used twice once', () => {
+    const value = root(
+      { type: 'upload', relationTo: 'media', value: 3 },
+      { type: 'upload', relationTo: 'media', value: { id: 3 } },
+      { type: 'upload', relationTo: 'media', value: 4 },
+    )
+    expect(findUploadIds(value)).toEqual([3, 4])
+  })
 })

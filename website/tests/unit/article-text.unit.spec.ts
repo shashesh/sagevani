@@ -26,4 +26,8 @@ describe('searchTextFrom', () => {
   it('skips missing parts', () => {
     expect(searchTextFrom([null, 'Sādhanā', undefined, ''])).toBe('sadhana')
   })
+
+  it('keeps Devanagari words whole', () => {
+    expect(searchTextFrom(['कि', 'की'])).toBe('कि की')
+  })
 })

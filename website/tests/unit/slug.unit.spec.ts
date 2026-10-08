@@ -8,6 +8,10 @@ describe('foldDiacritics', () => {
     expect(foldDiacritics('Śiva and Ṛta')).toBe('Siva and Rta')
   })
 
+  it('leaves Devanagari, including its vowel signs and virama, untouched', () => {
+    expect(foldDiacritics('धर्म कर्म')).toBe('धर्म कर्म')
+  })
+
   it('folds every IAST letter, small and capital', () => {
     expect(foldDiacritics('ā ī ū ṛ ṝ ḷ ḹ ṃ ḥ ṅ ñ ṭ ḍ ṇ ś ṣ')).toBe(
       'a i u r r l l m h n n t d n s s',

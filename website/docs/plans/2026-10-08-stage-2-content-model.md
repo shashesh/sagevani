@@ -287,6 +287,10 @@ describe('foldDiacritics', () => {
     expect(foldDiacritics('Śiva and Ṛta')).toBe('Siva and Rta')
   })
 
+  it('leaves Devanagari, including its vowel signs and virama, untouched', () => {
+    expect(foldDiacritics('धर्म कर्म')).toBe('धर्म कर्म')
+  })
+
   it('folds every IAST letter, small and capital', () => {
     expect(foldDiacritics('ā ī ū ṛ ṝ ḷ ḹ ṃ ḥ ṅ ñ ṭ ḍ ṇ ś ṣ')).toBe('a i u r r l l m h n n t d n s s')
     expect(foldDiacritics('Ā Ī Ū Ṛ Ṝ Ḷ Ḹ Ṃ Ḥ Ṅ Ñ Ṭ Ḍ Ṇ Ś Ṣ')).toBe('A I U R R L L M H N N T D N S S')
@@ -333,9 +337,13 @@ Expected: FAIL, `Cannot find module '@/lib/slug'` or equivalent.
 - [ ] **Step 3: Implement** `src/lib/slug.ts`:
 
 ```ts
-/** Removes diacritics: NFD splits each letter from its marks, and the marks are dropped (`ā` → `a`). */
+/**
+ * Removes Latin diacritics: NFD splits each letter from its marks, and the combining diacritical
+ * marks (U+0300 to U+036F, which cover every IAST mark) are dropped (`ā` → `a`). Other scripts are
+ * left as they are: Devanagari vowel signs and the virama are marks too, and are not diacritics.
+ */
 export function foldDiacritics(text: string): string {
-  return text.normalize('NFD').replace(/\p{M}+/gu, '').normalize('NFC')
+  return text.normalize('NFD').replace(/[̀-ͯ]+/g, '').normalize('NFC')
 }
 
 /**
@@ -466,6 +474,15 @@ describe('findUploadIds', () => {
     )
     expect(findUploadIds(value)).toEqual([])
   })
+
+  it('lists an image used twice once', () => {
+    const value = root(
+      { type: 'upload', relationTo: 'media', value: 3 },
+      { type: 'upload', relationTo: 'media', value: { id: 3 } },
+      { type: 'upload', relationTo: 'media', value: 4 },
+    )
+    expect(findUploadIds(value)).toEqual([3, 4])
+  })
 })
 ```
 
@@ -545,13 +562,17 @@ const idOf = (value: unknown): number | string | null => {
   return null
 }
 
-/** The ids of images from a collection (`media` by default) anywhere in editor content. */
+/** The ids of images from a collection (`media` by default) anywhere in editor content, each once. */
 export function findUploadIds(value: unknown, relationTo = 'media'): (number | string)[] {
   const ids: (number | string)[] = []
+  const seen = new Set<string>()
   const visit = (node: LexicalNode): void => {
     if (node.type === 'upload' && node.relationTo === relationTo) {
       const id = idOf(node.value)
-      if (id !== null) ids.push(id)
+      if (id !== null && !seen.has(String(id))) {
+        seen.add(String(id))
+        ids.push(id)
+      }
     }
     childrenOf(node).forEach(visit)
   }
@@ -613,6 +634,10 @@ describe('searchTextFrom', () => {
 
   it('skips missing parts', () => {
     expect(searchTextFrom([null, 'Sādhanā', undefined, ''])).toBe('sadhana')
+  })
+
+  it('keeps Devanagari words whole', () => {
+    expect(searchTextFrom(['कि', 'की'])).toBe('कि की')
   })
 })
 ```
