@@ -6,6 +6,13 @@
 - Website CI now runs on pushes to `master`. The environments guide and the website design spec say `master`, so importing the site makes Netlify deploy `master` to production.
 - The JapaDhyan move plan's remaining steps now target `master`, open draft pull requests, and leave the Copilot review to the owner.
 
+## 2026-10-06 — JapaDhyan's domain logic and catalog
+
+- Moved JapaDhyan's types, schemas and pure logic into `website/src/japa/domain`, with their tests, under the 80% coverage floor. A lint rule keeps it free of React, Next, Payload, Node and browser globals.
+- Moved the catalog to `website/japa-catalog/` and its content build to `website/src/japa/catalog-build`, run with `npm run japa:content:validate` and `npm run japa:content:build`. A development build in the new place matches the old repository's byte for byte.
+- Dropped content signing, the PowerSync row codecs, and the volume-button, watch and ring chanting modes (D-006).
+- Nothing is wired into the site or its deploys yet.
+
 ## 2026-10-06 — JapaDhyan joins the website
 
 - Recorded [D-006](docs/governance/decisions.md#d-006--japadhyan-joins-sagevani-at-japa): JapaDhyan, the owner's naam japam app, becomes the website's `/japa` section, for browsers only, with its own offline storage and sync.
