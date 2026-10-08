@@ -3,6 +3,8 @@ import type { CollectionConfig, Where } from 'payload'
 import { nobody, ownerOnly, publishedOrStaff, staffOnly, staffOnlyField } from '../../access/roles'
 import { contentEditor } from '../../blocks/content-editor'
 import { bodyLinksOnlyTo } from '../shared/body-links'
+import { checkSlug, deriveSlug, slugField } from '../shared/slug'
+import { deriveArticleText } from './derived-text'
 import { draftsOnlyForAssistant } from './drafts-only'
 import { editorialChecklist } from './editorial-checklist'
 
@@ -54,7 +56,8 @@ export const Articles: CollectionConfig = {
   },
   hooks: {
     beforeOperation: [draftsOnlyForAssistant],
-    beforeChange: [bodyLinksOnlyTo(['articles'])],
+    beforeValidate: [deriveSlug('title')],
+    beforeChange: [bodyLinksOnlyTo(['articles']), checkSlug, deriveArticleText],
   },
   fields: [
     { name: 'title', type: 'text', required: true },
@@ -154,15 +157,7 @@ export const Articles: CollectionConfig = {
     },
     editorialChecklist,
     // Sidebar
-    {
-      name: 'slug',
-      type: 'text',
-      unique: true,
-      admin: {
-        position: 'sidebar',
-        description: 'Plain ASCII, made from the title when left empty.',
-      },
-    },
+    slugField('Plain ASCII, made from the title when left empty.'),
     {
       name: 'sendEmail',
       label: 'Email subscribers on first publish',

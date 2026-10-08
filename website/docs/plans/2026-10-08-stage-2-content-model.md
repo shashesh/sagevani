@@ -3449,6 +3449,30 @@ describe('articles: fields the server fills in', () => {
     ])
   })
 
+  it('keeps the stored slug when an update only publishes', async () => {
+    const created = await draft({ title: 'Karma' })
+    expect(created.slug).toBe('karma')
+
+    const renamed = await payload.update({
+      collection: 'articles',
+      id: created.id,
+      data: { title: 'Karma and the right to act' },
+      draft: true,
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(renamed.slug).toBe('karma')
+
+    const published = await payload.update({
+      collection: 'articles',
+      id: created.id,
+      data: { _status: 'published', shape: 'vani-note', difficulty: level.id },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(published.slug).toBe('karma')
+  })
+
   it('lets a draft have no slug, but not a published article', async () => {
     expect((await draft({ title: 'कर्म' })).slug ?? null).toBeNull()
     const publish = payload.create({
