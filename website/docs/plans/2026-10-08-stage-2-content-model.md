@@ -779,6 +779,20 @@ describe('publishProblems', () => {
     ])
   })
 
+  it('reports a missing image as missing, not as lacking alt text', () => {
+    const problems = publishProblems({
+      ...ready,
+      images: [
+        { id: 4, alt: undefined, missing: true },
+        { id: 'x', alt: undefined, missing: true },
+      ],
+    })
+    expect(problems).toEqual([
+      { path: 'body', message: PUBLISH_MESSAGES.imageMissing(4) },
+      { path: 'body', message: PUBLISH_MESSAGES.imageMissing('x') },
+    ])
+  })
+
   it('lists every problem at once', () => {
     const problems = publishProblems({
       shape: TEXT_STORY_STUDY,
@@ -812,6 +826,7 @@ export const PUBLISH_MESSAGES = {
   readFirstItem: 'Each prior reading needs a SageVani article, or a title for one elsewhere.',
   sources: 'A Text / Story Study needs at least one source.',
   imageAlt: (id: number | string): string => `Image ${id} in the body has no alt text.`,
+  imageMissing: (id: number | string): string => `Image ${id} in the body no longer exists.`,
 } as const
 
 export interface PriorReading {
@@ -826,7 +841,12 @@ export interface PublishCheckInput {
   difficulty: { needsPriorReading: boolean } | null
   readFirst: readonly PriorReading[]
   sourceCount: number
-  images: readonly { id: number | string; alt: string | null | undefined }[]
+  images: readonly {
+    id: number | string
+    alt: string | null | undefined
+    /** The image is not a valid media id, or no such media exists. */
+    missing?: boolean
+  }[]
 }
 
 export interface PublishProblem {
@@ -853,7 +873,10 @@ export function publishProblems(input: PublishCheckInput): PublishProblem[] {
   input.readFirst.forEach((item, index) => {
     if (item.kind === 'internal') {
       if (item.article === null || item.article === undefined) {
-        problems.push({ path: `readFirst.${index}.article`, message: PUBLISH_MESSAGES.readFirstItem })
+        problems.push({
+          path: `readFirst.${index}.article`,
+          message: PUBLISH_MESSAGES.readFirstItem,
+        })
       }
     } else if (isBlank(item.title)) {
       problems.push({ path: `readFirst.${index}.title`, message: PUBLISH_MESSAGES.readFirstItem })
@@ -865,7 +888,11 @@ export function publishProblems(input: PublishCheckInput): PublishProblem[] {
   }
 
   for (const image of input.images) {
-    if (isBlank(image.alt)) problems.push({ path: 'body', message: PUBLISH_MESSAGES.imageAlt(image.id) })
+    if (image.missing) {
+      problems.push({ path: 'body', message: PUBLISH_MESSAGES.imageMissing(image.id) })
+    } else if (isBlank(image.alt)) {
+      problems.push({ path: 'body', message: PUBLISH_MESSAGES.imageAlt(image.id) })
+    }
   }
 
   return problems
@@ -4010,6 +4037,33 @@ describe('articles: publishing', () => {
       ).toEqual([{ path: 'body', message: PUBLISH_MESSAGES.imageAlt(blank.id) }])
     })
 
+    it('refuse an image whose media no longer exists', async () => {
+      const data = await sharp({
+        create: { width: 10, height: 10, channels: 3, background: '#000' },
+      })
+        .png()
+        .toBuffer()
+      const gone = await payload.create({
+        collection: 'media',
+        data: { alt: 'A lamp', creator: 'c', source: 's', licence: 'l' },
+        file: { data, mimetype: 'image/png', name: 'x.png', size: data.length },
+        overrideAccess: true,
+      })
+      await payload.delete({ collection: 'media', id: gone.id, overrideAccess: true })
+      expect(
+        await problemsOf(
+          publish({ difficulty: beginner.id, body: richText(paragraph('Text.'), image(gone.id)) }),
+        ),
+      ).toEqual([{ path: 'body', message: PUBLISH_MESSAGES.imageMissing(gone.id) }])
+    })
+
+    it('refuse a malformed image id without reaching the database', async () => {
+      const malformed = richText(paragraph('Text.'), { ...image(1), value: '1; drop' })
+      expect(await problemsOf(publish({ difficulty: beginner.id, body: malformed }))).toEqual([
+        { path: 'body', message: PUBLISH_MESSAGES.imageMissing('1; drop') },
+      ])
+    })
+
     it('do not apply to drafts', async () => {
       const article = await payload.create({
         collection: 'articles',
@@ -4066,19 +4120,31 @@ async function difficultyOf(
   return level ? { needsPriorReading: level.needsPriorReading === true } : null
 }
 
+/** A media id as the database stores it: a whole number, or its digits. Nothing else reaches a query. */
+const isMediaId = (id: number | string): boolean =>
+  typeof id === 'number' ? Number.isSafeInteger(id) && id > 0 : /^\d{1,15}$/.test(id)
+
 async function imagesOf(body: unknown, req: PayloadRequest): Promise<PublishCheckInput['images']> {
   const ids = findUploadIds(body)
   if (ids.length === 0) return []
-  const { docs } = await req.payload.find({
-    collection: 'media',
-    where: { id: { in: ids } },
-    depth: 0,
-    pagination: false,
-    overrideAccess: true,
-    req,
-  })
+  const validIds = ids.filter(isMediaId)
+  const { docs } =
+    validIds.length === 0
+      ? { docs: [] }
+      : await req.payload.find({
+          collection: 'media',
+          where: { id: { in: validIds } },
+          depth: 0,
+          pagination: false,
+          overrideAccess: true,
+          req,
+        })
   const altById = new Map(docs.map((doc) => [String(doc.id), doc.alt]))
-  return ids.map((id) => ({ id, alt: altById.get(String(id)) }))
+  return ids.map((id) => ({
+    id,
+    alt: altById.get(String(id)),
+    missing: !isMediaId(id) || !altById.has(String(id)),
+  }))
 }
 
 /** Runs the publish rules whenever an article is published; drafts may be incomplete. */

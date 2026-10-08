@@ -7,6 +7,7 @@ export const PUBLISH_MESSAGES = {
   readFirstItem: 'Each prior reading needs a SageVani article, or a title for one elsewhere.',
   sources: 'A Text / Story Study needs at least one source.',
   imageAlt: (id: number | string): string => `Image ${id} in the body has no alt text.`,
+  imageMissing: (id: number | string): string => `Image ${id} in the body no longer exists.`,
 } as const
 
 export interface PriorReading {
@@ -21,7 +22,12 @@ export interface PublishCheckInput {
   difficulty: { needsPriorReading: boolean } | null
   readFirst: readonly PriorReading[]
   sourceCount: number
-  images: readonly { id: number | string; alt: string | null | undefined }[]
+  images: readonly {
+    id: number | string
+    alt: string | null | undefined
+    /** The image is not a valid media id, or no such media exists. */
+    missing?: boolean
+  }[]
 }
 
 export interface PublishProblem {
@@ -63,8 +69,11 @@ export function publishProblems(input: PublishCheckInput): PublishProblem[] {
   }
 
   for (const image of input.images) {
-    if (isBlank(image.alt))
+    if (image.missing) {
+      problems.push({ path: 'body', message: PUBLISH_MESSAGES.imageMissing(image.id) })
+    } else if (isBlank(image.alt)) {
       problems.push({ path: 'body', message: PUBLISH_MESSAGES.imageAlt(image.id) })
+    }
   }
 
   return problems

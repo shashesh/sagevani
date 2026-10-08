@@ -74,6 +74,20 @@ describe('publishProblems', () => {
     ])
   })
 
+  it('reports a missing image as missing, not as lacking alt text', () => {
+    const problems = publishProblems({
+      ...ready,
+      images: [
+        { id: 4, alt: undefined, missing: true },
+        { id: 'x', alt: undefined, missing: true },
+      ],
+    })
+    expect(problems).toEqual([
+      { path: 'body', message: PUBLISH_MESSAGES.imageMissing(4) },
+      { path: 'body', message: PUBLISH_MESSAGES.imageMissing('x') },
+    ])
+  })
+
   it('lists every problem at once', () => {
     const problems = publishProblems({
       shape: TEXT_STORY_STUDY,

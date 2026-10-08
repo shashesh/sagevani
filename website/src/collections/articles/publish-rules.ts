@@ -29,19 +29,31 @@ async function difficultyOf(
   return level ? { needsPriorReading: level.needsPriorReading === true } : null
 }
 
+/** A media id as the database stores it: a whole number, or its digits. Nothing else reaches a query. */
+const isMediaId = (id: number | string): boolean =>
+  typeof id === 'number' ? Number.isSafeInteger(id) && id > 0 : /^\d{1,15}$/.test(id)
+
 async function imagesOf(body: unknown, req: PayloadRequest): Promise<PublishCheckInput['images']> {
   const ids = findUploadIds(body)
   if (ids.length === 0) return []
-  const { docs } = await req.payload.find({
-    collection: 'media',
-    where: { id: { in: ids } },
-    depth: 0,
-    pagination: false,
-    overrideAccess: true,
-    req,
-  })
+  const validIds = ids.filter(isMediaId)
+  const { docs } =
+    validIds.length === 0
+      ? { docs: [] }
+      : await req.payload.find({
+          collection: 'media',
+          where: { id: { in: validIds } },
+          depth: 0,
+          pagination: false,
+          overrideAccess: true,
+          req,
+        })
   const altById = new Map(docs.map((doc) => [String(doc.id), doc.alt]))
-  return ids.map((id) => ({ id, alt: altById.get(String(id)) }))
+  return ids.map((id) => ({
+    id,
+    alt: altById.get(String(id)),
+    missing: !isMediaId(id) || !altById.has(String(id)),
+  }))
 }
 
 /** Runs the publish rules whenever an article is published; drafts may be incomplete. */

@@ -369,6 +369,33 @@ describe('articles: publishing', () => {
       ).toEqual([{ path: 'body', message: PUBLISH_MESSAGES.imageAlt(blank.id) }])
     })
 
+    it('refuse an image whose media no longer exists', async () => {
+      const data = await sharp({
+        create: { width: 10, height: 10, channels: 3, background: '#000' },
+      })
+        .png()
+        .toBuffer()
+      const gone = await payload.create({
+        collection: 'media',
+        data: { alt: 'A lamp', creator: 'c', source: 's', licence: 'l' },
+        file: { data, mimetype: 'image/png', name: 'x.png', size: data.length },
+        overrideAccess: true,
+      })
+      await payload.delete({ collection: 'media', id: gone.id, overrideAccess: true })
+      expect(
+        await problemsOf(
+          publish({ difficulty: beginner.id, body: richText(paragraph('Text.'), image(gone.id)) }),
+        ),
+      ).toEqual([{ path: 'body', message: PUBLISH_MESSAGES.imageMissing(gone.id) }])
+    })
+
+    it('refuse a malformed image id without reaching the database', async () => {
+      const malformed = richText(paragraph('Text.'), { ...image(1), value: '1; drop' })
+      expect(await problemsOf(publish({ difficulty: beginner.id, body: malformed }))).toEqual([
+        { path: 'body', message: PUBLISH_MESSAGES.imageMissing('1; drop') },
+      ])
+    })
+
     it('do not apply to drafts', async () => {
       const article = await payload.create({
         collection: 'articles',
