@@ -1,7 +1,8 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Where } from 'payload'
 
 import { nobody, ownerOnly, publishedOrStaff, staffOnly, staffOnlyField } from '../../access/roles'
 import { contentEditor } from '../../blocks/content-editor'
+import { bodyLinksOnlyTo } from '../shared/body-links'
 import { draftsOnlyForAssistant } from './drafts-only'
 import { editorialChecklist } from './editorial-checklist'
 
@@ -24,6 +25,9 @@ export const SOURCE_TYPES = [
 const SERVER_ONLY = { create: nobody, update: nobody }
 /** Server-only, and never shown to the public. */
 const SERVER_ONLY_STAFF_READ = { read: staffOnlyField, ...SERVER_ONLY }
+
+/** A prior reading can only be a published article. */
+const PUBLISHED_ONLY: Where = { _status: { equals: 'published' } }
 
 const isInternal = (_: unknown, sibling: { kind?: unknown }): boolean =>
   sibling?.kind === 'internal'
@@ -50,6 +54,7 @@ export const Articles: CollectionConfig = {
   },
   hooks: {
     beforeOperation: [draftsOnlyForAssistant],
+    beforeChange: [bodyLinksOnlyTo(['articles'])],
   },
   fields: [
     { name: 'title', type: 'text', required: true },
@@ -87,6 +92,7 @@ export const Articles: CollectionConfig = {
           name: 'article',
           type: 'relationship',
           relationTo: 'articles',
+          filterOptions: PUBLISHED_ONLY,
           admin: { condition: isInternal },
         },
         { name: 'title', type: 'text', admin: { condition: isExternal } },

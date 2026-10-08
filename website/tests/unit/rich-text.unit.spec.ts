@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { countWords, extractText, findUploadIds } from '@/lib/rich-text'
+import { countWords, extractText, findLinkedDocuments, findUploadIds } from '@/lib/rich-text'
 
 const text = (value: string) => ({ type: 'text', text: value })
 const paragraph = (...children: unknown[]) => ({ type: 'paragraph', children })
@@ -99,5 +99,54 @@ describe('findUploadIds', () => {
       { type: 'upload', relationTo: 'media', value: 4 },
     )
     expect(findUploadIds(value)).toEqual([3, 4])
+  })
+})
+
+describe('findLinkedDocuments', () => {
+  const internal = (type: string, relationTo: unknown) => ({
+    type,
+    fields: { linkType: 'internal', doc: { relationTo, value: 1 } },
+    children: [text('x')],
+  })
+
+  it('finds an internal link', () => {
+    const value = root(paragraph(internal('link', 'users')))
+    expect(findLinkedDocuments(value)).toEqual([{ kind: 'link', relationTo: 'users' }])
+  })
+
+  it('ignores an external link', () => {
+    const value = root(
+      paragraph({ type: 'link', fields: { linkType: 'custom', url: 'https://example.com' } }),
+    )
+    expect(findLinkedDocuments(value)).toEqual([])
+  })
+
+  it('treats an autolink like a link', () => {
+    const value = root(paragraph(internal('autolink', 'pages')))
+    expect(findLinkedDocuments(value)).toEqual([{ kind: 'link', relationTo: 'pages' }])
+  })
+
+  it('finds relationship and upload nodes', () => {
+    const value = root(
+      { type: 'relationship', relationTo: 'users', value: 1 },
+      { type: 'upload', relationTo: 'media', value: 2 },
+    )
+    expect(findLinkedDocuments(value)).toEqual([
+      { kind: 'relationship', relationTo: 'users' },
+      { kind: 'upload', relationTo: 'media' },
+    ])
+  })
+
+  it('ignores malformed nodes', () => {
+    const value = root(
+      paragraph(internal('link', 7), { type: 'link', fields: 'oops' }, { type: 'link' }),
+      { type: 'upload', value: 2 },
+      { type: 'relationship' },
+      'text',
+      null,
+    )
+    expect(findLinkedDocuments(value)).toEqual([])
+    expect(findLinkedDocuments('nope')).toEqual([])
+    expect(findLinkedDocuments(undefined)).toEqual([])
   })
 })

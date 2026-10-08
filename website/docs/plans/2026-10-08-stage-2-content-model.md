@@ -74,6 +74,7 @@
 | `src/collections/Topics.ts`, `DifficultyLevels.ts`, `Pages.ts` | Those collections |
 | `src/collections/articles/Articles.ts` | The `articles` collection |
 | `src/collections/articles/drafts-only.ts` | The drafts-only guard |
+| `src/collections/shared/body-links.ts` | `bodyLinksOnlyTo`: the body links to allowed collections and shows media only |
 | `src/collections/articles/derived-text.ts` | Reading time and search text on save |
 | `src/collections/articles/publish-rules.ts` | Gathers what the rules need and throws a `ValidationError` |
 | `src/collections/articles/approval.ts` | The approval record |
@@ -2207,9 +2208,9 @@ git commit -m "feat: topics and owner-edited difficulty levels, with ASCII slugs
 ### Task 12: Editor blocks, the articles collection and the drafts-only guard
 
 **Files:**
-- Create: `src/blocks/Verse.ts`, `src/blocks/Tradition.ts`, `src/blocks/Practice.ts`, `src/blocks/content-editor.ts`, `src/collections/articles/drafts-only.ts`, `src/collections/articles/Articles.ts`
-- Modify: `src/payload.config.ts`, `src/payload-types.ts` and `src/app/(payload)/admin/importMap.js` (generated)
-- Test: `tests/int/articles-access.int.spec.ts`
+- Create: `src/blocks/Verse.ts`, `src/blocks/Tradition.ts`, `src/blocks/Practice.ts`, `src/blocks/content-editor.ts`, `src/collections/articles/drafts-only.ts`, `src/collections/shared/body-links.ts`, `src/collections/articles/Articles.ts`
+- Modify: `src/lib/rich-text.ts`, `src/collections/Users.ts`, `src/payload.config.ts`, `src/payload-types.ts` and `src/app/(payload)/admin/importMap.js` (generated)
+- Test: `tests/int/articles-access.int.spec.ts`, `tests/unit/rich-text.unit.spec.ts`
 
 This task builds the collection with every field and its access. Tasks 13 and 14 add the save-time hooks. A publish in this task's tests already supplies a difficulty level, so they keep passing once the publish rules arrive.
 
@@ -2219,11 +2220,18 @@ This task builds the collection with every field and its access. Tasks 13 and 14
 import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import { BODY_LINKS_MESSAGE } from '@/collections/shared/body-links'
 import { DRAFTS_ONLY_MESSAGE } from '@/collections/articles/drafts-only'
 import config from '@/payload.config'
 import type { DifficultyLevel, User } from '@/payload-types'
 
-import { ASSISTANT_KEY, clearContent, createStaff, rest } from '../helpers/content'
+import {
+  ASSISTANT_KEY,
+  clearContent,
+  createStaff,
+  rest,
+  validationMessages,
+} from '../helpers/content'
 
 let payload: Payload
 let owner: User
@@ -2237,8 +2245,48 @@ const publishAsOwner = (title = 'Live') =>
     user: owner,
   })
 
-const live = (id: number) =>
-  payload.findByID({ collection: 'articles', id, overrideAccess: true })
+const live = (id: number) => payload.findByID({ collection: 'articles', id, overrideAccess: true })
+
+const bodyLinkingTo = (relationTo: string, id: number) => ({
+  root: {
+    type: 'root',
+    version: 1,
+    format: '' as const,
+    indent: 0,
+    direction: 'ltr' as const,
+    children: [
+      {
+        type: 'paragraph',
+        version: 1,
+        format: '',
+        indent: 0,
+        direction: 'ltr',
+        textFormat: 0,
+        children: [
+          {
+            type: 'link',
+            version: 3,
+            format: '',
+            indent: 0,
+            direction: 'ltr',
+            fields: { linkType: 'internal', newTab: false, doc: { relationTo, value: id } },
+            children: [
+              {
+                type: 'text',
+                version: 1,
+                text: 'link',
+                format: 0,
+                mode: 'normal',
+                style: '',
+                detail: 0,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+})
 
 const expectRefused = async (response: Response) => {
   expect(response.status).toBe(403)
@@ -2301,7 +2349,9 @@ describe('articles: who can do what', () => {
     })
 
     it('is refused a save without ?draft=true', async () => {
-      await expectRefused(await rest('POST', 'articles', { key: ASSISTANT_KEY, body: { title: 'x' } }))
+      await expectRefused(
+        await rest('POST', 'articles', { key: ASSISTANT_KEY, body: { title: 'x' } }),
+      )
     })
 
     it('is refused publishing, even with ?draft=true', async () => {
@@ -2370,8 +2420,126 @@ describe('articles: who can do what', () => {
 
     it('is refused deleting', async () => {
       const article = await publishAsOwner()
-      expect((await rest('DELETE', `articles/${article.id}`, { key: ASSISTANT_KEY })).status).toBe(403)
+      await expectRefused(await rest('DELETE', `articles/${article.id}`, { key: ASSISTANT_KEY }))
       expect((await live(article.id)).id).toBe(article.id)
+    })
+
+    it('is refused restoring a version even with ?draft=true', async () => {
+      const article = await publishAsOwner()
+      const versions = await payload.findVersions({
+        collection: 'articles',
+        where: { parent: { equals: article.id } },
+        overrideAccess: true,
+      })
+      await expectRefused(
+        await rest('POST', `articles/versions/${versions.docs[0].id}?draft=true`, {
+          key: ASSISTANT_KEY,
+        }),
+      )
+    })
+
+    it.each([
+      'unpublishAllLocales=true',
+      'publishAllLocales=true',
+      'publishSpecificLocale=en',
+      'autosave=true',
+    ])('is refused ?draft=true&%s', async (flag) => {
+      const article = await publishAsOwner()
+      await expectRefused(
+        await rest('PATCH', `articles/${article.id}?draft=true&${flag}`, {
+          key: ASSISTANT_KEY,
+          body: { title: 'Assistant text' },
+        }),
+      )
+    })
+
+    it('only ever adds a version, leaving the published one untouched', async () => {
+      const article = await publishAsOwner('Approved text')
+      const findAll = () =>
+        payload.findVersions({
+          collection: 'articles',
+          where: { parent: { equals: article.id } },
+          sort: 'createdAt',
+          overrideAccess: true,
+        })
+      const before = await findAll()
+      const published = before.docs[before.docs.length - 1]
+
+      const response = await rest('PATCH', `articles/${article.id}?draft=true`, {
+        key: ASSISTANT_KEY,
+        body: { title: 'Proposed', _status: 'draft' },
+      })
+      expect(response.status).toBe(200)
+
+      const after = await findAll()
+      expect(after.docs).toHaveLength(before.docs.length + 1)
+      const same = after.docs.find((version) => version.id === published.id)
+      expect(same?.version.title).toBe('Approved text')
+      expect(same?.version._status).toBe('published')
+    })
+
+    it('cannot change server-only fields or the checklist on update either', async () => {
+      const article = await publishAsOwner()
+      await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { editorialChecklist: { integrity: { quotesLocated: true } } },
+        overrideAccess: false,
+        user: owner,
+      })
+      const response = await rest('PATCH', `articles/${article.id}?draft=true`, {
+        key: ASSISTANT_KEY,
+        body: {
+          approval: null,
+          publishedAt: null,
+          readingTime: 99,
+          searchText: 'x',
+          emailRecipients: 5,
+          editorialChecklist: { integrity: { quotesLocated: false } },
+        },
+      })
+      expect(response.status).toBe(200)
+      const latest = await payload.findByID({
+        collection: 'articles',
+        id: article.id,
+        draft: true,
+        overrideAccess: true,
+      })
+      expect(latest.editorialChecklist?.integrity?.quotesLocated).toBe(true)
+      expect(latest.emailRecipients).not.toBe(5)
+      expect(latest.readingTime).not.toBe(99)
+    })
+
+    it('is refused a body that links to anything but an article', async () => {
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: { title: 'Linked', body: bodyLinkingTo('users', owner.id) },
+      })
+      expect(response.status).toBe(400)
+      expect(JSON.stringify(await response.json())).toContain(BODY_LINKS_MESSAGE)
+    })
+
+    it('is refused a body link to anything but an article, for the owner too', async () => {
+      expect(
+        await validationMessages(
+          payload.create({
+            collection: 'articles',
+            data: { title: 'Linked', body: bodyLinkingTo('users', owner.id) },
+            draft: true,
+            overrideAccess: false,
+            user: owner,
+          }),
+        ),
+      ).toEqual([BODY_LINKS_MESSAGE])
+    })
+
+    it('accepts a body that links to another article', async () => {
+      const target = await publishAsOwner('Target')
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: { title: 'Linked', body: bodyLinkingTo('articles', target.id) },
+      })
+      expect(response.status).toBe(201)
     })
 
     it('reads drafts and versions', async () => {
@@ -2402,7 +2570,16 @@ describe('articles: who can do what', () => {
       expect(docs[0].emailSentAt).toBeUndefined()
       expect(docs[0].emailRecipients).toBeUndefined()
       expect(docs[0].editorialChecklist).toBeUndefined()
-      expect(docs[0].publishedAt).toBeDefined()
+      expect(docs[0]).toHaveProperty('publishedAt')
+    })
+
+    it('cannot update or delete anonymously', async () => {
+      const article = await publishAsOwner()
+      expect(
+        (await rest('PATCH', `articles/${article.id}?draft=true`, { body: { title: 'x' } })).status,
+      ).toBe(403)
+      expect((await rest('DELETE', `articles/${article.id}`)).status).toBe(403)
+      expect((await live(article.id)).title).toBe('Live')
     })
 
     it('cannot read versions or write anything', async () => {
@@ -2423,23 +2600,28 @@ describe('articles: who can do what', () => {
       })
       expect(unpublished._status).toBe('draft')
       expect(unpublished.publishedAt).toBe(article.publishedAt)
+      expect(unpublished.approval).toEqual(article.approval)
       expect((await rest('GET', 'articles')).ok).toBe(true)
       expect((await (await rest('GET', 'articles')).json()).docs).toEqual([])
     })
 
     it('deletes', async () => {
       const article = await publishAsOwner()
-      await payload.delete({ collection: 'articles', id: article.id, overrideAccess: false, user: owner })
-      expect((await payload.count({ collection: 'articles', overrideAccess: true })).totalDocs).toBe(0)
+      await payload.delete({
+        collection: 'articles',
+        id: article.id,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(
+        (await payload.count({ collection: 'articles', overrideAccess: true })).totalDocs,
+      ).toBe(0)
     })
   })
 })
 ```
 
-The tests that look at `publishedAt` depend on Task 14. Until then, `publishedAt` stays empty, so expect these failures in this task, and only these:
-
-- `sees published articles only…` fails at `expect(docs[0].publishedAt).toBeDefined()`.
-- `unpublishes, keeping publishedAt…` passes, because both values are `undefined`.
+`publishedAt` stays empty until Task 14, so the public test only checks that the field is present (`toHaveProperty`). Task 14 adds the stricter checks.
 
 - [ ] **Step 2: Run and see it fail**
 
@@ -2509,7 +2691,7 @@ export const Practice: Block = {
 `src/blocks/content-editor.ts`:
 
 ```ts
-import { BlocksFeature, lexicalEditor } from '@payloadcms/richtext-lexical'
+import { BlocksFeature, LinkFeature, lexicalEditor } from '@payloadcms/richtext-lexical'
 
 import { Practice } from './Practice'
 import { Tradition } from './Tradition'
@@ -2519,11 +2701,13 @@ import { Verse } from './Verse'
  * The editor for article and page bodies. It has Payload's default features, including images
  * through the upload feature, plus the Verse, Tradition and Practice blocks. Reflection is
  * ordinary text. Embedded relationships are left out: the spec has no use for them, and they
- * could embed any collection, users included.
+ * could embed any collection, users included. Internal links may point at articles only, because a
+ * link to an account would let a page populate it. Task 15 adds 'pages'.
  */
 export const contentEditor = lexicalEditor({
   features: ({ defaultFeatures }) => [
-    ...defaultFeatures.filter((feature) => feature.key !== 'relationship'),
+    ...defaultFeatures.filter((feature) => !['link', 'relationship'].includes(feature.key)),
+    LinkFeature({ enabledCollections: ['articles'] }),
     BlocksFeature({ blocks: [Verse, Tradition, Practice] }),
   ],
 })
@@ -2544,21 +2728,30 @@ const READ_OPERATIONS = new Set(['count', 'countVersions', 'read', 'readDistinct
 // The operation arguments this guard reads. Payload's REST endpoints parse `?draft=true` into
 // `draft: true`. Collection hooks after this one never see the flag, which is why the check is here.
 type WriteArgs = {
+  autosave?: unknown
   data?: { _status?: unknown }
   draft?: unknown
   duplicateFromID?: unknown
   id?: unknown
+  publishAllLocales?: unknown
+  publishSpecificLocale?: unknown
+  unpublishAllLocales?: unknown
 }
+
+const isSet = (value: unknown): boolean => value !== undefined && value !== null && value !== false
 
 const refuse = (): never => {
   throw new APIError(DRAFTS_ONLY_MESSAGE, 403, undefined, true)
 }
 
 /**
- * Keeps every signed-in account except the owner to draft saves (stage 2 design, 4.2). A draft
- * save of a published article only adds a version, so the live article is untouched. Refuses
- * publishing, non-draft updates (which would unpublish), duplicating, bulk updates, deletes and
- * version restores. Requests with no user are left to access control.
+ * Keeps every signed-in account except the owner to draft saves (stage 2 design, 4.2). An
+ * assistant write only ever ADDS a draft version: it never rewrites an existing version, and it
+ * never autosaves, publishes or unpublishes, for any locale. So a draft of a published article
+ * leaves the live article and the approved version untouched. Refuses publishing, non-draft
+ * updates (which would unpublish), the autosave and locale flags (which rewrite the latest
+ * version in place), duplicating, bulk updates, deletes and version restores. Requests with no
+ * user are left to access control.
  */
 export const draftsOnlyForAssistant: CollectionBeforeOperationHook = ({ args, operation, req }) => {
   if (!req.user || isOwner(req.user) || READ_OPERATIONS.has(operation)) return args
@@ -2566,19 +2759,160 @@ export const draftsOnlyForAssistant: CollectionBeforeOperationHook = ({ args, op
 
   const write = args as WriteArgs
   if (write.draft !== true || write.data?._status === 'published') return refuse()
+  // Each of these makes Payload rewrite the latest version in place, the published one included.
+  if (
+    isSet(write.autosave) ||
+    isSet(write.publishAllLocales) ||
+    isSet(write.publishSpecificLocale) ||
+    isSet(write.unpublishAllLocales)
+  ) {
+    return refuse()
+  }
   if (operation === 'create' && write.duplicateFromID !== undefined) return refuse()
   if (operation === 'update' && write.id === undefined) return refuse()
   return args
 }
 ```
 
+- [ ] **Step 4a: Check where the body points.** Payload doesn't validate the links, relationships and uploads saved in a rich-text body; the editor's settings only shape its menus. A link to `users` would let a page populate an account. First add this `describe` to `tests/unit/rich-text.unit.spec.ts` (import `findLinkedDocuments`, and see it fail):
+
+```ts
+describe('findLinkedDocuments', () => {
+  const internal = (type: string, relationTo: unknown) => ({
+    type,
+    fields: { linkType: 'internal', doc: { relationTo, value: 1 } },
+    children: [text('x')],
+  })
+
+  it('finds an internal link', () => {
+    const value = root(paragraph(internal('link', 'users')))
+    expect(findLinkedDocuments(value)).toEqual([{ kind: 'link', relationTo: 'users' }])
+  })
+
+  it('ignores an external link', () => {
+    const value = root(
+      paragraph({ type: 'link', fields: { linkType: 'custom', url: 'https://example.com' } }),
+    )
+    expect(findLinkedDocuments(value)).toEqual([])
+  })
+
+  it('treats an autolink like a link', () => {
+    const value = root(paragraph(internal('autolink', 'pages')))
+    expect(findLinkedDocuments(value)).toEqual([{ kind: 'link', relationTo: 'pages' }])
+  })
+
+  it('finds relationship and upload nodes', () => {
+    const value = root(
+      { type: 'relationship', relationTo: 'users', value: 1 },
+      { type: 'upload', relationTo: 'media', value: 2 },
+    )
+    expect(findLinkedDocuments(value)).toEqual([
+      { kind: 'relationship', relationTo: 'users' },
+      { kind: 'upload', relationTo: 'media' },
+    ])
+  })
+
+  it('ignores malformed nodes', () => {
+    const value = root(
+      paragraph(internal('link', 7), { type: 'link', fields: 'oops' }, { type: 'link' }),
+      { type: 'upload', value: 2 },
+      { type: 'relationship' },
+      'text',
+      null,
+    )
+    expect(findLinkedDocuments(value)).toEqual([])
+    expect(findLinkedDocuments('nope')).toEqual([])
+    expect(findLinkedDocuments(undefined)).toEqual([])
+  })
+})
+```
+
+Then add this to the end of `src/lib/rich-text.ts`:
+
+```ts
+export type LinkedKind = 'link' | 'relationship' | 'upload'
+export interface LinkedDocument {
+  kind: LinkedKind
+  relationTo: string
+}
+
+const linkedKindOf = (node: LexicalNode): LinkedKind | undefined => {
+  if (node.type === 'link' || node.type === 'autolink') return 'link'
+  if (node.type === 'relationship') return 'relationship'
+  if (node.type === 'upload') return 'upload'
+  return undefined
+}
+
+const relationOf = (node: LexicalNode, kind: LinkedKind): unknown => {
+  if (kind !== 'link') return node.relationTo
+  const fields = node.fields as { linkType?: unknown; doc?: unknown } | null | undefined
+  if (!isNode(fields) || fields.linkType !== 'internal' || !isNode(fields.doc)) return undefined
+  return fields.doc.relationTo
+}
+
+/**
+ * Every document the content points at: internal links (link and autolink nodes whose
+ * fields.linkType is 'internal' and fields.doc.relationTo is a string), relationship nodes
+ * (relationTo) and uploads (relationTo). Payload doesn't check these on the server, so
+ * collections do (see bodyLinksOnlyTo).
+ */
+export function findLinkedDocuments(value: unknown): LinkedDocument[] {
+  const found: LinkedDocument[] = []
+  const visit = (node: LexicalNode): void => {
+    const kind = linkedKindOf(node)
+    const relationTo = kind ? relationOf(node, kind) : undefined
+    if (kind && typeof relationTo === 'string') found.push({ kind, relationTo })
+    childrenOf(node).forEach(visit)
+  }
+  const root = rootOf(value)
+  if (root) visit(root)
+  return found
+}
+```
+
+Then create `src/collections/shared/body-links.ts`:
+
+```ts
+import { ValidationError, type CollectionBeforeChangeHook } from 'payload'
+
+import { findLinkedDocuments } from '../../lib/rich-text'
+
+export const BODY_LINKS_MESSAGE = 'The body can link to articles and show images from media only.'
+
+const UPLOAD_COLLECTION = 'media'
+
+/**
+ * A beforeChange hook: on every save, drafts included, refuses links outside `linkTo`, any
+ * embedded relationship, and uploads outside media. The editor's settings only shape its menus;
+ * Payload doesn't check the saved content, so this does.
+ */
+export const bodyLinksOnlyTo =
+  (linkTo: readonly string[]): CollectionBeforeChangeHook =>
+  ({ collection, data }) => {
+    const breaksRules = findLinkedDocuments((data as { body?: unknown } | undefined)?.body).some(
+      ({ kind, relationTo }) =>
+        kind === 'relationship' ||
+        (kind === 'link' && !linkTo.includes(relationTo)) ||
+        (kind === 'upload' && relationTo !== UPLOAD_COLLECTION),
+    )
+    if (breaksRules) {
+      throw new ValidationError({
+        collection: collection.slug,
+        errors: [{ path: 'body', message: BODY_LINKS_MESSAGE }],
+      })
+    }
+    return data
+  }
+```
+
 - [ ] **Step 5: Create** `src/collections/articles/Articles.ts`:
 
 ```ts
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Where } from 'payload'
 
 import { nobody, ownerOnly, publishedOrStaff, staffOnly, staffOnlyField } from '../../access/roles'
 import { contentEditor } from '../../blocks/content-editor'
+import { bodyLinksOnlyTo } from '../shared/body-links'
 import { draftsOnlyForAssistant } from './drafts-only'
 import { editorialChecklist } from './editorial-checklist'
 
@@ -2602,8 +2936,13 @@ const SERVER_ONLY = { create: nobody, update: nobody }
 /** Server-only, and never shown to the public. */
 const SERVER_ONLY_STAFF_READ = { read: staffOnlyField, ...SERVER_ONLY }
 
-const isInternal = (_: unknown, sibling: { kind?: unknown }): boolean => sibling?.kind === 'internal'
-const isExternal = (_: unknown, sibling: { kind?: unknown }): boolean => sibling?.kind !== 'internal'
+/** A prior reading can only be a published article. */
+const PUBLISHED_ONLY: Where = { _status: { equals: 'published' } }
+
+const isInternal = (_: unknown, sibling: { kind?: unknown }): boolean =>
+  sibling?.kind === 'internal'
+const isExternal = (_: unknown, sibling: { kind?: unknown }): boolean =>
+  sibling?.kind !== 'internal'
 
 export const Articles: CollectionConfig = {
   slug: 'articles',
@@ -2625,6 +2964,7 @@ export const Articles: CollectionConfig = {
   },
   hooks: {
     beforeOperation: [draftsOnlyForAssistant],
+    beforeChange: [bodyLinksOnlyTo(['articles'])],
   },
   fields: [
     { name: 'title', type: 'text', required: true },
@@ -2662,6 +3002,7 @@ export const Articles: CollectionConfig = {
           name: 'article',
           type: 'relationship',
           relationTo: 'articles',
+          filterOptions: PUBLISHED_ONLY,
           admin: { condition: isInternal },
         },
         { name: 'title', type: 'text', admin: { condition: isExternal } },
@@ -2704,7 +3045,12 @@ export const Articles: CollectionConfig = {
       fields: [
         { name: 'date', type: 'date', required: true },
         { name: 'change', label: 'What changed', type: 'textarea', required: true },
-        { name: 'showPublicNote', label: 'Show a public note', type: 'checkbox', defaultValue: true },
+        {
+          name: 'showPublicNote',
+          label: 'Show a public note',
+          type: 'checkbox',
+          defaultValue: true,
+        },
       ],
     },
     {
@@ -2722,7 +3068,10 @@ export const Articles: CollectionConfig = {
       name: 'slug',
       type: 'text',
       unique: true,
-      admin: { position: 'sidebar', description: 'Plain ASCII, made from the title when left empty.' },
+      admin: {
+        position: 'sidebar',
+        description: 'Plain ASCII, made from the title when left empty.',
+      },
     },
     {
       name: 'sendEmail',
@@ -2774,6 +3123,8 @@ export const Articles: CollectionConfig = {
 
 The slug field is written out here. Task 13 replaces it with `slugField(…)` and adds the slug hooks.
 
+- [ ] **Step 5a: Keep accounts out of rich text.** In `src/collections/Users.ts`, add to `admin`: `enableRichTextLink: false, enableRichTextRelationship: false`.
+
 - [ ] **Step 6: Register it.** In `src/payload.config.ts`, add `import { Articles } from './collections/articles/Articles'` next to the other collection imports, and change the collections line to:
 
 ```ts
@@ -2787,14 +3138,14 @@ npm run generate:types && npm run generate:importmap
 npx cross-env NODE_OPTIONS=--no-deprecation vitest run tests/int/articles-access.int.spec.ts
 ```
 
-Expected: everything passes except `sees published articles only, without the approval, email record or checklist`. That test fails at `publishedAt`, until Task 14. Payload logs an `APIError: The assistant saves drafts only…` line for each refused request; that's expected.
+Expected: all pass. Payload logs an `APIError: The assistant saves drafts only…` line for each refused request; that's expected.
 
 - [ ] **Step 8: Commit**
 
 ```bash
 npx prettier --write src tests
 npm run lint && npm run typecheck
-git add src/blocks src/collections/articles/drafts-only.ts src/collections/articles/Articles.ts src/payload.config.ts src/payload-types.ts "src/app/(payload)/admin/importMap.js" tests/int/articles-access.int.spec.ts
+git add src/blocks src/collections/shared/body-links.ts src/collections/Users.ts src/lib/rich-text.ts tests/unit/rich-text.unit.spec.ts src/collections/articles/drafts-only.ts src/collections/articles/Articles.ts src/payload.config.ts src/payload-types.ts "src/app/(payload)/admin/importMap.js" tests/int/articles-access.int.spec.ts
 git commit -m "feat: articles with Verse, Tradition and Practice blocks; the assistant saves drafts only"
 ```
 
@@ -3024,6 +3375,7 @@ replace:
 ```ts
   hooks: {
     beforeOperation: [draftsOnlyForAssistant],
+    beforeChange: [bodyLinksOnlyTo(['articles'])],
   },
 ```
 
@@ -3033,7 +3385,7 @@ with:
   hooks: {
     beforeOperation: [draftsOnlyForAssistant],
     beforeValidate: [deriveSlug('title')],
-    beforeChange: [checkSlug, deriveArticleText],
+    beforeChange: [bodyLinksOnlyTo(['articles']), checkSlug, deriveArticleText],
   },
 ```
 
@@ -3405,13 +3757,19 @@ import { enforcePublishRules } from './publish-rules'
 and replace:
 
 ```ts
-    beforeChange: [checkSlug, deriveArticleText],
+    beforeChange: [bodyLinksOnlyTo(['articles']), checkSlug, deriveArticleText],
 ```
 
 with:
 
 ```ts
-    beforeChange: [checkSlug, deriveArticleText, enforcePublishRules, recordApproval],
+    beforeChange: [
+      bodyLinksOnlyTo(['articles']),
+      checkSlug,
+      deriveArticleText,
+      enforcePublishRules,
+      recordApproval,
+    ],
     afterChange: [recordApprovedVersion],
 ```
 
@@ -3445,11 +3803,18 @@ git commit -m "feat: publish rules, and the approval record of the approved vers
 import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import { BODY_LINKS_MESSAGE } from '@/collections/shared/body-links'
 import { DEFAULT_TAGLINE } from '@/globals/SiteSettings'
 import config from '@/payload.config'
 import type { DifficultyLevel, User } from '@/payload-types'
 
-import { ASSISTANT_KEY, clearContent, createStaff, rest } from '../helpers/content'
+import {
+  ASSISTANT_KEY,
+  clearContent,
+  createStaff,
+  rest,
+  validationMessages,
+} from '../helpers/content'
 
 let payload: Payload
 let owner: User
@@ -3490,6 +3855,41 @@ describe('pages and site settings', () => {
   })
 
   describe('pages', () => {
+    it('reject a body that links to an account', async () => {
+      const body = {
+        root: {
+          type: 'root',
+          version: 1,
+          format: '' as const,
+          indent: 0,
+          direction: 'ltr' as const,
+          children: [
+            {
+              type: 'link',
+              version: 3,
+              fields: {
+                linkType: 'internal',
+                newTab: false,
+                doc: { relationTo: 'users', value: owner.id },
+              },
+              children: [],
+            },
+          ],
+        },
+      }
+      expect(
+        await validationMessages(
+          payload.create({
+            collection: 'pages',
+            data: { title: 'About', body },
+            draft: true,
+            overrideAccess: false,
+            user: owner,
+          }),
+        ),
+      ).toEqual([BODY_LINKS_MESSAGE])
+    })
+
     it('keep a half-written page off the site until it is published', async () => {
       await payload.create({
         collection: 'pages',
@@ -3597,6 +3997,7 @@ import type { CollectionConfig } from 'payload'
 
 import { ownerOnly, publishedOrStaff, staffOnly } from '../access/roles'
 import { contentEditor } from '../blocks/content-editor'
+import { bodyLinksOnlyTo } from './shared/body-links'
 import { checkSlug, deriveSlug, slugField } from './shared/slug'
 
 /**
@@ -3616,7 +4017,7 @@ export const Pages: CollectionConfig = {
   },
   hooks: {
     beforeValidate: [deriveSlug('title')],
-    beforeChange: [checkSlug],
+    beforeChange: [bodyLinksOnlyTo(['articles', 'pages']), checkSlug],
   },
   fields: [
     { name: 'title', type: 'text', required: true },
@@ -3701,6 +4102,8 @@ change the collections line to:
   globals: [SiteSettings],
 ```
 
+- [ ] **Step 5a: Let links reach pages.** In `src/blocks/content-editor.ts`, change `LinkFeature({ enabledCollections: ['articles'] })` to `LinkFeature({ enabledCollections: ['articles', 'pages'] })`, and update its comment to say links may point at articles and pages. In `src/collections/articles/Articles.ts`, change `bodyLinksOnlyTo(['articles'])` to `bodyLinksOnlyTo(['articles', 'pages'])`. Pages can be linked now that they exist.
+
 - [ ] **Step 6: Regenerate, run and see it pass**
 
 ```bash
@@ -3715,7 +4118,7 @@ Expected: PASS.
 ```bash
 npx prettier --write src tests
 npm run lint && npm run typecheck
-git add src/collections/Pages.ts src/globals/SiteSettings.ts src/payload.config.ts src/payload-types.ts "src/app/(payload)/admin/importMap.js" tests/int/pages-and-settings.int.spec.ts
+git add src/blocks/content-editor.ts src/collections/articles/Articles.ts src/collections/Pages.ts src/globals/SiteSettings.ts src/payload.config.ts src/payload-types.ts "src/app/(payload)/admin/importMap.js" tests/int/pages-and-settings.int.spec.ts
 git commit -m "feat: pages with drafts, and site settings that feature published articles only"
 ```
 
@@ -4386,6 +4789,7 @@ Expected: a draft pull request URL. Don't request a Copilot review; the owner do
 - **Local images on public pages.** With storage off, media files are served through Payload's file route, which applies the staff-only `read` access. Local public pages will therefore need a development-only way to show images, or a local S3 server. Hosted sites are unaffected: files load from the bucket.
 - **Draft preview** reads the latest draft with `draft: true` through the local API, for staff only.
 - **Refreshing pages on publish** hooks into `afterChange` next to `recordApprovedVersion`.
+- **Public pages read through the Local API with `overrideAccess: false` (or an explicit `select`),** so relationship population can never pull staff-only data such as an account or a draft into a page.
 
 ## Self-review against the spec
 

@@ -83,3 +83,42 @@ export function findUploadIds(value: unknown, relationTo = 'media'): (number | s
   if (root) visit(root)
   return ids
 }
+
+export type LinkedKind = 'link' | 'relationship' | 'upload'
+export interface LinkedDocument {
+  kind: LinkedKind
+  relationTo: string
+}
+
+const linkedKindOf = (node: LexicalNode): LinkedKind | undefined => {
+  if (node.type === 'link' || node.type === 'autolink') return 'link'
+  if (node.type === 'relationship') return 'relationship'
+  if (node.type === 'upload') return 'upload'
+  return undefined
+}
+
+const relationOf = (node: LexicalNode, kind: LinkedKind): unknown => {
+  if (kind !== 'link') return node.relationTo
+  const fields = node.fields as { linkType?: unknown; doc?: unknown } | null | undefined
+  if (!isNode(fields) || fields.linkType !== 'internal' || !isNode(fields.doc)) return undefined
+  return fields.doc.relationTo
+}
+
+/**
+ * Every document the content points at: internal links (link and autolink nodes whose
+ * fields.linkType is 'internal' and fields.doc.relationTo is a string), relationship nodes
+ * (relationTo) and uploads (relationTo). Payload doesn't check these on the server, so
+ * collections do (see bodyLinksOnlyTo).
+ */
+export function findLinkedDocuments(value: unknown): LinkedDocument[] {
+  const found: LinkedDocument[] = []
+  const visit = (node: LexicalNode): void => {
+    const kind = linkedKindOf(node)
+    const relationTo = kind ? relationOf(node, kind) : undefined
+    if (kind && typeof relationTo === 'string') found.push({ kind, relationTo })
+    childrenOf(node).forEach(visit)
+  }
+  const root = rootOf(value)
+  if (root) visit(root)
+  return found
+}

@@ -33,6 +33,7 @@ Versions, drafts and autosave are on. Fields are those of the parent spec, secti
 
 - **Drafts may be incomplete.** Payload doesn't validate drafts, so required fields and the publish rules (section 4.3) apply only when an article is published.
 - **difficulty** is a relationship to one `difficultyLevels` item.
+- **Links.** Internal links in the body, and prior readings (`readFirst`), point only at articles (and at pages, once they exist). Prior readings must be published articles. The server enforces the body rule on every save, drafts included, because the editor's settings alone don't: Payload doesn't check the links saved in a body. Embedded relationships are refused, and uploads must be `media`.
 - **slug** is generated from the title when empty: diacritics removed, lowercase ASCII words joined by hyphens (`Māyā and the Rope` → `maya-and-the-rope`). It stays editable and must be unique across all articles, drafts included. A clash fails the save with an error that names the slug. Nothing is added automatically.
 - **readingTime** counts the words of the body, including the text inside blocks, at 200 words a minute, rounded up, with a minimum of 1.
 - **searchText** holds the title, summary and body text, including block text, in lowercase with diacritics removed and whitespace collapsed, so a search for "maya" will find "māyā" once stage 5 builds search.
@@ -92,6 +93,7 @@ The assistant may save drafts: `?draft=true` with any status but published. A dr
 Every other assistant write to `articles` is refused with a 403 and the message "The assistant saves drafts only; the owner publishes.":
 
 - saving with `_status: published`;
+- `autosave`, `publishAllLocales`, `publishSpecificLocale` or `unpublishAllLocales`: any of them makes Payload rewrite the latest version in place, the published one included, so the approval record could end up pointing at changed text. An assistant write only ever adds a draft version;
 - an update without `?draft=true`, which on a published article would unpublish it;
 - restoring a version (`POST /api/articles/versions/:id`);
 - duplicating, bulk updates and deletes.

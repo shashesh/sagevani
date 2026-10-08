@@ -116,6 +116,9 @@ export const Users: CollectionConfig = {
   admin: {
     useAsTitle: 'email',
     defaultColumns: ['email', 'name', 'role'],
+    // No rich-text link or embed may point at an account.
+    enableRichTextLink: false,
+    enableRichTextRelationship: false,
   },
   auth: {
     maxLoginAttempts: 5,

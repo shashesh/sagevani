@@ -1,11 +1,18 @@
 import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import { BODY_LINKS_MESSAGE } from '@/collections/shared/body-links'
 import { DRAFTS_ONLY_MESSAGE } from '@/collections/articles/drafts-only'
 import config from '@/payload.config'
 import type { DifficultyLevel, User } from '@/payload-types'
 
-import { ASSISTANT_KEY, clearContent, createStaff, rest } from '../helpers/content'
+import {
+  ASSISTANT_KEY,
+  clearContent,
+  createStaff,
+  rest,
+  validationMessages,
+} from '../helpers/content'
 
 let payload: Payload
 let owner: User
@@ -20,6 +27,47 @@ const publishAsOwner = (title = 'Live') =>
   })
 
 const live = (id: number) => payload.findByID({ collection: 'articles', id, overrideAccess: true })
+
+const bodyLinkingTo = (relationTo: string, id: number) => ({
+  root: {
+    type: 'root',
+    version: 1,
+    format: '' as const,
+    indent: 0,
+    direction: 'ltr' as const,
+    children: [
+      {
+        type: 'paragraph',
+        version: 1,
+        format: '',
+        indent: 0,
+        direction: 'ltr',
+        textFormat: 0,
+        children: [
+          {
+            type: 'link',
+            version: 3,
+            format: '',
+            indent: 0,
+            direction: 'ltr',
+            fields: { linkType: 'internal', newTab: false, doc: { relationTo, value: id } },
+            children: [
+              {
+                type: 'text',
+                version: 1,
+                text: 'link',
+                format: 0,
+                mode: 'normal',
+                style: '',
+                detail: 0,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+})
 
 const expectRefused = async (response: Response) => {
   expect(response.status).toBe(403)
@@ -153,10 +201,126 @@ describe('articles: who can do what', () => {
 
     it('is refused deleting', async () => {
       const article = await publishAsOwner()
-      expect((await rest('DELETE', `articles/${article.id}`, { key: ASSISTANT_KEY })).status).toBe(
-        403,
-      )
+      await expectRefused(await rest('DELETE', `articles/${article.id}`, { key: ASSISTANT_KEY }))
       expect((await live(article.id)).id).toBe(article.id)
+    })
+
+    it('is refused restoring a version even with ?draft=true', async () => {
+      const article = await publishAsOwner()
+      const versions = await payload.findVersions({
+        collection: 'articles',
+        where: { parent: { equals: article.id } },
+        overrideAccess: true,
+      })
+      await expectRefused(
+        await rest('POST', `articles/versions/${versions.docs[0].id}?draft=true`, {
+          key: ASSISTANT_KEY,
+        }),
+      )
+    })
+
+    it.each([
+      'unpublishAllLocales=true',
+      'publishAllLocales=true',
+      'publishSpecificLocale=en',
+      'autosave=true',
+    ])('is refused ?draft=true&%s', async (flag) => {
+      const article = await publishAsOwner()
+      await expectRefused(
+        await rest('PATCH', `articles/${article.id}?draft=true&${flag}`, {
+          key: ASSISTANT_KEY,
+          body: { title: 'Assistant text' },
+        }),
+      )
+    })
+
+    it('only ever adds a version, leaving the published one untouched', async () => {
+      const article = await publishAsOwner('Approved text')
+      const findAll = () =>
+        payload.findVersions({
+          collection: 'articles',
+          where: { parent: { equals: article.id } },
+          sort: 'createdAt',
+          overrideAccess: true,
+        })
+      const before = await findAll()
+      const published = before.docs[before.docs.length - 1]
+
+      const response = await rest('PATCH', `articles/${article.id}?draft=true`, {
+        key: ASSISTANT_KEY,
+        body: { title: 'Proposed', _status: 'draft' },
+      })
+      expect(response.status).toBe(200)
+
+      const after = await findAll()
+      expect(after.docs).toHaveLength(before.docs.length + 1)
+      const same = after.docs.find((version) => version.id === published.id)
+      expect(same?.version.title).toBe('Approved text')
+      expect(same?.version._status).toBe('published')
+    })
+
+    it('cannot change server-only fields or the checklist on update either', async () => {
+      const article = await publishAsOwner()
+      await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { editorialChecklist: { integrity: { quotesLocated: true } } },
+        overrideAccess: false,
+        user: owner,
+      })
+      const response = await rest('PATCH', `articles/${article.id}?draft=true`, {
+        key: ASSISTANT_KEY,
+        body: {
+          approval: null,
+          publishedAt: null,
+          readingTime: 99,
+          searchText: 'x',
+          emailRecipients: 5,
+          editorialChecklist: { integrity: { quotesLocated: false } },
+        },
+      })
+      expect(response.status).toBe(200)
+      const latest = await payload.findByID({
+        collection: 'articles',
+        id: article.id,
+        draft: true,
+        overrideAccess: true,
+      })
+      expect(latest.editorialChecklist?.integrity?.quotesLocated).toBe(true)
+      expect(latest.emailRecipients).not.toBe(5)
+      expect(latest.readingTime).not.toBe(99)
+    })
+
+    it('is refused a body that links to anything but an article', async () => {
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: { title: 'Linked', body: bodyLinkingTo('users', owner.id) },
+      })
+      expect(response.status).toBe(400)
+      expect(JSON.stringify(await response.json())).toContain(BODY_LINKS_MESSAGE)
+    })
+
+    it('is refused a body link to anything but an article, for the owner too', async () => {
+      expect(
+        await validationMessages(
+          payload.create({
+            collection: 'articles',
+            data: { title: 'Linked', body: bodyLinkingTo('users', owner.id) },
+            draft: true,
+            overrideAccess: false,
+            user: owner,
+          }),
+        ),
+      ).toEqual([BODY_LINKS_MESSAGE])
+    })
+
+    it('accepts a body that links to another article', async () => {
+      const target = await publishAsOwner('Target')
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: { title: 'Linked', body: bodyLinkingTo('articles', target.id) },
+      })
+      expect(response.status).toBe(201)
     })
 
     it('reads drafts and versions', async () => {
@@ -187,7 +351,16 @@ describe('articles: who can do what', () => {
       expect(docs[0].emailSentAt).toBeUndefined()
       expect(docs[0].emailRecipients).toBeUndefined()
       expect(docs[0].editorialChecklist).toBeUndefined()
-      expect(docs[0].publishedAt).toBeDefined()
+      expect(docs[0]).toHaveProperty('publishedAt')
+    })
+
+    it('cannot update or delete anonymously', async () => {
+      const article = await publishAsOwner()
+      expect(
+        (await rest('PATCH', `articles/${article.id}?draft=true`, { body: { title: 'x' } })).status,
+      ).toBe(403)
+      expect((await rest('DELETE', `articles/${article.id}`)).status).toBe(403)
+      expect((await live(article.id)).title).toBe('Live')
     })
 
     it('cannot read versions or write anything', async () => {
@@ -208,6 +381,7 @@ describe('articles: who can do what', () => {
       })
       expect(unpublished._status).toBe('draft')
       expect(unpublished.publishedAt).toBe(article.publishedAt)
+      expect(unpublished.approval).toEqual(article.approval)
       expect((await rest('GET', 'articles')).ok).toBe(true)
       expect((await (await rest('GET', 'articles')).json()).docs).toEqual([])
     })
