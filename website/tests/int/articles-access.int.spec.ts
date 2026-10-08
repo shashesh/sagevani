@@ -391,6 +391,29 @@ describe('articles: who can do what', () => {
       expect(JSON.stringify(await response.json())).toContain(BODY_LINKS_MESSAGE)
     })
 
+    it('refuses a link whose doc is a forged populated object, not an id', async () => {
+      const target = await publishAsOwner('Target')
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: {
+          title: 'Forged',
+          body: bodyOf({
+            type: 'link',
+            fields: {
+              linkType: 'internal',
+              doc: {
+                relationTo: 'articles',
+                value: { id: target.id, slug: '//evil.example', title: 'Fake' },
+              },
+            },
+            children: [],
+          }),
+        },
+      })
+      expect(response.status).toBe(400)
+      expect(JSON.stringify(await response.json())).toContain(BODY_LINKS_MESSAGE)
+    })
+
     it('reads drafts and versions', async () => {
       await payload.create({
         collection: 'articles',

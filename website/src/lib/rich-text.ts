@@ -89,16 +89,20 @@ export interface LinkedDocument {
   kind: LinkedKind
   /** The raw value, whatever its type: callers must check it, never assume a string. */
   relationTo: unknown
+  /** The raw document value: an id when it is well formed. */
+  value: unknown
 }
 
 const linkedDocumentOf = (node: LexicalNode): LinkedDocument | undefined => {
   if (node.type === 'relationship' || node.type === 'upload') {
-    return { kind: node.type, relationTo: node.relationTo }
+    return { kind: node.type, relationTo: node.relationTo, value: node.value }
   }
   if (node.type === 'link' || node.type === 'autolink') {
     const doc = (node.fields as { doc?: unknown } | null | undefined)?.doc
     if (doc === undefined || doc === null) return undefined
-    return { kind: 'link', relationTo: isNode(doc) ? doc.relationTo : undefined }
+    return isNode(doc)
+      ? { kind: 'link', relationTo: doc.relationTo, value: doc.value }
+      : { kind: 'link', relationTo: undefined, value: undefined }
   }
   return undefined
 }

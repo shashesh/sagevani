@@ -2610,6 +2610,29 @@ describe('articles: who can do what', () => {
       expect(JSON.stringify(await response.json())).toContain(BODY_LINKS_MESSAGE)
     })
 
+    it('refuses a link whose doc is a forged populated object, not an id', async () => {
+      const target = await publishAsOwner('Target')
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: {
+          title: 'Forged',
+          body: bodyOf({
+            type: 'link',
+            fields: {
+              linkType: 'internal',
+              doc: {
+                relationTo: 'articles',
+                value: { id: target.id, slug: '//evil.example', title: 'Fake' },
+              },
+            },
+            children: [],
+          }),
+        },
+      })
+      expect(response.status).toBe(400)
+      expect(JSON.stringify(await response.json())).toContain(BODY_LINKS_MESSAGE)
+    })
+
     it('reads drafts and versions', async () => {
       await payload.create({
         collection: 'articles',
@@ -2882,7 +2905,7 @@ describe('findLinkedDocuments', () => {
 
   it('finds an internal link', () => {
     const value = root(paragraph(internal('link', 'users')))
-    expect(findLinkedDocuments(value)).toEqual([{ kind: 'link', relationTo: 'users' }])
+    expect(findLinkedDocuments(value)).toEqual([{ kind: 'link', relationTo: 'users', value: 1 }])
   })
 
   it('ignores an external link', () => {
@@ -2894,7 +2917,7 @@ describe('findLinkedDocuments', () => {
 
   it('treats an autolink like a link', () => {
     const value = root(paragraph(internal('autolink', 'pages')))
-    expect(findLinkedDocuments(value)).toEqual([{ kind: 'link', relationTo: 'pages' }])
+    expect(findLinkedDocuments(value)).toEqual([{ kind: 'link', relationTo: 'pages', value: 1 }])
   })
 
   it('finds relationship and upload nodes', () => {
@@ -2903,8 +2926,8 @@ describe('findLinkedDocuments', () => {
       { type: 'upload', relationTo: 'media', value: 2 },
     )
     expect(findLinkedDocuments(value)).toEqual([
-      { kind: 'relationship', relationTo: 'users' },
-      { kind: 'upload', relationTo: 'media' },
+      { kind: 'relationship', relationTo: 'users', value: 1 },
+      { kind: 'upload', relationTo: 'media', value: 2 },
     ])
   })
 
@@ -2916,10 +2939,10 @@ describe('findLinkedDocuments', () => {
       { type: 'relationship', relationTo: ['users'], value: 2 },
     )
     expect(findLinkedDocuments(value)).toEqual([
-      { kind: 'upload', relationTo: undefined },
-      { kind: 'relationship', relationTo: undefined },
-      { kind: 'upload', relationTo: ['users'] },
-      { kind: 'relationship', relationTo: ['users'] },
+      { kind: 'upload', relationTo: undefined, value: 2 },
+      { kind: 'relationship', relationTo: undefined, value: undefined },
+      { kind: 'upload', relationTo: ['users'], value: 2 },
+      { kind: 'relationship', relationTo: ['users'], value: 2 },
     ])
   })
 
@@ -2937,10 +2960,10 @@ describe('findLinkedDocuments', () => {
       ),
     )
     expect(findLinkedDocuments(value)).toEqual([
-      { kind: 'link', relationTo: 'users' },
-      { kind: 'link', relationTo: 'users' },
-      { kind: 'link', relationTo: 'users' },
-      { kind: 'link', relationTo: ['users'] },
+      { kind: 'link', relationTo: 'users', value: 1 },
+      { kind: 'link', relationTo: 'users', value: 1 },
+      { kind: 'link', relationTo: 'users', value: 1 },
+      { kind: 'link', relationTo: ['users'], value: 1 },
     ])
   })
 
@@ -2958,6 +2981,17 @@ describe('findLinkedDocuments', () => {
     expect(findLinkedDocuments('nope')).toEqual([])
     expect(findLinkedDocuments(undefined)).toEqual([])
   })
+
+  it('reports the raw value of a link doc and of an upload', () => {
+    const value = root(
+      paragraph({ type: 'link', fields: { doc: { relationTo: 'articles', value: 5 } } }),
+      { type: 'upload', relationTo: 'media', value: { id: 1 } },
+    )
+    expect(findLinkedDocuments(value)).toEqual([
+      { kind: 'link', relationTo: 'articles', value: 5 },
+      { kind: 'upload', relationTo: 'media', value: { id: 1 } },
+    ])
+  })
 })
 ```
 
@@ -2969,16 +3003,20 @@ export interface LinkedDocument {
   kind: LinkedKind
   /** The raw value, whatever its type: callers must check it, never assume a string. */
   relationTo: unknown
+  /** The raw document value: an id when it is well formed. */
+  value: unknown
 }
 
 const linkedDocumentOf = (node: LexicalNode): LinkedDocument | undefined => {
   if (node.type === 'relationship' || node.type === 'upload') {
-    return { kind: node.type, relationTo: node.relationTo }
+    return { kind: node.type, relationTo: node.relationTo, value: node.value }
   }
   if (node.type === 'link' || node.type === 'autolink') {
     const doc = (node.fields as { doc?: unknown } | null | undefined)?.doc
     if (doc === undefined || doc === null) return undefined
-    return { kind: 'link', relationTo: isNode(doc) ? doc.relationTo : undefined }
+    return isNode(doc)
+      ? { kind: 'link', relationTo: doc.relationTo, value: doc.value }
+      : { kind: 'link', relationTo: undefined, value: undefined }
   }
   return undefined
 }
@@ -3014,19 +3052,25 @@ export const BODY_LINKS_MESSAGE = 'The body can link to articles and show images
 
 const UPLOAD_COLLECTION = 'media'
 
-const isAllowed = ({ kind, relationTo }: LinkedDocument, linkTo: readonly string[]): boolean => {
-  if (typeof relationTo !== 'string') return false
+const isId = (value: unknown): boolean => typeof value === 'number' || typeof value === 'string'
+
+const isAllowed = (
+  { kind, relationTo, value }: LinkedDocument,
+  linkTo: readonly string[],
+): boolean => {
+  // The admin saves at depth 0, so it always sends ids. An object is a forged populated document.
+  if (typeof relationTo !== 'string' || !isId(value)) return false
   if (kind === 'link') return linkTo.includes(relationTo)
   if (kind === 'upload') return relationTo === UPLOAD_COLLECTION
   return false
 }
 
 /**
- * A beforeChange hook: on every save, drafts included, refuses anything the body points at except
- * a link to a collection in `linkTo` and an upload from media, each by a plain string
- * `relationTo`. It fails closed: any other shape (an array, a missing value, an embedded
- * relationship) is refused. The editor's settings only shape its menus; Payload doesn't check
- * the saved content, so this does.
+ * A beforeChange hook: on every save, drafts included, refuses any target outside the allowed
+ * list (a link to a collection in `linkTo`, an upload from media, each by a plain string
+ * `relationTo`) and any value that isn't an id. Embedded relationships are refused. Node shapes
+ * that point nowhere are stored as sent and populate nothing in Payload 3.90.2; re-check this
+ * when Payload is upgraded. The editor's settings only shape its menus, so this does the checking.
  */
 export const bodyLinksOnlyTo =
   (linkTo: readonly string[]): CollectionBeforeChangeHook =>
@@ -4927,6 +4971,7 @@ Expected: a draft pull request URL. Don't request a Copilot review; the owner do
 - **Draft preview** reads the latest draft with `draft: true` through the local API, for staff only.
 - **Refreshing pages on publish** hooks into `afterChange` next to `recordApprovedVersion`.
 - **Public pages read through the Local API with `overrideAccess: false` (or an explicit `select`),** so relationship population can never pull staff-only data such as an account or a draft into a page.
+- **Allowed links populate staff-only fields.** An article link in a body, and `readFirst`, read through the Local API with the default `overrideAccess` populate the linked article's staff-only fields (approval, checklist, email record). Public reads therefore use `overrideAccess: false`, or a depth or `select` limit, or `LinkFeature({ maxDepth: 0 })`.
 
 ## Self-review against the spec
 

@@ -111,7 +111,7 @@ describe('findLinkedDocuments', () => {
 
   it('finds an internal link', () => {
     const value = root(paragraph(internal('link', 'users')))
-    expect(findLinkedDocuments(value)).toEqual([{ kind: 'link', relationTo: 'users' }])
+    expect(findLinkedDocuments(value)).toEqual([{ kind: 'link', relationTo: 'users', value: 1 }])
   })
 
   it('ignores an external link', () => {
@@ -123,7 +123,7 @@ describe('findLinkedDocuments', () => {
 
   it('treats an autolink like a link', () => {
     const value = root(paragraph(internal('autolink', 'pages')))
-    expect(findLinkedDocuments(value)).toEqual([{ kind: 'link', relationTo: 'pages' }])
+    expect(findLinkedDocuments(value)).toEqual([{ kind: 'link', relationTo: 'pages', value: 1 }])
   })
 
   it('finds relationship and upload nodes', () => {
@@ -132,8 +132,8 @@ describe('findLinkedDocuments', () => {
       { type: 'upload', relationTo: 'media', value: 2 },
     )
     expect(findLinkedDocuments(value)).toEqual([
-      { kind: 'relationship', relationTo: 'users' },
-      { kind: 'upload', relationTo: 'media' },
+      { kind: 'relationship', relationTo: 'users', value: 1 },
+      { kind: 'upload', relationTo: 'media', value: 2 },
     ])
   })
 
@@ -145,10 +145,10 @@ describe('findLinkedDocuments', () => {
       { type: 'relationship', relationTo: ['users'], value: 2 },
     )
     expect(findLinkedDocuments(value)).toEqual([
-      { kind: 'upload', relationTo: undefined },
-      { kind: 'relationship', relationTo: undefined },
-      { kind: 'upload', relationTo: ['users'] },
-      { kind: 'relationship', relationTo: ['users'] },
+      { kind: 'upload', relationTo: undefined, value: 2 },
+      { kind: 'relationship', relationTo: undefined, value: undefined },
+      { kind: 'upload', relationTo: ['users'], value: 2 },
+      { kind: 'relationship', relationTo: ['users'], value: 2 },
     ])
   })
 
@@ -166,10 +166,10 @@ describe('findLinkedDocuments', () => {
       ),
     )
     expect(findLinkedDocuments(value)).toEqual([
-      { kind: 'link', relationTo: 'users' },
-      { kind: 'link', relationTo: 'users' },
-      { kind: 'link', relationTo: 'users' },
-      { kind: 'link', relationTo: ['users'] },
+      { kind: 'link', relationTo: 'users', value: 1 },
+      { kind: 'link', relationTo: 'users', value: 1 },
+      { kind: 'link', relationTo: 'users', value: 1 },
+      { kind: 'link', relationTo: ['users'], value: 1 },
     ])
   })
 
@@ -186,5 +186,16 @@ describe('findLinkedDocuments', () => {
     expect(findLinkedDocuments(value)).toEqual([])
     expect(findLinkedDocuments('nope')).toEqual([])
     expect(findLinkedDocuments(undefined)).toEqual([])
+  })
+
+  it('reports the raw value of a link doc and of an upload', () => {
+    const value = root(
+      paragraph({ type: 'link', fields: { doc: { relationTo: 'articles', value: 5 } } }),
+      { type: 'upload', relationTo: 'media', value: { id: 1 } },
+    )
+    expect(findLinkedDocuments(value)).toEqual([
+      { kind: 'link', relationTo: 'articles', value: 5 },
+      { kind: 'upload', relationTo: 'media', value: { id: 1 } },
+    ])
   })
 })
