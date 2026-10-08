@@ -446,7 +446,7 @@ This section describes the finished site. Stage 1 delivers the admin login, data
   - searching "maya" to find "māyā"
   - the theme toggle and the cookie banner
 - **Visual and accessibility checks:** screenshots at the section 7.3 widths in both themes, plus axe checks.
-- **Continuous integration:** on pull requests and pushes to `main`, GitHub Actions runs lint, formatting and type checks, unit and integration tests with coverage, and a migrate-and-build on a fresh database. End-to-end tests run on pull requests. Netlify builds a deploy preview for each pull request.
+- **Continuous integration:** on pull requests and pushes to `master`, GitHub Actions runs lint, formatting and type checks, unit and integration tests with coverage, and a migrate-and-build on a fresh database. End-to-end tests run on pull requests. Netlify builds a deploy preview for each pull request.
 - **Coverage:** at least 80%.
 
 ## 14. Environments and deployment

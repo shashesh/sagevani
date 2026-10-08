@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | Local | `npm run dev` | Postgres 17 in Docker (`npm run db:up`) | Automatic push in development |
 | Preview | Netlify deploy previews (one per pull request) and branch deploys | Supabase **staging** project | Run by the owner from their machine |
-| Production | Netlify production (the `main` branch) | Supabase **production** project | Every production deploy migrates, hardens, then builds |
+| Production | Netlify production (the `master` branch) | Supabase **production** project | Every production deploy migrates, hardens, then builds |
 
 Previews only build. Migrations run with database-owner credentials, so unreviewed branch code never gets them. When a pull request adds a migration, apply it to staging yourself before you check that pull request's preview (see [Migrate and create the owner](#3-migrate-and-create-the-owner)).
 
@@ -105,7 +105,7 @@ Later, whenever a pull request adds a migration, repeat steps 1, 2 and 5 against
 
 ### 4. Connect Netlify
 
-Importing the site makes Netlify build `main` for production straight away. Finish sections 1 to 3 for production first.
+Importing the site makes Netlify build `master` for production straight away. Finish sections 1 to 3 for production first.
 
 1. Add a new site from the GitHub repository `shashesh/sagevani`. Build settings come from `netlify.toml`.
 2. In the import screen, before you deploy, add the variables below. You can change them later under **Project configuration → Environment variables**. If the first build starts without them, it fails without publishing anything; add them, then trigger the deploy again.
