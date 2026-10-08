@@ -1105,8 +1105,24 @@ describe('media storage variables', () => {
     ).toThrowError(/MEDIA_PUBLIC_URL: must be an https:\/\/ URL/)
   })
 
+  it('refuses a query string or fragment on the public URL, because file names are appended', () => {
+    for (const suffix of ['?x=1', '#top']) {
+      expect(() =>
+        parseServerEnv({
+          ...VALID,
+          ...MEDIA,
+          MEDIA_PUBLIC_URL: `${MEDIA.MEDIA_PUBLIC_URL}${suffix}`,
+        }),
+      ).toThrowError(/MEDIA_PUBLIC_URL: must be an https:\/\/ URL with no \? or #/)
+    }
+  })
+
   it('drops trailing slashes from the public URL', () => {
-    const env = parseServerEnv({ ...VALID, ...MEDIA, MEDIA_PUBLIC_URL: `${MEDIA.MEDIA_PUBLIC_URL}//` })
+    const env = parseServerEnv({
+      ...VALID,
+      ...MEDIA,
+      MEDIA_PUBLIC_URL: `${MEDIA.MEDIA_PUBLIC_URL}//`,
+    })
     expect(env.MEDIA_PUBLIC_URL).toBe(MEDIA.MEDIA_PUBLIC_URL)
   })
 
@@ -1156,6 +1172,11 @@ const withoutTrailingSlashes = (value: unknown): unknown => {
 }
 
 const HTTPS_URL = z.string().regex(/^https:\/\/[^\s/]+(\/\S*)?$/, 'must be an https:// URL')
+
+// File names are appended to the public URL, so it can't carry a query string or fragment.
+const PUBLIC_URL = z
+  .string()
+  .regex(/^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/, 'must be an https:// URL with no ? or #')
 ```
 
 In `serverEnvSchema`'s object, after the whole `DATABASE_CA_CERT` entry (it spans four lines and ends with `    ),`), add:
@@ -1166,7 +1187,7 @@ In `serverEnvSchema`'s object, after the whole `DATABASE_CA_CERT` entry (it span
     MEDIA_S3_ACCESS_KEY_ID: z.preprocess(optionalText, z.string().optional()),
     MEDIA_S3_SECRET_ACCESS_KEY: z.preprocess(optionalText, z.string().optional()),
     MEDIA_S3_BUCKET: z.preprocess(optionalText, z.string().optional()),
-    MEDIA_PUBLIC_URL: z.preprocess(withoutTrailingSlashes, HTTPS_URL.optional()),
+    MEDIA_PUBLIC_URL: z.preprocess(withoutTrailingSlashes, PUBLIC_URL.optional()),
 ```
 
 In `superRefine`, after the `if (!isLocalDatabase(env.DATABASE_URL) && !env.DATABASE_CA_CERT) { … }` block, add:
@@ -1407,9 +1428,8 @@ describe('mediaStoragePlugin', () => {
 - [ ] **Step 2: Write the failing integration test** in `tests/int/media.int.spec.ts`:
 
 ```ts
-import { existsSync, rmSync } from 'fs'
 import path from 'path'
-import { getPayload, handleEndpoints, type Payload } from 'payload'
+import { getPayload, handleEndpoints, ValidationError, type Payload } from 'payload'
 import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -1451,14 +1471,52 @@ describe('media', () => {
 
   afterAll(async () => {
     await clearContent(payload)
-    if (existsSync(LOCAL_MEDIA_DIR)) rmSync(path.dirname(LOCAL_MEDIA_DIR), { recursive: true })
     await payload.destroy()
   })
 
   it('stores every upload under a random name, keeping its extension in lowercase', async () => {
     const media = await upload(await photo(640, 400), 'Draft-Cover-For-Maya.JPG', 'image/jpeg')
-    expect(media.filename).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jpg$/)
+    expect(media.filename).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jpg$/,
+    )
     expect(media.filename).not.toMatch(/maya/i)
+    expect(media.mimeType).toBe('image/jpeg')
+  })
+
+  it('refuses SVG content declared as a JPEG', async () => {
+    const svg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+    )
+    await expect(upload(svg, 'x.jpg', 'image/jpeg')).rejects.toThrow()
+  })
+
+  it('refuses HTML content declared as a JPEG', async () => {
+    const html = Buffer.from('<html><script>alert(1)</script></html>')
+    await expect(upload(html, 'x.jpg', 'image/jpeg')).rejects.toThrow()
+  })
+
+  it.each(['photo.jpg.html', 'photo'])(
+    'names a real JPEG uploaded as %s by its type, not its original extension',
+    async (original) => {
+      const media = await upload(await photo(100, 100), original, 'image/jpeg')
+      expect(media.filename).toMatch(/^[0-9a-f-]{36}\.jpg$/)
+      expect(media.mimeType).toBe('image/jpeg')
+    },
+  )
+
+  it('stores a replacement file under a new random name', async () => {
+    const first = await upload(await photo(100, 100), 'a.jpg', 'image/jpeg')
+    const data = await photo(120, 120)
+    const updated = await payload.update({
+      collection: 'media',
+      id: first.id,
+      data: {},
+      file: { data, mimetype: 'image/jpeg', name: 'b.jpg', size: data.length },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(updated.filename).toMatch(/^[0-9a-f-]{36}\.jpg$/)
+    expect(updated.filename).not.toBe(first.filename)
   })
 
   it('caps the longest side at 2,400 pixels and strips metadata such as the camera owner', async () => {
@@ -1479,13 +1537,19 @@ describe('media', () => {
   })
 
   it('refuses SVG, which can carry scripts', async () => {
-    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')
+    const svg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+    )
     await expect(upload(svg, 'x.svg', 'image/svg+xml')).rejects.toThrow(/invalid: file/)
   })
 
-  it('refuses an upload over 10 MB with a 413', async () => {
+  it('refuses an upload over 4 MB with a 413', async () => {
     const form = new FormData()
-    form.append('file', new Blob([new Uint8Array(11 * 1024 * 1024)], { type: 'image/png' }), 'big.png')
+    form.append(
+      'file',
+      new Blob([new Uint8Array(5 * 1024 * 1024)], { type: 'image/png' }),
+      'big.png',
+    )
     form.append('_payload', JSON.stringify(DETAILS))
     const response = await handleEndpoints({
       config,
@@ -1500,15 +1564,21 @@ describe('media', () => {
 
   it('requires alt text, creator, source and licence', async () => {
     const data = await photo(100, 100)
-    await expect(
-      payload.create({
+    const error = await payload
+      .create({
         collection: 'media',
         data: { alt: 'Only alt' } as typeof DETAILS,
         file: { data, mimetype: 'image/jpeg', name: 'x.jpg', size: data.length },
         overrideAccess: false,
         user: owner,
-      }),
-    ).rejects.toThrow(/creator|source|licence/i)
+      })
+      .then(
+        () => undefined,
+        (thrown: unknown) => thrown,
+      )
+    expect(error).toBeInstanceOf(ValidationError)
+    const paths = (error as ValidationError).data.errors.map(({ path }) => path)
+    expect(paths).toEqual(expect.arrayContaining(['creator', 'source', 'licence']))
   })
 
   it('keeps uploads and their details out of the public API', async () => {
@@ -1555,13 +1625,19 @@ export const MEDIA_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image
 /** Longest side of a stored image, in pixels. */
 export const MAX_IMAGE_SIDE = 2400
 
-/** The largest upload accepted, in bytes. */
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+/**
+ * The largest upload accepted, in bytes. Netlify functions accept a request body of about 6 MB,
+ * and binary bodies arrive base64-encoded (a third larger), so anything over about 4.5 MB would
+ * fail on the hosted site before reaching Payload. 4 MB leaves room for the form's other fields.
+ */
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 
 /**
  * A file's name is part of its public URL, so a name like "draft-cover-for-maya.jpg" could be
- * guessed and would describe an unpublished draft. Every upload is stored as a random UUID with
- * its original extension, lowercased.
+ * guessed and would describe an unpublished draft. Every upload is stored as a random UUID.
+ * The extension is the uploaded name's, lowercased, but Payload then re-encodes the image through
+ * sharp and swaps in the extension and type it detects from the bytes, so "photo.jpg.html" or a
+ * name with no extension is stored as ".jpg" (tests/int/media.int.spec.ts).
  */
 export const randomFileName: CollectionBeforeOperationHook = ({ args, operation, req }) => {
   if ((operation === 'create' || operation === 'update') && req.file) {

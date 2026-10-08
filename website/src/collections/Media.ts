@@ -16,8 +16,12 @@ export const MEDIA_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image
 /** Longest side of a stored image, in pixels. */
 export const MAX_IMAGE_SIDE = 2400
 
-/** The largest upload accepted, in bytes. */
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+/**
+ * The largest upload accepted, in bytes. Netlify functions accept a request body of about 6 MB,
+ * and binary bodies arrive base64-encoded (a third larger), so anything over about 4.5 MB would
+ * fail on the hosted site before reaching Payload. 4 MB leaves room for the form's other fields.
+ */
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 
 /**
  * A file's name is part of its public URL, so a name like "draft-cover-for-maya.jpg" could be

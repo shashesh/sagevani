@@ -40,6 +40,11 @@ const withoutTrailingSlashes = (value: unknown): unknown => {
 
 const HTTPS_URL = z.string().regex(/^https:\/\/[^\s/]+(\/\S*)?$/, 'must be an https:// URL')
 
+// File names are appended to the public URL, so it can't carry a query string or fragment.
+const PUBLIC_URL = z
+  .string()
+  .regex(/^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/, 'must be an https:// URL with no ? or #')
+
 const serverEnvSchema = z
   .object({
     DATABASE_URL: z
@@ -63,7 +68,7 @@ const serverEnvSchema = z
     MEDIA_S3_ACCESS_KEY_ID: z.preprocess(optionalText, z.string().optional()),
     MEDIA_S3_SECRET_ACCESS_KEY: z.preprocess(optionalText, z.string().optional()),
     MEDIA_S3_BUCKET: z.preprocess(optionalText, z.string().optional()),
-    MEDIA_PUBLIC_URL: z.preprocess(withoutTrailingSlashes, HTTPS_URL.optional()),
+    MEDIA_PUBLIC_URL: z.preprocess(withoutTrailingSlashes, PUBLIC_URL.optional()),
   })
   .superRefine((env, ctx) => {
     if (typeof env.DATABASE_URL !== 'string') return

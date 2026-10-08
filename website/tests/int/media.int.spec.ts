@@ -113,11 +113,11 @@ describe('media', () => {
     await expect(upload(svg, 'x.svg', 'image/svg+xml')).rejects.toThrow(/invalid: file/)
   })
 
-  it('refuses an upload over 10 MB with a 413', async () => {
+  it('refuses an upload over 4 MB with a 413', async () => {
     const form = new FormData()
     form.append(
       'file',
-      new Blob([new Uint8Array(11 * 1024 * 1024)], { type: 'image/png' }),
+      new Blob([new Uint8Array(5 * 1024 * 1024)], { type: 'image/png' }),
       'big.png',
     )
     form.append('_payload', JSON.stringify(DETAILS))

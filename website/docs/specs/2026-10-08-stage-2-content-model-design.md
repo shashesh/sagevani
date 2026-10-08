@@ -117,7 +117,7 @@ Publishing is the owner's approval (parent spec, section 8.3).
 - **Development and CI:** a gitignored folder on disk.
 - **Settings:** the endpoint, region, access key, secret, bucket and public URL are environment variables. They are required whenever the database isn't local, which is the same rule `DATABASE_CA_CERT` follows. Setting only some of them is an error. CI builds against a local database, so it needs none.
 - **Random names:** every upload is renamed to a random UUID plus its extension before it is stored.
-- **Accepted files:** JPEG, PNG, WebP and AVIF, up to 10 MB. SVG is refused, because it can carry scripts.
+- **Accepted files:** JPEG, PNG, WebP and AVIF, up to 4 MB (Netlify functions accept a request body of about 6 MB, and uploads arrive base64-encoded). SVG is refused, because it can carry scripts.
 - **Processing:** the original is re-encoded with its longest side capped at 2,400 pixels, and its metadata, such as GPS location, is stripped. No other sizes are generated. In stage 3, Next's image optimisation resizes images for each page.
 - **What stays hidden:** media REST is staff-only, and Supabase doesn't let anonymous visitors list a public bucket. An image that is only in a draft can be fetched only by someone who already has its URL.
 

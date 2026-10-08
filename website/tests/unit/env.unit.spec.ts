@@ -199,6 +199,18 @@ describe('media storage variables', () => {
     ).toThrowError(/MEDIA_PUBLIC_URL: must be an https:\/\/ URL/)
   })
 
+  it('refuses a query string or fragment on the public URL, because file names are appended', () => {
+    for (const suffix of ['?x=1', '#top']) {
+      expect(() =>
+        parseServerEnv({
+          ...VALID,
+          ...MEDIA,
+          MEDIA_PUBLIC_URL: `${MEDIA.MEDIA_PUBLIC_URL}${suffix}`,
+        }),
+      ).toThrowError(/MEDIA_PUBLIC_URL: must be an https:\/\/ URL with no \? or #/)
+    }
+  })
+
   it('drops trailing slashes from the public URL', () => {
     const env = parseServerEnv({
       ...VALID,
