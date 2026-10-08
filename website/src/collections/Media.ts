@@ -21,8 +21,10 @@ export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 /**
  * A file's name is part of its public URL, so a name like "draft-cover-for-maya.jpg" could be
- * guessed and would describe an unpublished draft. Every upload is stored as a random UUID with
- * its original extension, lowercased.
+ * guessed and would describe an unpublished draft. Every upload is stored as a random UUID.
+ * The extension is the uploaded name's, lowercased, but Payload then re-encodes the image through
+ * sharp and swaps in the extension and type it detects from the bytes, so "photo.jpg.html" or a
+ * name with no extension is stored as ".jpg" (tests/int/media.int.spec.ts).
  */
 export const randomFileName: CollectionBeforeOperationHook = ({ args, operation, req }) => {
   if ((operation === 'create' || operation === 'update') && req.file) {

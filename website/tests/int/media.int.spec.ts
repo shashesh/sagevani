@@ -1,6 +1,5 @@
-import { existsSync, rmSync } from 'fs'
 import path from 'path'
-import { getPayload, handleEndpoints, type Payload } from 'payload'
+import { getPayload, handleEndpoints, ValidationError, type Payload } from 'payload'
 import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -42,7 +41,6 @@ describe('media', () => {
 
   afterAll(async () => {
     await clearContent(payload)
-    if (existsSync(LOCAL_MEDIA_DIR)) rmSync(path.dirname(LOCAL_MEDIA_DIR), { recursive: true })
     await payload.destroy()
   })
 
@@ -52,6 +50,43 @@ describe('media', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jpg$/,
     )
     expect(media.filename).not.toMatch(/maya/i)
+    expect(media.mimeType).toBe('image/jpeg')
+  })
+
+  it('refuses SVG content declared as a JPEG', async () => {
+    const svg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+    )
+    await expect(upload(svg, 'x.jpg', 'image/jpeg')).rejects.toThrow()
+  })
+
+  it('refuses HTML content declared as a JPEG', async () => {
+    const html = Buffer.from('<html><script>alert(1)</script></html>')
+    await expect(upload(html, 'x.jpg', 'image/jpeg')).rejects.toThrow()
+  })
+
+  it.each(['photo.jpg.html', 'photo'])(
+    'names a real JPEG uploaded as %s by its type, not its original extension',
+    async (original) => {
+      const media = await upload(await photo(100, 100), original, 'image/jpeg')
+      expect(media.filename).toMatch(/^[0-9a-f-]{36}\.jpg$/)
+      expect(media.mimeType).toBe('image/jpeg')
+    },
+  )
+
+  it('stores a replacement file under a new random name', async () => {
+    const first = await upload(await photo(100, 100), 'a.jpg', 'image/jpeg')
+    const data = await photo(120, 120)
+    const updated = await payload.update({
+      collection: 'media',
+      id: first.id,
+      data: {},
+      file: { data, mimetype: 'image/jpeg', name: 'b.jpg', size: data.length },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(updated.filename).toMatch(/^[0-9a-f-]{36}\.jpg$/)
+    expect(updated.filename).not.toBe(first.filename)
   })
 
   it('caps the longest side at 2,400 pixels and strips metadata such as the camera owner', async () => {
@@ -99,15 +134,21 @@ describe('media', () => {
 
   it('requires alt text, creator, source and licence', async () => {
     const data = await photo(100, 100)
-    await expect(
-      payload.create({
+    const error = await payload
+      .create({
         collection: 'media',
         data: { alt: 'Only alt' } as typeof DETAILS,
         file: { data, mimetype: 'image/jpeg', name: 'x.jpg', size: data.length },
         overrideAccess: false,
         user: owner,
-      }),
-    ).rejects.toThrow(/creator|source|licence/i)
+      })
+      .then(
+        () => undefined,
+        (thrown: unknown) => thrown,
+      )
+    expect(error).toBeInstanceOf(ValidationError)
+    const paths = (error as ValidationError).data.errors.map(({ path }) => path)
+    expect(paths).toEqual(expect.arrayContaining(['creator', 'source', 'licence']))
   })
 
   it('keeps uploads and their details out of the public API', async () => {
