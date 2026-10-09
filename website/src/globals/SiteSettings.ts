@@ -8,7 +8,7 @@ export const DEFAULT_TAGLINE = 'Where silence learns to speak.'
 const PUBLISHED: Where = { _status: { equals: 'published' } }
 
 const sitePath: TextFieldSingleValidation = (value) =>
-  typeof value === 'string' && /^\/(?!\/)\S*$/.test(value)
+  typeof value === 'string' && /^\/(?![/\\])[^\s\\\x00-\x1f\x7f]*$/.test(value)
     ? true
     : 'Use a path on this site, starting with a single /, such as /articles.'
 

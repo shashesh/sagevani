@@ -78,6 +78,7 @@
 | `src/collections/articles/derived-text.ts` | Reading time and search text on save |
 | `src/collections/articles/publish-rules.ts` | Gathers what the rules need and throws a `ValidationError` |
 | `src/collections/articles/approval.ts` | The approval record |
+| `src/collections/articles/unfeature.ts` | Unpublishing an article removes it from the site settings |
 | `src/collections/articles/editorial-checklist.ts` | The checklist field, mirroring `templates/editorial-review.md` |
 | `src/globals/SiteSettings.ts` | The `siteSettings` global |
 | `src/payload.config.ts` | Registers everything, the upload limit and the storage adapter |
@@ -3075,7 +3076,7 @@ import { ValidationError, type CollectionBeforeChangeHook } from 'payload'
 
 import { findLinkedDocuments, type LinkedDocument } from '../../lib/rich-text'
 
-export const BODY_LINKS_MESSAGE = 'The body can link to articles and show images from media only.'
+export const BODY_LINKS_MESSAGE = 'The body can link to articles and pages and show images from media only.'
 
 const UPLOAD_COLLECTION = 'media'
 
@@ -4461,14 +4462,13 @@ git commit -m "feat: publish rules, and the approval record of the approved vers
 ### Task 15: Pages and site settings
 
 **Files:**
-- Create: `src/collections/Pages.ts`, `src/globals/SiteSettings.ts`
-- Modify: `src/payload.config.ts`, `src/payload-types.ts` (generated)
+- Create: `src/collections/Pages.ts`, `src/globals/SiteSettings.ts`, `src/collections/articles/unfeature.ts`
+- Modify: `src/collections/articles/Articles.ts`, `src/collections/shared/body-links.ts`, `src/payload.config.ts`, `src/payload-types.ts` (generated)
 - Test: `tests/int/pages-and-settings.int.spec.ts`
 
 - [ ] **Step 1: Write the failing test** in `tests/int/pages-and-settings.int.spec.ts`:
 
-```ts
-import { getPayload, type Payload } from 'payload'
+```tsimport { getPayload, ValidationError, type Payload } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { BODY_LINKS_MESSAGE } from '@/collections/shared/body-links'
@@ -4497,6 +4497,70 @@ const article = (title: string, status: 'draft' | 'published') =>
         overrideAccess: false,
       })
     : payload.create({ collection: 'articles', data: { title }, draft: true, overrideAccess: true })
+
+const bodyLinkingTo = (relationTo: string, id: number) => ({
+  root: {
+    type: 'root',
+    version: 1,
+    format: '' as const,
+    indent: 0,
+    direction: 'ltr' as const,
+    children: [
+      {
+        type: 'paragraph',
+        version: 1,
+        format: '',
+        indent: 0,
+        direction: 'ltr',
+        textFormat: 0,
+        children: [
+          {
+            type: 'link',
+            version: 3,
+            format: '',
+            indent: 0,
+            direction: 'ltr',
+            fields: { linkType: 'internal', newTab: false, doc: { relationTo, value: id } },
+            children: [
+              {
+                type: 'text',
+                version: 1,
+                text: 'link',
+                format: 0,
+                mode: 'normal',
+                style: '',
+                detail: 0,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+})
+
+const publishedPage = (title: string) =>
+  payload.create({
+    collection: 'pages',
+    data: { title, _status: 'published' },
+    overrideAccess: false,
+    user: owner,
+  })
+
+/** The field paths a refused save reports (a ValidationError's message is generic). */
+async function errorPaths(attempt: Promise<unknown>): Promise<string[]> {
+  const error = await attempt.then(
+    () => undefined,
+    (thrown: unknown) => thrown,
+  )
+  if (!(error instanceof ValidationError)) {
+    throw new Error(`Expected a ValidationError, got ${String(error)}`)
+  }
+  return error.data.errors.map(({ path }) => path)
+}
+
+const saveSettings = (data: Record<string, unknown>) =>
+  payload.updateGlobal({ slug: 'siteSettings', data, overrideAccess: false, user: owner })
 
 describe('pages and site settings', () => {
   beforeAll(async () => {
@@ -4579,6 +4643,39 @@ describe('pages and site settings', () => {
       expect(docs.map((page: { slug: string }) => page.slug)).toEqual(['how-sagevani-writes'])
     })
 
+    it('let a page link to an article', async () => {
+      const target = await article('Target', 'published')
+      const page = await payload.create({
+        collection: 'pages',
+        data: { title: 'About', body: bodyLinkingTo('articles', target.id) },
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(page.id).toBeDefined()
+    })
+
+    it('let an owner article link to a published page', async () => {
+      const page = await publishedPage('About')
+      const saved = await payload.create({
+        collection: 'articles',
+        data: { title: 'Linked', body: bodyLinkingTo('pages', page.id) },
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(saved.id).toBeDefined()
+    })
+
+    it('let an assistant draft article link to a page', async () => {
+      const page = await publishedPage('About')
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: { title: 'Linked', body: bodyLinkingTo('pages', page.id) },
+      })
+      expect(response.status).toBe(201)
+    })
+
     it('are the owner’s alone to write, even as drafts', async () => {
       const response = await rest('POST', 'pages?draft=true', {
         key: ASSISTANT_KEY,
@@ -4605,14 +4702,9 @@ describe('pages and site settings', () => {
 
     it('feature published articles only', async () => {
       const draft = await article('Draft', 'draft')
-      await expect(
-        payload.updateGlobal({
-          slug: 'siteSettings',
-          data: { featuredArticle: draft.id },
-          overrideAccess: false,
-          user: owner,
-        }),
-      ).rejects.toThrow(/featured ?article/i)
+      expect(await errorPaths(saveSettings({ featuredArticle: draft.id }))).toEqual([
+        'featuredArticle',
+      ])
 
       const live = await article('Live', 'published')
       const settings = await payload.updateGlobal({
@@ -4626,26 +4718,66 @@ describe('pages and site settings', () => {
     })
 
     it('hold at most three featured picks', async () => {
-      const ids = await Promise.all(['a', 'b', 'c', 'd'].map(async (t) => (await article(t, 'published')).id))
-      await expect(
-        payload.updateGlobal({
-          slug: 'siteSettings',
-          data: { featuredPicks: ids },
-          overrideAccess: false,
-          user: owner,
-        }),
-      ).rejects.toThrow(/featured ?picks/i)
+      const ids = await Promise.all(
+        ['a', 'b', 'c', 'd'].map(async (t) => (await article(t, 'published')).id),
+      )
+      expect(await errorPaths(saveSettings({ featuredPicks: ids }))).toEqual(['featuredPicks'])
     })
 
-    it('accept only site paths in the navigation', async () => {
-      await expect(
-        payload.updateGlobal({
-          slug: 'siteSettings',
-          data: { navigation: [{ label: 'Away', path: 'https://example.com' }] },
-          overrideAccess: false,
-          user: owner,
-        }),
-      ).rejects.toThrow(/path/i)
+    it('accept three featured picks', async () => {
+      const ids = await Promise.all(
+        ['a', 'b', 'c'].map(async (t) => (await article(t, 'published')).id),
+      )
+      const settings = await saveSettings({ featuredPicks: ids })
+      expect(settings.featuredPicks).toHaveLength(3)
+    })
+
+    it('list published articles only in start here', async () => {
+      const draft = await article('Draft', 'draft')
+      expect(await errorPaths(saveSettings({ startHere: [draft.id] }))).toEqual(['startHere'])
+    })
+
+    it.each(['/\\evil.com', '//evil.com', 'javascript:alert(1)', 'https://example.com', '/a b'])(
+      'refuse the navigation path %s',
+      async (path) => {
+        expect(await errorPaths(saveSettings({ navigation: [{ label: 'Away', path }] }))).toEqual([
+          'navigation.0.path',
+        ])
+      },
+    )
+
+    it.each(['/articles', '/start-here', '/'])('accept the navigation path %s', async (path) => {
+      const settings = await saveSettings({ navigation: [{ label: 'Here', path }] })
+      expect(settings.navigation?.[0]?.path).toBe(path)
+    })
+
+    it('drop an article from the settings when it is unpublished', async () => {
+      const live = await article('Live', 'published')
+      const other = await article('Other', 'published')
+      await saveSettings({
+        featuredArticle: live.id,
+        featuredPicks: [live.id, other.id],
+        startHere: [other.id, live.id],
+      })
+
+      await payload.update({
+        collection: 'articles',
+        id: live.id,
+        data: { _status: 'draft' },
+        overrideAccess: false,
+        user: owner,
+      })
+
+      const settings = await payload.findGlobal({
+        slug: 'siteSettings',
+        depth: 0,
+        overrideAccess: true,
+      })
+      expect(settings.featuredArticle ?? null).toBeNull()
+      expect(settings.featuredPicks).toEqual([other.id])
+      expect(settings.startHere).toEqual([other.id])
+      const saved = await saveSettings({ footerMotto: 'Still saves' })
+      expect(saved.footerMotto).toBe('Still saves')
     })
   })
 })
@@ -4661,8 +4793,7 @@ Expected: FAIL, the modules don't exist.
 
 - [ ] **Step 3: Create** `src/collections/Pages.ts`:
 
-```ts
-import type { CollectionConfig } from 'payload'
+```tsimport type { CollectionConfig } from 'payload'
 
 import { ownerOnly, publishedOrStaff, staffOnly } from '../access/roles'
 import { contentEditor } from '../blocks/content-editor'
@@ -4677,6 +4808,7 @@ export const Pages: CollectionConfig = {
   slug: 'pages',
   admin: { useAsTitle: 'title', defaultColumns: ['title', 'slug', '_status', 'updatedAt'] },
   versions: { drafts: { autosave: { interval: 2000 } }, maxPerDoc: 0 },
+  // Owner-only writes, so pages need none of the articles' publishing guards; copy them if anyone else ever writes pages.
   access: {
     read: publishedOrStaff,
     readVersions: staffOnly,
@@ -4698,8 +4830,7 @@ export const Pages: CollectionConfig = {
 
 - [ ] **Step 4: Create** `src/globals/SiteSettings.ts`:
 
-```ts
-import type { GlobalConfig, TextFieldSingleValidation, Where } from 'payload'
+```tsimport type { GlobalConfig, TextFieldSingleValidation, Where } from 'payload'
 
 import { anyone, ownerOnly } from '../access/roles'
 
@@ -4709,7 +4840,7 @@ export const DEFAULT_TAGLINE = 'Where silence learns to speak.'
 const PUBLISHED: Where = { _status: { equals: 'published' } }
 
 const sitePath: TextFieldSingleValidation = (value) =>
-  typeof value === 'string' && /^\/(?!\/)\S*$/.test(value)
+  typeof value === 'string' && /^\/(?![/\\])[^\s\\\x00-\x1f\x7f]*$/.test(value)
     ? true
     : 'Use a path on this site, starting with a single /, such as /articles.'
 
@@ -4773,6 +4904,66 @@ change the collections line to:
 
 - [ ] **Step 5a: Let links reach pages.** In `src/blocks/content-editor.ts`, change `LinkFeature({ enabledCollections: ['articles'] })` to `LinkFeature({ enabledCollections: ['articles', 'pages'] })`, and update its comment to say links may point at articles and pages. In `src/collections/articles/Articles.ts`, change `bodyLinksOnlyTo(['articles'])` to `bodyLinksOnlyTo(['articles', 'pages'])`. Pages can be linked now that they exist.
 
+- [ ] **Step 5b: Unfeature an unpublished article.** Create `src/collections/articles/unfeature.ts`:
+
+```tsimport type { CollectionAfterChangeHook } from 'payload'
+
+const FEATURED_FIELDS = ['featuredPicks', 'startHere'] as const
+
+const idOf = (value: unknown): string =>
+  String(typeof value === 'object' && value !== null ? (value as { id?: unknown }).id : value)
+
+/**
+ * A featured article that stops being published would make every later save of the site
+ * settings fail, because Payload re-checks the published-only filter on save. So once the live
+ * row is not published, the article is taken out of the featured article, the featured picks and
+ * the start-here list. Only the fields that held it are written.
+ */
+export const unfeatureWhenUnpublished: CollectionAfterChangeHook = async ({
+  collection,
+  doc,
+  req,
+}) => {
+  const live = await req.payload.db.findOne<{ id: number | string; _status?: string | null }>({
+    collection: collection.slug,
+    where: { id: { equals: doc.id } },
+    req,
+  })
+  if (!live || live._status === 'published') return doc
+
+  const id = String(doc.id)
+  const settings = await req.payload.findGlobal({
+    slug: 'siteSettings',
+    depth: 0,
+    overrideAccess: true,
+    req,
+  })
+
+  const data: {
+    featuredArticle?: null
+    featuredPicks?: number[]
+    startHere?: number[]
+  } = {}
+  if (settings.featuredArticle != null && idOf(settings.featuredArticle) === id) {
+    data.featuredArticle = null
+  }
+  for (const field of FEATURED_FIELDS) {
+    const entries = (settings[field] ?? []) as (number | { id: number })[]
+    const kept = entries.filter((entry) => idOf(entry) !== id)
+    if (kept.length !== entries.length) {
+      data[field] = kept.map((entry) => (typeof entry === 'object' ? entry.id : entry))
+    }
+  }
+
+  if (Object.keys(data).length > 0) {
+    await req.payload.updateGlobal({ slug: 'siteSettings', data, overrideAccess: true, req })
+  }
+  return doc
+}
+```
+
+In `src/collections/articles/Articles.ts`, import it and register it after `recordApprovedVersion`: `afterChange: [recordApprovedVersion, unfeatureWhenUnpublished]`. Without it, unpublishing a featured article makes every later save of the site settings fail.
+
 - [ ] **Step 6: Regenerate, run and see it pass**
 
 ```bash
@@ -4787,7 +4978,7 @@ Expected: PASS.
 ```bash
 npx prettier --write src tests
 npm run lint && npm run typecheck
-git add src/blocks/content-editor.ts src/collections/articles/Articles.ts src/collections/Pages.ts src/globals/SiteSettings.ts src/payload.config.ts src/payload-types.ts "src/app/(payload)/admin/importMap.js" tests/int/pages-and-settings.int.spec.ts
+git add src/blocks/content-editor.ts src/collections/articles/Articles.ts src/collections/articles/unfeature.ts src/collections/Pages.ts src/globals/SiteSettings.ts src/payload.config.ts src/payload-types.ts "src/app/(payload)/admin/importMap.js" tests/int/pages-and-settings.int.spec.ts
 git commit -m "feat: pages with drafts, and site settings that feature published articles only"
 ```
 
@@ -5457,6 +5648,7 @@ Expected: a draft pull request URL. Don't request a Copilot review; the owner do
 
 - **Local images on public pages.** With storage off, media files are served through Payload's file route, which applies the staff-only `read` access. Local public pages will therefore need a development-only way to show images, or a local S3 server. Hosted sites are unaffected: files load from the bucket.
 - **Draft preview** reads the latest draft with `draft: true` through the local API, for staff only.
+- **Featured and start-here articles.** Unpublishing an article removes it from the site settings, but pages that render the featured article, the picks or the start-here list still filter to published articles, as a second layer.
 - **Refreshing pages on publish** hooks into `afterChange` next to `recordApprovedVersion`.
 - **Public pages read through the Local API with `overrideAccess: false` (or an explicit `select`),** so relationship population can never pull staff-only data such as an account or a draft into a page.
 - **Allowed links populate staff-only fields.** An article link in a body, and `readFirst`, read through the Local API with the default `overrideAccess` populate the linked article's staff-only fields (approval, checklist, email record). Public reads therefore use `overrideAccess: false`, or a depth or `select` limit, or `LinkFeature({ maxDepth: 0 })`.

@@ -2,7 +2,8 @@ import { ValidationError, type CollectionBeforeChangeHook } from 'payload'
 
 import { findLinkedDocuments, type LinkedDocument } from '../../lib/rich-text'
 
-export const BODY_LINKS_MESSAGE = 'The body can link to articles and show images from media only.'
+export const BODY_LINKS_MESSAGE =
+  'The body can link to articles and pages and show images from media only.'
 
 const UPLOAD_COLLECTION = 'media'
 

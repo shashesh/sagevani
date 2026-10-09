@@ -14,6 +14,7 @@ import { deriveArticleText } from './derived-text'
 import { draftsOnlyForAssistant } from './drafts-only'
 import { editorialChecklist } from './editorial-checklist'
 import { enforcePublishRules } from './publish-rules'
+import { unfeatureWhenUnpublished } from './unfeature'
 
 export const ARTICLE_SHAPES = [
   { label: 'Vani Note', value: 'vani-note' },
@@ -71,7 +72,7 @@ export const Articles: CollectionConfig = {
       enforcePublishRules,
       recordApproval,
     ],
-    afterChange: [recordApprovedVersion],
+    afterChange: [recordApprovedVersion, unfeatureWhenUnpublished],
   },
   fields: [
     { name: 'title', type: 'text', required: true },

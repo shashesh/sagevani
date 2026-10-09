@@ -1,4 +1,4 @@
-import { getPayload, type Payload } from 'payload'
+import { getPayload, ValidationError, type Payload } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { BODY_LINKS_MESSAGE } from '@/collections/shared/body-links'
@@ -27,6 +27,70 @@ const article = (title: string, status: 'draft' | 'published') =>
         overrideAccess: false,
       })
     : payload.create({ collection: 'articles', data: { title }, draft: true, overrideAccess: true })
+
+const bodyLinkingTo = (relationTo: string, id: number) => ({
+  root: {
+    type: 'root',
+    version: 1,
+    format: '' as const,
+    indent: 0,
+    direction: 'ltr' as const,
+    children: [
+      {
+        type: 'paragraph',
+        version: 1,
+        format: '',
+        indent: 0,
+        direction: 'ltr',
+        textFormat: 0,
+        children: [
+          {
+            type: 'link',
+            version: 3,
+            format: '',
+            indent: 0,
+            direction: 'ltr',
+            fields: { linkType: 'internal', newTab: false, doc: { relationTo, value: id } },
+            children: [
+              {
+                type: 'text',
+                version: 1,
+                text: 'link',
+                format: 0,
+                mode: 'normal',
+                style: '',
+                detail: 0,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+})
+
+const publishedPage = (title: string) =>
+  payload.create({
+    collection: 'pages',
+    data: { title, _status: 'published' },
+    overrideAccess: false,
+    user: owner,
+  })
+
+/** The field paths a refused save reports (a ValidationError's message is generic). */
+async function errorPaths(attempt: Promise<unknown>): Promise<string[]> {
+  const error = await attempt.then(
+    () => undefined,
+    (thrown: unknown) => thrown,
+  )
+  if (!(error instanceof ValidationError)) {
+    throw new Error(`Expected a ValidationError, got ${String(error)}`)
+  }
+  return error.data.errors.map(({ path }) => path)
+}
+
+const saveSettings = (data: Record<string, unknown>) =>
+  payload.updateGlobal({ slug: 'siteSettings', data, overrideAccess: false, user: owner })
 
 describe('pages and site settings', () => {
   beforeAll(async () => {
@@ -109,6 +173,39 @@ describe('pages and site settings', () => {
       expect(docs.map((page: { slug: string }) => page.slug)).toEqual(['how-sagevani-writes'])
     })
 
+    it('let a page link to an article', async () => {
+      const target = await article('Target', 'published')
+      const page = await payload.create({
+        collection: 'pages',
+        data: { title: 'About', body: bodyLinkingTo('articles', target.id) },
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(page.id).toBeDefined()
+    })
+
+    it('let an owner article link to a published page', async () => {
+      const page = await publishedPage('About')
+      const saved = await payload.create({
+        collection: 'articles',
+        data: { title: 'Linked', body: bodyLinkingTo('pages', page.id) },
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(saved.id).toBeDefined()
+    })
+
+    it('let an assistant draft article link to a page', async () => {
+      const page = await publishedPage('About')
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: { title: 'Linked', body: bodyLinkingTo('pages', page.id) },
+      })
+      expect(response.status).toBe(201)
+    })
+
     it('are the owner’s alone to write, even as drafts', async () => {
       const response = await rest('POST', 'pages?draft=true', {
         key: ASSISTANT_KEY,
@@ -135,14 +232,9 @@ describe('pages and site settings', () => {
 
     it('feature published articles only', async () => {
       const draft = await article('Draft', 'draft')
-      await expect(
-        payload.updateGlobal({
-          slug: 'siteSettings',
-          data: { featuredArticle: draft.id },
-          overrideAccess: false,
-          user: owner,
-        }),
-      ).rejects.toThrow(/featured ?article/i)
+      expect(await errorPaths(saveSettings({ featuredArticle: draft.id }))).toEqual([
+        'featuredArticle',
+      ])
 
       const live = await article('Live', 'published')
       const settings = await payload.updateGlobal({
@@ -159,25 +251,63 @@ describe('pages and site settings', () => {
       const ids = await Promise.all(
         ['a', 'b', 'c', 'd'].map(async (t) => (await article(t, 'published')).id),
       )
-      await expect(
-        payload.updateGlobal({
-          slug: 'siteSettings',
-          data: { featuredPicks: ids },
-          overrideAccess: false,
-          user: owner,
-        }),
-      ).rejects.toThrow(/featured ?picks/i)
+      expect(await errorPaths(saveSettings({ featuredPicks: ids }))).toEqual(['featuredPicks'])
     })
 
-    it('accept only site paths in the navigation', async () => {
-      await expect(
-        payload.updateGlobal({
-          slug: 'siteSettings',
-          data: { navigation: [{ label: 'Away', path: 'https://example.com' }] },
-          overrideAccess: false,
-          user: owner,
-        }),
-      ).rejects.toThrow(/path/i)
+    it('accept three featured picks', async () => {
+      const ids = await Promise.all(
+        ['a', 'b', 'c'].map(async (t) => (await article(t, 'published')).id),
+      )
+      const settings = await saveSettings({ featuredPicks: ids })
+      expect(settings.featuredPicks).toHaveLength(3)
+    })
+
+    it('list published articles only in start here', async () => {
+      const draft = await article('Draft', 'draft')
+      expect(await errorPaths(saveSettings({ startHere: [draft.id] }))).toEqual(['startHere'])
+    })
+
+    it.each(['/\\evil.com', '//evil.com', 'javascript:alert(1)', 'https://example.com', '/a b'])(
+      'refuse the navigation path %s',
+      async (path) => {
+        expect(await errorPaths(saveSettings({ navigation: [{ label: 'Away', path }] }))).toEqual([
+          'navigation.0.path',
+        ])
+      },
+    )
+
+    it.each(['/articles', '/start-here', '/'])('accept the navigation path %s', async (path) => {
+      const settings = await saveSettings({ navigation: [{ label: 'Here', path }] })
+      expect(settings.navigation?.[0]?.path).toBe(path)
+    })
+
+    it('drop an article from the settings when it is unpublished', async () => {
+      const live = await article('Live', 'published')
+      const other = await article('Other', 'published')
+      await saveSettings({
+        featuredArticle: live.id,
+        featuredPicks: [live.id, other.id],
+        startHere: [other.id, live.id],
+      })
+
+      await payload.update({
+        collection: 'articles',
+        id: live.id,
+        data: { _status: 'draft' },
+        overrideAccess: false,
+        user: owner,
+      })
+
+      const settings = await payload.findGlobal({
+        slug: 'siteSettings',
+        depth: 0,
+        overrideAccess: true,
+      })
+      expect(settings.featuredArticle ?? null).toBeNull()
+      expect(settings.featuredPicks).toEqual([other.id])
+      expect(settings.startHere).toEqual([other.id])
+      const saved = await saveSettings({ footerMotto: 'Still saves' })
+      expect(saved.footerMotto).toBe('Still saves')
     })
   })
 })
