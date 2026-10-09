@@ -9,7 +9,7 @@ export function readingTime(wordCount: number): number {
 
 /**
  * The text search matches against: lowercase, diacritics removed, whitespace collapsed. A search
- * folds the reader's query the same way, so "maya" finds "māyā" (website design, 13).
+ * folds the reader's query the same way, so "maya" finds "māyā" (website design, 6.4).
  */
 export function searchTextFrom(parts: readonly (string | null | undefined)[]): string {
   return foldDiacritics(parts.filter((part): part is string => Boolean(part)).join(' '))

@@ -5839,3 +5839,18 @@ Expected: a draft pull request URL. Don't request a Copilot review; the owner do
 | 7 database, hardening | 16 |
 | 8 testing: unit, integration, end-to-end | 2–17 |
 | 10 documents | 18 |
+
+## Changes after the final review
+
+The final whole-branch review changed the following. Where a code block earlier in this plan differs, the code in the repository, not the block, is current.
+
+- **A. Autosave never publishes.** `autosaveOnlyForDrafts` now refuses an autosave when `draft` is not true or when the body carries `_status: 'published'`. With `draft=true` and a published status Payload still published, and rewrote the latest autosave version in place, so the approval named text that had since changed.
+- **B. Only the owner edits media.** `media` `update` is `ownerOnly`. The assistant reads and uploads, and can use a new upload in a draft. Before, it could replace the file or alt text of an image a published article uses, changing the live article without approval. Spec sections 4.1 and 5 say so.
+- **C. Restoring as a draft is a draft save.** `src/collections/shared/publishing.ts` holds `RESTORING_AS_DRAFT` and `isPublishing`. A `markRestoreAsDraft` beforeOperation hook sets the context key for `restoreVersion` with `draft: true`, and `recordApproval`, `enforcePublishRules` and `checkSlug` use `isPublishing`. The old version's published status no longer stamps a fresh approval or blocks the restore on rules added since. The Local API ignores `draft` on `restoreVersion`, so the tests use REST.
+- **D. Derived fields come from the saved document.** `deriveArticleText` uses `data.title`, `data.summary` and `data.body` only. Payload has already filled missing fields, and the old `?? originalDoc` fallback turned an explicit `null` summary back into the old one, leaving stale text searchable.
+- **E. Coverage counts globals and blocks.** `vitest.config.mts` includes `src/globals/**` and `src/blocks/**`. A unit test covers the populated `{ id }` difficulty in `enforcePublishRules`.
+- **F. The spec matches the code.** Section 4.3 lists the prior-reading rule, the owner check running before the publish rules, and restoring as a draft. Section 3.6 states the navigation path rule. Section 3.1 says slug uniqueness is checked among live documents, with a pending draft's clash caught on publish. Section 8 puts random file names under the integration tests.
+- **G. The owner check comes first.** `onlyOwnerPublishes` is its own beforeChange hook, first in the list, before `bodyLinksOnlyTo`. A publish by no user or a non-owner gets the 403, not a list of rule problems. `recordApproval` no longer repeats the check.
+- **H. The email record comes from the live row.** `recordApproval` sets `emailSentAt` and `emailRecipients` from the live row on every save, like `approval` and `publishedAt`, so a draft save or an old version can never carry stage 4's values onto the live article.
+- **I. One helper for database ids.** `src/lib/ids.ts` holds `idOf` and `isDatabaseId`, replacing the copies in the approval hook, the publish rules, `rich-text.ts` and `SiteSettings.ts`. The string `"0"` is now refused as a media id, as it already was for settings.
+- **J. Comments.** `Topics.ts` points at the starting-data migration instead of "Task 16", and `article-text.ts` cites website design section 6.4 for search.

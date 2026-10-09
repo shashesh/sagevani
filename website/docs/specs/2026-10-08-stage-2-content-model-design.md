@@ -34,7 +34,7 @@ Versions, drafts and autosave are on. Fields are those of the parent spec, secti
 - **Drafts may be incomplete.** Payload doesn't validate drafts, so required fields and the publish rules (section 4.3) apply only when an article is published.
 - **difficulty** is a relationship to one `difficultyLevels` item.
 - **Links.** Internal links in the body, and prior readings (`readFirst`), point only at articles (and at pages, once they exist). Prior readings must be published articles. The server enforces the body rule on every save, drafts included, because the editor's settings alone don't: Payload doesn't check the links saved in a body, and it populates a link's `doc` whatever the link's type says. A link may point at a document only by a plain string `relationTo` in the allowed list; the value must be an id (a number or string), never an object; any other shape (an array, a missing value, a `doc` on an external link) is refused. Embedded relationships are refused, and uploads must be `media`.
-- **slug** is generated from the title when empty: diacritics removed, lowercase ASCII words joined by hyphens (`Māyā and the Rope` → `maya-and-the-rope`). It stays editable and must be unique across all articles, drafts included. A clash fails the save with an error that names the slug. Nothing is added automatically.
+- **slug** is generated from the title when empty: diacritics removed, lowercase ASCII words joined by hyphens (`Māyā and the Rope` → `maya-and-the-rope`). It stays editable and must be unique among live documents. A clash fails the save with an error that names the slug. A clash that exists only in a pending draft is caught when that draft is published, not before. Nothing is added automatically.
 - **readingTime** counts the words of the body, including the text inside blocks, at 200 words a minute, rounded up, with a minimum of 1.
 - **searchText** holds the title, summary and body text, including block text, in lowercase with diacritics removed and whitespace collapsed, so a search for "maya" will find "māyā" once stage 5 builds search.
 - **Set by the server only.** No API request can set these:
@@ -66,7 +66,7 @@ An upload with alt text, creator, source, and licence or permission, all require
 
 ### 3.6 siteSettings (global)
 
-The featured article, up to three featured picks, the Start-here list (ordered articles), navigation (label and path), the footer motto and the tagline, which defaults to "Where silence learns to speak." An article added to the featured article, the featured picks or the Start-here list must be published. One unpublished later stays listed, is not shown, and does not block saving the settings; it returns to its place if it is published again. Navigation paths must stay on the site: a single leading `/`, with no `//`, backslash, whitespace or control characters.
+The featured article, up to three featured picks, the Start-here list (ordered articles), navigation (label and path), the footer motto and the tagline, which defaults to "Where silence learns to speak." An article added to the featured article, the featured picks or the Start-here list must be published. One unpublished later stays listed, is not shown, and does not block saving the settings; it returns to its place if it is published again. Navigation paths must stay on this site: each starts with a single `/` (not `//`) and has no backslash, spaces or other whitespace, or control characters.
 
 ## 4. Access and publishing
 
@@ -107,10 +107,12 @@ Publishing is the owner's approval (parent spec, section 8.3).
 - **The publish rules** run whenever the status becomes published. A failure stops the publish with one error that lists every rule that failed:
   - a difficulty level is set;
   - if that level needs prior reading, there is at least one `readFirst` item;
+  - each prior reading names a SageVani article, or gives a title for one elsewhere;
   - a Text / Story Study has at least one source;
   - every image in the body links to a `media` item that exists, and whose alt text isn't blank.
-- **Only the owner publishes.** A publish by anyone else, or by a request with no user, is refused.
-- **Publishing is one article at a time.** Any bulk update that would publish is refused for everyone, the owner included, even one that sends no status and would keep each article's stored one; each article is published from its own page. Bulk unpublishing and bulk draft edits stay allowed. An autosave never publishes: an autosave without the draft flag is refused.
+- **Only the owner publishes.** A publish by anyone else, or by a request with no user, is refused. This check runs before the publish rules, so a publish that is refused for who is asking never lists rule problems.
+- **Restoring a version as a draft is a draft save.** `POST /api/articles/versions/:id?draft=true` restores an old version without publishing it: the live article and its approval stay as they are, and no new approval is recorded. The old version's published status is ignored, and the publish rules do not apply, so a version that breaks a rule added since can still be restored as a draft. Restoring without `draft=true` publishes, and is checked like any publish.
+- **Publishing is one article at a time.** Any bulk update that would publish is refused for everyone, the owner included, even one that sends no status and would keep each article's stored one; each article is published from its own page. Bulk unpublishing and bulk draft edits stay allowed. An autosave never publishes: an autosave without the draft flag, or one that carries `_status: published`, is refused.
 - **On publish** the server records the approver, the time and the published version's id in `approval`, and sets `publishedAt` the first time. Both are read from the stored article, never from the request, so nothing sent to the API can forge them.
 - **The approval names the exact version.** The server finds it by its published status and its approval time, not by creation order. If it can't find that version, the save fails rather than record a wrong or empty id.
 - **Editing a published article** and publishing again records a new approval.
@@ -162,7 +164,6 @@ Coverage stays at 80% or more.
   - reading time, and search text from the editor's content, blocks included;
   - each publish rule;
   - finding images in the body;
-  - random file names;
   - the storage settings check.
 - **Integration tests** against the test Postgres:
   - the access table in section 4.1, role by role;
@@ -170,6 +171,7 @@ Coverage stays at 80% or more.
   - the approval record, and `publishedAt` set once;
   - the publish rules blocking publication;
   - media details hidden from the public;
+  - random file names, and the type and extension a re-encoded upload is stored with;
   - the starting data.
 - **End-to-end test (Playwright):** the owner signs in, writes an article with a Verse block and an image, sees the publish rules stop it, fixes it and publishes.
 

@@ -8,7 +8,7 @@ const hexColour: TextFieldSingleValidation = (value) =>
     ? true
     : 'Use a six-digit hex colour, such as #e3cfa8.'
 
-/** The four doors (website design 5.1). Starting data comes from a migration (Task 16). */
+/** The four doors (website design 5.1). Starting data comes from a migration (see the starting-data migration in `src/migrations`). */
 export const Topics: CollectionConfig = {
   slug: 'topics',
   admin: { useAsTitle: 'name', defaultColumns: ['name', 'question', 'order'] },
