@@ -79,7 +79,7 @@ The featured article, up to three featured picks, the Start-here list (ordered a
 | `articles` | Read published only | Read everything, including drafts and versions. Create and edit as drafts only | Everything |
 | `topics`, `difficultyLevels`, `siteSettings` | Read | Read | Edit |
 | `pages` | Read published only | Read | Edit and publish |
-| `media` | None. Files load from the bucket by their random URL | Read, upload, edit details | Everything |
+| `media` | None. Files load from the bucket by their random URL | Read, upload | Everything |
 | Editorial checklist | Never | Read | Read and tick |
 | `approval`, email record | Never. The recipient count would reveal the subscriber count, which is owner-only | Read | Read. Only the server writes them |
 | `publishedAt` | Read on published articles | Read | Read. Only the server writes it |
@@ -124,6 +124,7 @@ Publishing is the owner's approval (parent spec, section 8.3).
 - **Random names:** every upload is renamed to a random UUID plus its extension before it is stored.
 - **Accepted files:** JPEG, PNG, WebP and AVIF, up to 4 MB (Netlify functions accept a request body of about 6 MB, and uploads arrive base64-encoded). SVG is refused, because it can carry scripts.
 - **Processing:** the original is re-encoded with its longest side capped at 2,400 pixels, and its metadata, such as GPS location, is stripped. No other sizes are generated. In stage 3, Next's image optimisation resizes images for each page.
+- **Who edits:** only the owner changes or deletes an upload, because a published article may use it. The assistant reads and uploads, and can use a new upload in a draft.
 - **What stays hidden:** media REST is staff-only, and Supabase doesn't let anonymous visitors list a public bucket. An image that is only in a draft can be fetched only by someone who already has its URL.
 
 ## 6. Starting data

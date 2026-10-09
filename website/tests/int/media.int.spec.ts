@@ -163,4 +163,32 @@ describe('media', () => {
     const media = await upload(await photo(100, 100), 'x.jpg', 'image/jpeg')
     expect((await rest('DELETE', `media/${media.id}`, { key: ASSISTANT_KEY })).status).toBe(403)
   })
+
+  it('lets only the owner change an existing item, since a published article may use it', async () => {
+    const media = await upload(await photo(100, 100), 'x.jpg', 'image/jpeg')
+    const patch = (key?: string) =>
+      rest('PATCH', `media/${media.id}`, { key, body: { alt: 'Changed by someone' } })
+
+    expect((await patch(ASSISTANT_KEY)).status).toBe(403)
+    expect((await payload.findByID({ collection: 'media', id: media.id })).alt).toBe('A lamp')
+
+    const updated = await payload.update({
+      collection: 'media',
+      id: media.id,
+      data: { alt: 'Changed by the owner' },
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(updated.alt).toBe('Changed by the owner')
+  })
+
+  it('still lets the assistant upload a new item', async () => {
+    const assistant = await payload.find({
+      collection: 'users',
+      where: { role: { equals: 'assistant' } },
+      overrideAccess: true,
+    })
+    const media = await upload(await photo(100, 100), 'new.jpg', 'image/jpeg', assistant.docs[0])
+    expect(media.id).toBeTruthy()
+  })
 })

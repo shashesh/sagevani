@@ -48,7 +48,7 @@ export const Media: CollectionConfig = {
     // staff-only and an image used only in a draft stays out of sight (stage 2 design, 5).
     read: staffOnly,
     create: staffOnly,
-    update: staffOnly,
+    update: ownerOnly,
     delete: ownerOnly,
   },
   hooks: {

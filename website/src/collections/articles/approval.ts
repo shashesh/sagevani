@@ -153,9 +153,13 @@ export const AUTOSAVE_MESSAGE = 'Autosave saves drafts only.'
  */
 export const autosaveOnlyForDrafts: CollectionBeforeOperationHook = ({ args, operation }) => {
   if (operation !== 'create' && operation !== 'update') return args
-  const write = args as { autosave?: unknown; draft?: unknown }
+  const write = args as { autosave?: unknown; data?: { _status?: unknown }; draft?: unknown }
   const autosaving =
     write.autosave !== undefined && write.autosave !== null && write.autosave !== false
-  if (autosaving && write.draft !== true) throw new APIError(AUTOSAVE_MESSAGE, 403, undefined, true)
+  // `draft=true` alone is not enough: with `_status: 'published'` in the body Payload still
+  // publishes, and rewrites the latest autosave version in place.
+  if (autosaving && (write.draft !== true || write.data?._status === 'published')) {
+    throw new APIError(AUTOSAVE_MESSAGE, 403, undefined, true)
+  }
   return args
 }

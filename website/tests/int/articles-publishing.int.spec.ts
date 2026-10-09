@@ -358,6 +358,22 @@ describe('articles: publishing', () => {
       expect((await liveRow(article.id)).approval?.versionId).toBe(article.approval?.versionId)
     })
 
+    it('never publishes: an autosave marked as a draft but carrying published status is refused', async () => {
+      const article = await publish({ difficulty: beginner.id })
+      await expect(
+        payload.update({
+          collection: 'articles',
+          id: article.id,
+          data: { title: 'x', _status: 'published' },
+          autosave: true,
+          draft: true,
+          overrideAccess: false,
+          user: owner,
+        }),
+      ).rejects.toThrow(AUTOSAVE_MESSAGE)
+      expect((await liveRow(article.id)).title).toBe('An article')
+    })
+
     it('refuses a bulk edit that would republish, but allows a bulk draft edit', async () => {
       const a = await publish({ title: 'A', difficulty: beginner.id })
       const b = await publish({ title: 'B', difficulty: beginner.id })
