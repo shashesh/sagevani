@@ -107,7 +107,14 @@ describe('pages and site settings', () => {
     })
     await payload.updateGlobal({
       slug: 'siteSettings',
-      data: { featuredArticle: null, featuredPicks: [], startHere: [] },
+      data: {
+        tagline: DEFAULT_TAGLINE,
+        footerMotto: null,
+        navigation: [],
+        featuredArticle: null,
+        featuredPicks: [],
+        startHere: [],
+      },
       overrideAccess: true,
     })
   })
@@ -306,6 +313,68 @@ describe('pages and site settings', () => {
       expect(settings.featuredArticle ?? null).toBeNull()
       expect(settings.featuredPicks).toEqual([other.id])
       expect(settings.startHere).toEqual([other.id])
+      const saved = await saveSettings({ footerMotto: 'Still saves' })
+      expect(saved.footerMotto).toBe('Still saves')
+    })
+
+    it('let the owner unpublish several featured articles at once', async () => {
+      const [a, b, c] = await Promise.all(
+        ['a', 'b', 'c'].map((title) => article(title, 'published')),
+      )
+      const ids = [a.id, b.id, c.id]
+      await saveSettings({
+        tagline: 'A tagline',
+        footerMotto: 'A motto',
+        navigation: [{ label: 'Here', path: '/articles' }],
+        featuredArticle: a.id,
+        featuredPicks: [b.id, c.id],
+        startHere: ids,
+      })
+
+      await payload.update({
+        collection: 'articles',
+        where: { id: { in: ids } },
+        data: { _status: 'draft' },
+        user: owner,
+        overrideAccess: false,
+      })
+
+      for (const id of ids) {
+        const row = await payload.findByID({ collection: 'articles', id, overrideAccess: true })
+        expect(row._status).toBe('draft')
+      }
+      const settings = await payload.findGlobal({
+        slug: 'siteSettings',
+        depth: 0,
+        overrideAccess: true,
+      })
+      expect(settings.featuredArticle ?? null).toBeNull()
+      expect(settings.featuredPicks ?? []).toEqual([])
+      expect(settings.startHere ?? []).toEqual([])
+      expect(settings.tagline).toBe('A tagline')
+      expect(settings.footerMotto).toBe('A motto')
+      expect(settings.navigation?.map(({ label, path }) => ({ label, path }))).toEqual([
+        { label: 'Here', path: '/articles' },
+      ])
+    })
+
+    it('let the owner delete the featured article', async () => {
+      const live = await article('Live', 'published')
+      await saveSettings({ featuredArticle: live.id })
+
+      await payload.delete({
+        collection: 'articles',
+        id: live.id,
+        user: owner,
+        overrideAccess: false,
+      })
+
+      const settings = await payload.findGlobal({
+        slug: 'siteSettings',
+        depth: 0,
+        overrideAccess: true,
+      })
+      expect(settings.featuredArticle ?? null).toBeNull()
       const saved = await saveSettings({ footerMotto: 'Still saves' })
       expect(saved.footerMotto).toBe('Still saves')
     })

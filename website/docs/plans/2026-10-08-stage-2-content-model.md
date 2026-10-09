@@ -4890,9 +4890,388 @@ export const SiteSettings: GlobalConfig = {
 
 - [ ] **Step 5: Register them.** In `src/payload.config.ts`, add:
 
-```ts
-import { Pages } from './collections/Pages'
-import { SiteSettings } from './globals/SiteSettings'
+```tsimport { getPayload, ValidationError, type Payload } from 'payload'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+
+import { BODY_LINKS_MESSAGE } from '@/collections/shared/body-links'
+import { DEFAULT_TAGLINE } from '@/globals/SiteSettings'
+import config from '@/payload.config'
+import type { DifficultyLevel, User } from '@/payload-types'
+
+import {
+  ASSISTANT_KEY,
+  clearContent,
+  createStaff,
+  rest,
+  validationMessages,
+} from '../helpers/content'
+
+let payload: Payload
+let owner: User
+let level: DifficultyLevel
+
+const article = (title: string, status: 'draft' | 'published') =>
+  status === 'published'
+    ? payload.create({
+        collection: 'articles',
+        data: { title, shape: 'vani-note', difficulty: level.id, _status: 'published' },
+        user: owner,
+        overrideAccess: false,
+      })
+    : payload.create({ collection: 'articles', data: { title }, draft: true, overrideAccess: true })
+
+const bodyLinkingTo = (relationTo: string, id: number) => ({
+  root: {
+    type: 'root',
+    version: 1,
+    format: '' as const,
+    indent: 0,
+    direction: 'ltr' as const,
+    children: [
+      {
+        type: 'paragraph',
+        version: 1,
+        format: '',
+        indent: 0,
+        direction: 'ltr',
+        textFormat: 0,
+        children: [
+          {
+            type: 'link',
+            version: 3,
+            format: '',
+            indent: 0,
+            direction: 'ltr',
+            fields: { linkType: 'internal', newTab: false, doc: { relationTo, value: id } },
+            children: [
+              {
+                type: 'text',
+                version: 1,
+                text: 'link',
+                format: 0,
+                mode: 'normal',
+                style: '',
+                detail: 0,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+})
+
+const publishedPage = (title: string) =>
+  payload.create({
+    collection: 'pages',
+    data: { title, _status: 'published' },
+    overrideAccess: false,
+    user: owner,
+  })
+
+/** The field paths a refused save reports (a ValidationError's message is generic). */
+async function errorPaths(attempt: Promise<unknown>): Promise<string[]> {
+  const error = await attempt.then(
+    () => undefined,
+    (thrown: unknown) => thrown,
+  )
+  if (!(error instanceof ValidationError)) {
+    throw new Error(`Expected a ValidationError, got ${String(error)}`)
+  }
+  return error.data.errors.map(({ path }) => path)
+}
+
+const saveSettings = (data: Record<string, unknown>) =>
+  payload.updateGlobal({ slug: 'siteSettings', data, overrideAccess: false, user: owner })
+
+describe('pages and site settings', () => {
+  beforeAll(async () => {
+    payload = await getPayload({ config: await config })
+  })
+
+  beforeEach(async () => {
+    await clearContent(payload)
+    ;({ owner } = await createStaff(payload))
+    level = await payload.create({
+      collection: 'difficultyLevels',
+      data: { name: 'Beginner', order: 1 },
+      overrideAccess: true,
+    })
+    await payload.updateGlobal({
+      slug: 'siteSettings',
+      data: {
+        tagline: DEFAULT_TAGLINE,
+        footerMotto: null,
+        navigation: [],
+        featuredArticle: null,
+        featuredPicks: [],
+        startHere: [],
+      },
+      overrideAccess: true,
+    })
+  })
+
+  afterAll(async () => {
+    await clearContent(payload)
+    await payload.destroy()
+  })
+
+  describe('pages', () => {
+    it('reject a body that links to an account', async () => {
+      const body = {
+        root: {
+          type: 'root',
+          version: 1,
+          format: '' as const,
+          indent: 0,
+          direction: 'ltr' as const,
+          children: [
+            {
+              type: 'link',
+              version: 3,
+              fields: {
+                linkType: 'internal',
+                newTab: false,
+                doc: { relationTo: 'users', value: owner.id },
+              },
+              children: [],
+            },
+          ],
+        },
+      }
+      expect(
+        await validationMessages(
+          payload.create({
+            collection: 'pages',
+            data: { title: 'About', body },
+            draft: true,
+            overrideAccess: false,
+            user: owner,
+          }),
+        ),
+      ).toEqual([BODY_LINKS_MESSAGE])
+    })
+
+    it('keep a half-written page off the site until it is published', async () => {
+      await payload.create({
+        collection: 'pages',
+        data: { title: 'About' },
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect((await (await rest('GET', 'pages')).json()).docs).toEqual([])
+
+      await payload.create({
+        collection: 'pages',
+        data: { title: 'How SageVani writes', _status: 'published' },
+        overrideAccess: false,
+        user: owner,
+      })
+      const { docs } = await (await rest('GET', 'pages')).json()
+      expect(docs.map((page: { slug: string }) => page.slug)).toEqual(['how-sagevani-writes'])
+    })
+
+    it('let a page link to an article', async () => {
+      const target = await article('Target', 'published')
+      const page = await payload.create({
+        collection: 'pages',
+        data: { title: 'About', body: bodyLinkingTo('articles', target.id) },
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(page.id).toBeDefined()
+    })
+
+    it('let an owner article link to a published page', async () => {
+      const page = await publishedPage('About')
+      const saved = await payload.create({
+        collection: 'articles',
+        data: { title: 'Linked', body: bodyLinkingTo('pages', page.id) },
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(saved.id).toBeDefined()
+    })
+
+    it('let an assistant draft article link to a page', async () => {
+      const page = await publishedPage('About')
+      const response = await rest('POST', 'articles?draft=true', {
+        key: ASSISTANT_KEY,
+        body: { title: 'Linked', body: bodyLinkingTo('pages', page.id) },
+      })
+      expect(response.status).toBe(201)
+    })
+
+    it('are the owner’s alone to write, even as drafts', async () => {
+      const response = await rest('POST', 'pages?draft=true', {
+        key: ASSISTANT_KEY,
+        body: { title: 'About' },
+      })
+      expect(response.status).toBe(403)
+    })
+  })
+
+  describe('site settings', () => {
+    it('ship with the tagline, readable by the public', async () => {
+      const settings = await (await rest('GET', 'globals/siteSettings')).json()
+      expect(settings.tagline).toBe(DEFAULT_TAGLINE)
+      expect(DEFAULT_TAGLINE).toBe('Where silence learns to speak.')
+    })
+
+    it('are the owner’s alone to change', async () => {
+      const response = await rest('POST', 'globals/siteSettings', {
+        key: ASSISTANT_KEY,
+        body: { footerMotto: 'x' },
+      })
+      expect(response.status).toBe(403)
+    })
+
+    it('feature published articles only', async () => {
+      const draft = await article('Draft', 'draft')
+      expect(await errorPaths(saveSettings({ featuredArticle: draft.id }))).toEqual([
+        'featuredArticle',
+      ])
+
+      const live = await article('Live', 'published')
+      const settings = await payload.updateGlobal({
+        slug: 'siteSettings',
+        data: { featuredArticle: live.id },
+        overrideAccess: false,
+        user: owner,
+      })
+      const featured = settings.featuredArticle
+      expect(typeof featured === 'object' ? featured?.id : featured).toBe(live.id)
+    })
+
+    it('hold at most three featured picks', async () => {
+      const ids = await Promise.all(
+        ['a', 'b', 'c', 'd'].map(async (t) => (await article(t, 'published')).id),
+      )
+      expect(await errorPaths(saveSettings({ featuredPicks: ids }))).toEqual(['featuredPicks'])
+    })
+
+    it('accept three featured picks', async () => {
+      const ids = await Promise.all(
+        ['a', 'b', 'c'].map(async (t) => (await article(t, 'published')).id),
+      )
+      const settings = await saveSettings({ featuredPicks: ids })
+      expect(settings.featuredPicks).toHaveLength(3)
+    })
+
+    it('list published articles only in start here', async () => {
+      const draft = await article('Draft', 'draft')
+      expect(await errorPaths(saveSettings({ startHere: [draft.id] }))).toEqual(['startHere'])
+    })
+
+    it.each(['/\\evil.com', '//evil.com', 'javascript:alert(1)', 'https://example.com', '/a b'])(
+      'refuse the navigation path %s',
+      async (path) => {
+        expect(await errorPaths(saveSettings({ navigation: [{ label: 'Away', path }] }))).toEqual([
+          'navigation.0.path',
+        ])
+      },
+    )
+
+    it.each(['/articles', '/start-here', '/'])('accept the navigation path %s', async (path) => {
+      const settings = await saveSettings({ navigation: [{ label: 'Here', path }] })
+      expect(settings.navigation?.[0]?.path).toBe(path)
+    })
+
+    it('drop an article from the settings when it is unpublished', async () => {
+      const live = await article('Live', 'published')
+      const other = await article('Other', 'published')
+      await saveSettings({
+        featuredArticle: live.id,
+        featuredPicks: [live.id, other.id],
+        startHere: [other.id, live.id],
+      })
+
+      await payload.update({
+        collection: 'articles',
+        id: live.id,
+        data: { _status: 'draft' },
+        overrideAccess: false,
+        user: owner,
+      })
+
+      const settings = await payload.findGlobal({
+        slug: 'siteSettings',
+        depth: 0,
+        overrideAccess: true,
+      })
+      expect(settings.featuredArticle ?? null).toBeNull()
+      expect(settings.featuredPicks).toEqual([other.id])
+      expect(settings.startHere).toEqual([other.id])
+      const saved = await saveSettings({ footerMotto: 'Still saves' })
+      expect(saved.footerMotto).toBe('Still saves')
+    })
+
+    it('let the owner unpublish several featured articles at once', async () => {
+      const [a, b, c] = await Promise.all(
+        ['a', 'b', 'c'].map((title) => article(title, 'published')),
+      )
+      const ids = [a.id, b.id, c.id]
+      await saveSettings({
+        tagline: 'A tagline',
+        footerMotto: 'A motto',
+        navigation: [{ label: 'Here', path: '/articles' }],
+        featuredArticle: a.id,
+        featuredPicks: [b.id, c.id],
+        startHere: ids,
+      })
+
+      await payload.update({
+        collection: 'articles',
+        where: { id: { in: ids } },
+        data: { _status: 'draft' },
+        user: owner,
+        overrideAccess: false,
+      })
+
+      for (const id of ids) {
+        const row = await payload.findByID({ collection: 'articles', id, overrideAccess: true })
+        expect(row._status).toBe('draft')
+      }
+      const settings = await payload.findGlobal({
+        slug: 'siteSettings',
+        depth: 0,
+        overrideAccess: true,
+      })
+      expect(settings.featuredArticle ?? null).toBeNull()
+      expect(settings.featuredPicks ?? []).toEqual([])
+      expect(settings.startHere ?? []).toEqual([])
+      expect(settings.tagline).toBe('A tagline')
+      expect(settings.footerMotto).toBe('A motto')
+      expect(settings.navigation?.map(({ label, path }) => ({ label, path }))).toEqual([
+        { label: 'Here', path: '/articles' },
+      ])
+    })
+
+    it('let the owner delete the featured article', async () => {
+      const live = await article('Live', 'published')
+      await saveSettings({ featuredArticle: live.id })
+
+      await payload.delete({
+        collection: 'articles',
+        id: live.id,
+        user: owner,
+        overrideAccess: false,
+      })
+
+      const settings = await payload.findGlobal({
+        slug: 'siteSettings',
+        depth: 0,
+        overrideAccess: true,
+      })
+      expect(settings.featuredArticle ?? null).toBeNull()
+      const saved = await saveSettings({ footerMotto: 'Still saves' })
+      expect(saved.footerMotto).toBe('Still saves')
+    })
+  })
+})
 ```
 
 change the collections line to:
@@ -5013,99 +5392,81 @@ Expected: `Migration created at …_starting_data.ts`, listed last in `index.ts`
 
 - [ ] **Step 3: Write the failing test** in `tests/int/starting-data.int.spec.ts`:
 
-```ts
-import { createLocalReq, getPayload, type Payload } from 'payload'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+```tsimport type { CollectionAfterChangeHook, PayloadRequest } from 'payload'
 
-import { migrations } from '@/migrations'
-import config from '@/payload.config'
+const FEATURED_FIELDS = ['featuredPicks', 'startHere'] as const
+const QUEUE = 'unfeatureQueue'
 
-import { clearContent } from '../helpers/content'
+const idOf = (value: unknown): string =>
+  String(typeof value === 'object' && value !== null ? (value as { id?: unknown }).id : value)
 
-let payload: Payload
+async function removeFromSettings(req: PayloadRequest, id: string): Promise<void> {
+  const settings = await req.payload.findGlobal({
+    slug: 'siteSettings',
+    depth: 0,
+    overrideAccess: true,
+    req,
+  })
 
-const startingData = () => {
-  const migration = migrations.find(({ name }) => name.endsWith('_starting_data'))
-  if (!migration) throw new Error('No *_starting_data migration in src/migrations/index.ts')
-  return migration
+  const data: {
+    featuredArticle?: null
+    featuredPicks?: number[]
+    startHere?: number[]
+  } = {}
+  if (settings.featuredArticle != null && idOf(settings.featuredArticle) === id) {
+    data.featuredArticle = null
+  }
+  for (const field of FEATURED_FIELDS) {
+    const entries = (settings[field] ?? []) as (number | { id: number })[]
+    const kept = entries.filter((entry) => idOf(entry) !== id)
+    if (kept.length !== entries.length) {
+      data[field] = kept.map((entry) => (typeof entry === 'object' ? entry.id : entry))
+    }
+  }
+
+  if (Object.keys(data).length === 0) return
+
+  // The adapter empties an array that a partial write leaves out, so the navigation travels
+  // along unchanged.
+  await req.payload.db.updateGlobal({
+    slug: 'siteSettings',
+    data: { navigation: settings.navigation ?? [], ...data },
+    req,
+  })
 }
 
-const runUp = async () => {
-  const req = await createLocalReq({}, payload)
-  await startingData().up({ db: payload.db.drizzle, payload, req } as never)
+/**
+ * A featured article that stops being published would make every later save of the site
+ * settings fail, because Payload re-checks the published-only filter on save. So once the live
+ * row is not published, the article is taken out of the featured article, the featured picks and
+ * the start-here list. Only the fields that held it are written, through the database adapter,
+ * which skips field validation on purpose: removing an entry can never make the settings
+ * invalid, while re-validating the other entries fails when several featured articles are
+ * unpublished in one bulk update, because they are all mid-unpublish.
+ *
+ * A bulk update runs this hook for every article at once, on one request. Each run reads the
+ * settings and writes them back, so the runs are queued on the request: otherwise they all read
+ * the same starting settings and the last write undoes the others.
+ */
+export const unfeatureWhenUnpublished: CollectionAfterChangeHook = async ({
+  collection,
+  doc,
+  req,
+}) => {
+  const live = await req.payload.db.findOne<{ id: number | string; _status?: string | null }>({
+    collection: collection.slug,
+    where: { id: { equals: doc.id } },
+    req,
+  })
+  if (!live || live._status === 'published') return doc
+
+  const previous = (req.context[QUEUE] as Promise<void> | undefined) ?? Promise.resolve()
+  const run = previous.then(() => removeFromSettings(req, String(doc.id)))
+  // A failed run must not stop the runs queued behind it; its own error still reaches this save.
+  req.context[QUEUE] = run.catch(() => undefined)
+  await run
+  return doc
 }
-
-describe('starting data migration', () => {
-  beforeAll(async () => {
-    payload = await getPayload({ config: await config })
-  })
-
-  beforeEach(async () => {
-    await clearContent(payload)
-  })
-
-  afterAll(async () => {
-    await clearContent(payload)
-    await payload.destroy()
-  })
-
-  it('adds the four doors with the charter’s questions, in order', async () => {
-    await runUp()
-    const { docs } = await payload.find({ collection: 'topics', sort: 'order', overrideAccess: true })
-    expect(docs.map(({ name, slug, question, order }) => ({ name, slug, question, order }))).toEqual([
-      { name: 'Dharma', slug: 'dharma', question: 'How shall I live?', order: 1 },
-      { name: 'Adhyātma', slug: 'adhyatma', question: 'Who am I?', order: 2 },
-      {
-        name: 'Bhakti',
-        slug: 'bhakti',
-        question: 'What is the Divine, and what is my relationship to it?',
-        order: 3,
-      },
-      { name: 'Sādhanā', slug: 'sadhana', question: 'How shall I practice what I understand?', order: 4 },
-    ])
-    expect(docs.map((topic) => topic.coverTint)).toEqual([
-      { background: '#e3cfa8', text: '#3d2f1c' },
-      { background: '#cfcbc5', text: '#2b2a2c' },
-      { background: '#e5c3b4', text: '#4a241a' },
-      { background: '#cdd6c2', text: '#28331f' },
-    ])
-    expect(docs.every((topic) => !topic.intro)).toBe(true)
-  })
-
-  it('adds the three proposed levels, with Advanced needing prior reading', async () => {
-    await runUp()
-    const { docs } = await payload.find({
-      collection: 'difficultyLevels',
-      sort: 'order',
-      overrideAccess: true,
-    })
-    expect(docs.map(({ name, description, needsPriorReading }) => ({ name, description, needsPriorReading }))).toEqual([
-      { name: 'Beginner', description: 'No prior study assumed', needsPriorReading: false },
-      {
-        name: 'Intermediate',
-        description: 'Some familiarity with the relevant terms or text',
-        needsPriorReading: false,
-      },
-      {
-        name: 'Advanced',
-        description: 'Familiarity with the texts, schools, or interpretive debates involved',
-        needsPriorReading: true,
-      },
-    ])
-  })
-
-  it('can run again without duplicating rows or undoing the owner’s edits', async () => {
-    await runUp()
-    const dharma = (await payload.find({ collection: 'topics', where: { slug: { equals: 'dharma' } }, overrideAccess: true })).docs[0]
-    await payload.update({ collection: 'topics', id: dharma.id, data: { intro: 'Owner’s words.' }, overrideAccess: true })
-
-    await runUp()
-    expect((await payload.count({ collection: 'topics', overrideAccess: true })).totalDocs).toBe(4)
-    expect((await payload.count({ collection: 'difficultyLevels', overrideAccess: true })).totalDocs).toBe(3)
-    const again = await payload.findByID({ collection: 'topics', id: dharma.id, overrideAccess: true })
-    expect(again.intro).toBe('Owner’s words.')
-  })
-})
 ```
 
 - [ ] **Step 4: Run and see it fail**
