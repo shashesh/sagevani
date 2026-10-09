@@ -129,12 +129,33 @@ export const BULK_PUBLISH_MESSAGE = 'Publish articles one at a time, from each a
 /**
  * Publishing is one article at a time (stage 2 design, 4.3), for everyone, the owner included:
  * the approval names one version, so each article is published from its own page. A bulk update
- * has no id. Bulk unpublishing and other bulk edits stay allowed.
+ * has no id. It is refused when it publishes, and also when it is neither a draft save nor an
+ * unpublish, because the status then defaults from each stored row and republishes it. Bulk
+ * unpublishing and bulk draft edits stay allowed.
  */
 export const refuseBulkPublish: CollectionBeforeOperationHook = ({ args, operation }) => {
-  const write = args as { data?: { _status?: unknown }; id?: unknown }
-  if (operation === 'update' && write.id === undefined && write.data?._status === 'published') {
+  const write = args as { data?: { _status?: unknown }; draft?: unknown; id?: unknown }
+  if (operation !== 'update' || write.id !== undefined) return args
+  const status = write.data?._status
+  if (status === 'published' || (write.draft !== true && status !== 'draft')) {
     throw new APIError(BULK_PUBLISH_MESSAGE, 403, undefined, true)
   }
+  return args
+}
+
+export const AUTOSAVE_MESSAGE = 'Autosave saves drafts only.'
+
+/**
+ * An autosave without the draft flag would make Payload rewrite the latest autosave version in
+ * place as the published one, and the next ordinary autosave would rewrite it again, so the
+ * approval would name a version whose text is no longer what was published. Autosave never
+ * publishes, for everyone.
+ */
+export const autosaveOnlyForDrafts: CollectionBeforeOperationHook = ({ args, operation }) => {
+  if (operation !== 'create' && operation !== 'update') return args
+  const write = args as { autosave?: unknown; draft?: unknown }
+  const autosaving =
+    write.autosave !== undefined && write.autosave !== null && write.autosave !== false
+  if (autosaving && write.draft !== true) throw new APIError(AUTOSAVE_MESSAGE, 403, undefined, true)
   return args
 }

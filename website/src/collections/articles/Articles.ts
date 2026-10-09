@@ -4,7 +4,12 @@ import { nobody, ownerOnly, publishedOrStaff, staffOnly, staffOnlyField } from '
 import { contentEditor } from '../../blocks/content-editor'
 import { bodyLinksOnlyTo } from '../shared/body-links'
 import { checkSlug, deriveSlug, slugField } from '../shared/slug'
-import { recordApproval, recordApprovedVersion, refuseBulkPublish } from './approval'
+import {
+  autosaveOnlyForDrafts,
+  recordApproval,
+  recordApprovedVersion,
+  refuseBulkPublish,
+} from './approval'
 import { deriveArticleText } from './derived-text'
 import { draftsOnlyForAssistant } from './drafts-only'
 import { editorialChecklist } from './editorial-checklist'
@@ -57,7 +62,7 @@ export const Articles: CollectionConfig = {
     delete: ownerOnly,
   },
   hooks: {
-    beforeOperation: [draftsOnlyForAssistant, refuseBulkPublish],
+    beforeOperation: [draftsOnlyForAssistant, refuseBulkPublish, autosaveOnlyForDrafts],
     beforeValidate: [deriveSlug('title')],
     beforeChange: [
       bodyLinksOnlyTo(['articles']),

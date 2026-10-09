@@ -2,7 +2,11 @@ import { getPayload, ValidationError, type Payload } from 'payload'
 import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { BULK_PUBLISH_MESSAGE, OWNER_PUBLISHES_MESSAGE } from '@/collections/articles/approval'
+import {
+  AUTOSAVE_MESSAGE,
+  BULK_PUBLISH_MESSAGE,
+  OWNER_PUBLISHES_MESSAGE,
+} from '@/collections/articles/approval'
 import { PUBLISH_MESSAGES } from '@/lib/publish-rules'
 import config from '@/payload.config'
 import type { Article, DifficultyLevel, User } from '@/payload-types'
@@ -173,17 +177,19 @@ describe('articles: publishing', () => {
 
     it('is recorded when the publish asks for only some fields back', async () => {
       const article = await publish({ difficulty: beginner.id })
-      await payload.update({
-        collection: 'articles',
-        id: article.id,
-        data: { title: 'Selected', _status: 'published' },
-        select: { title: true },
-        overrideAccess: false,
-        user: owner,
-      })
+      const { version } = await publishedVersionOf(() =>
+        payload.update({
+          collection: 'articles',
+          id: article.id,
+          data: { title: 'Selected', _status: 'published' },
+          select: { title: true },
+          overrideAccess: false,
+          user: owner,
+        }),
+      )
       const stored = await liveRow(article.id)
-      expect(stored.approval?.versionId).toBeTruthy()
-      expect(stored.approval?.versionId).not.toBe(article.approval?.versionId)
+      expect(stored.approval?.versionId).toBe(String(version.id))
+      expect(version.version.title).toBe('Selected')
     })
 
     it('is kept by the admin unpublish', async () => {
@@ -325,6 +331,60 @@ describe('articles: publishing', () => {
     })
   })
 
+  describe('autosave and bulk edits', () => {
+    it('never publishes: an autosave without the draft flag is refused', async () => {
+      const article = await publish({ difficulty: beginner.id })
+      await expect(
+        payload.update({
+          collection: 'articles',
+          id: article.id,
+          data: { title: 'x', _status: 'published' },
+          autosave: true,
+          overrideAccess: false,
+          user: owner,
+        }),
+      ).rejects.toThrow(AUTOSAVE_MESSAGE)
+
+      const saved = await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { title: 'Autosaved' },
+        autosave: true,
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(saved.title).toBe('Autosaved')
+      expect((await liveRow(article.id)).approval?.versionId).toBe(article.approval?.versionId)
+    })
+
+    it('refuses a bulk edit that would republish, but allows a bulk draft edit', async () => {
+      const a = await publish({ title: 'A', difficulty: beginner.id })
+      const b = await publish({ title: 'B', difficulty: beginner.id })
+      const where = { id: { in: [a.id, b.id] } }
+      await expect(
+        payload.update({
+          collection: 'articles',
+          where,
+          data: { summary: 'bulk edit' },
+          overrideAccess: false,
+          user: owner,
+        }),
+      ).rejects.toThrow(BULK_PUBLISH_MESSAGE)
+
+      const drafts = await payload.update({
+        collection: 'articles',
+        where,
+        data: { summary: 'x' },
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(drafts.errors).toEqual([])
+      expect(drafts.docs).toHaveLength(2)
+    })
+  })
+
   describe('the publish rules', () => {
     it('need a difficulty level', async () => {
       expect(await problemsOf(publish({}))).toEqual([
@@ -393,6 +453,13 @@ describe('articles: publishing', () => {
       const malformed = richText(paragraph('Text.'), { ...image(1), value: '1; drop' })
       expect(await problemsOf(publish({ difficulty: beginner.id, body: malformed }))).toEqual([
         { path: 'body', message: PUBLISH_MESSAGES.imageMissing('1; drop') },
+      ])
+    })
+
+    it('refuse an image id too large for the media table, without a database error', async () => {
+      const huge = richText(paragraph('Text.'), image(99999999999))
+      expect(await problemsOf(publish({ difficulty: beginner.id, body: huge }))).toEqual([
+        { path: 'body', message: PUBLISH_MESSAGES.imageMissing(99999999999) },
       ])
     })
 

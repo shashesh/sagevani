@@ -3670,7 +3670,11 @@ import { getPayload, ValidationError, type Payload } from 'payload'
 import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { BULK_PUBLISH_MESSAGE, OWNER_PUBLISHES_MESSAGE } from '@/collections/articles/approval'
+import {
+  AUTOSAVE_MESSAGE,
+  BULK_PUBLISH_MESSAGE,
+  OWNER_PUBLISHES_MESSAGE,
+} from '@/collections/articles/approval'
 import { PUBLISH_MESSAGES } from '@/lib/publish-rules'
 import config from '@/payload.config'
 import type { Article, DifficultyLevel, User } from '@/payload-types'
@@ -3841,17 +3845,19 @@ describe('articles: publishing', () => {
 
     it('is recorded when the publish asks for only some fields back', async () => {
       const article = await publish({ difficulty: beginner.id })
-      await payload.update({
-        collection: 'articles',
-        id: article.id,
-        data: { title: 'Selected', _status: 'published' },
-        select: { title: true },
-        overrideAccess: false,
-        user: owner,
-      })
+      const { version } = await publishedVersionOf(() =>
+        payload.update({
+          collection: 'articles',
+          id: article.id,
+          data: { title: 'Selected', _status: 'published' },
+          select: { title: true },
+          overrideAccess: false,
+          user: owner,
+        }),
+      )
       const stored = await liveRow(article.id)
-      expect(stored.approval?.versionId).toBeTruthy()
-      expect(stored.approval?.versionId).not.toBe(article.approval?.versionId)
+      expect(stored.approval?.versionId).toBe(String(version.id))
+      expect(version.version.title).toBe('Selected')
     })
 
     it('is kept by the admin unpublish', async () => {
@@ -3993,6 +3999,60 @@ describe('articles: publishing', () => {
     })
   })
 
+  describe('autosave and bulk edits', () => {
+    it('never publishes: an autosave without the draft flag is refused', async () => {
+      const article = await publish({ difficulty: beginner.id })
+      await expect(
+        payload.update({
+          collection: 'articles',
+          id: article.id,
+          data: { title: 'x', _status: 'published' },
+          autosave: true,
+          overrideAccess: false,
+          user: owner,
+        }),
+      ).rejects.toThrow(AUTOSAVE_MESSAGE)
+
+      const saved = await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { title: 'Autosaved' },
+        autosave: true,
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(saved.title).toBe('Autosaved')
+      expect((await liveRow(article.id)).approval?.versionId).toBe(article.approval?.versionId)
+    })
+
+    it('refuses a bulk edit that would republish, but allows a bulk draft edit', async () => {
+      const a = await publish({ title: 'A', difficulty: beginner.id })
+      const b = await publish({ title: 'B', difficulty: beginner.id })
+      const where = { id: { in: [a.id, b.id] } }
+      await expect(
+        payload.update({
+          collection: 'articles',
+          where,
+          data: { summary: 'bulk edit' },
+          overrideAccess: false,
+          user: owner,
+        }),
+      ).rejects.toThrow(BULK_PUBLISH_MESSAGE)
+
+      const drafts = await payload.update({
+        collection: 'articles',
+        where,
+        data: { summary: 'x' },
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(drafts.errors).toEqual([])
+      expect(drafts.docs).toHaveLength(2)
+    })
+  })
+
   describe('the publish rules', () => {
     it('need a difficulty level', async () => {
       expect(await problemsOf(publish({}))).toEqual([
@@ -4064,6 +4124,13 @@ describe('articles: publishing', () => {
       ])
     })
 
+    it('refuse an image id too large for the media table, without a database error', async () => {
+      const huge = richText(paragraph('Text.'), image(99999999999))
+      expect(await problemsOf(publish({ difficulty: beginner.id, body: huge }))).toEqual([
+        { path: 'body', message: PUBLISH_MESSAGES.imageMissing(99999999999) },
+      ])
+    })
+
     it('do not apply to drafts', async () => {
       const article = await payload.create({
         collection: 'articles',
@@ -4120,9 +4187,13 @@ async function difficultyOf(
   return level ? { needsPriorReading: level.needsPriorReading === true } : null
 }
 
-/** A media id as the database stores it: a whole number, or its digits. Nothing else reaches a query. */
+const MAX_MEDIA_ID = 2_147_483_647
+
+/** A media id as the database stores it: a whole number within int4, or its digits. Nothing else reaches a query. */
 const isMediaId = (id: number | string): boolean =>
-  typeof id === 'number' ? Number.isSafeInteger(id) && id > 0 : /^\d{1,15}$/.test(id)
+  typeof id === 'number'
+    ? Number.isSafeInteger(id) && id > 0 && id <= MAX_MEDIA_ID
+    : /^\d{1,10}$/.test(id) && Number(id) <= MAX_MEDIA_ID
 
 async function imagesOf(body: unknown, req: PayloadRequest): Promise<PublishCheckInput['images']> {
   const ids = findUploadIds(body)
@@ -4301,23 +4372,49 @@ export const BULK_PUBLISH_MESSAGE = 'Publish articles one at a time, from each a
 /**
  * Publishing is one article at a time (stage 2 design, 4.3), for everyone, the owner included:
  * the approval names one version, so each article is published from its own page. A bulk update
- * has no id. Bulk unpublishing and other bulk edits stay allowed.
+ * has no id. It is refused when it publishes, and also when it is neither a draft save nor an
+ * unpublish, because the status then defaults from each stored row and republishes it. Bulk
+ * unpublishing and bulk draft edits stay allowed.
  */
 export const refuseBulkPublish: CollectionBeforeOperationHook = ({ args, operation }) => {
-  const write = args as { data?: { _status?: unknown }; id?: unknown }
-  if (operation === 'update' && write.id === undefined && write.data?._status === 'published') {
+  const write = args as { data?: { _status?: unknown }; draft?: unknown; id?: unknown }
+  if (operation !== 'update' || write.id !== undefined) return args
+  const status = write.data?._status
+  if (status === 'published' || (write.draft !== true && status !== 'draft')) {
     throw new APIError(BULK_PUBLISH_MESSAGE, 403, undefined, true)
   }
   return args
 }
+
+export const AUTOSAVE_MESSAGE = 'Autosave saves drafts only.'
+
+/**
+ * An autosave without the draft flag would make Payload rewrite the latest autosave version in
+ * place as the published one, and the next ordinary autosave would rewrite it again, so the
+ * approval would name a version whose text is no longer what was published. Autosave never
+ * publishes, for everyone.
+ */
+export const autosaveOnlyForDrafts: CollectionBeforeOperationHook = ({ args, operation }) => {
+  if (operation !== 'create' && operation !== 'update') return args
+  const write = args as { autosave?: unknown; draft?: unknown }
+  const autosaving =
+    write.autosave !== undefined && write.autosave !== null && write.autosave !== false
+  if (autosaving && write.draft !== true) throw new APIError(AUTOSAVE_MESSAGE, 403, undefined, true)
+  return args
+}
 ```
 
-The live row is the only source of truth for the approval: it is read from the database, never from the request or from a version snapshot, so nothing sent to the API can forge it. Only the owner publishes. `recordApprovedVersion` finds the version this publish made by its published status and its approval time, not by creation order, and throws (rolling the save back) rather than record a wrong or empty id. The admin's unpublish marks the approved version itself as a draft, while the record keeps its id. `refuseBulkPublish` refuses a bulk update that publishes, for everyone: each article is published from its own page.
+The live row is the only source of truth for the approval: it is read from the database, never from the request or from a version snapshot, so nothing sent to the API can forge it. Only the owner publishes. `recordApprovedVersion` finds the version this publish made by its published status and its approval time, not by creation order, and throws (rolling the save back) rather than record a wrong or empty id. The admin's unpublish marks the approved version itself as a draft, while the record keeps its id. `refuseBulkPublish` refuses any bulk update that would publish, for everyone, including one with no status that would default to the stored one: each article is published from its own page. `autosaveOnlyForDrafts` refuses an autosave without the draft flag, so an autosave never publishes.
 
 - [ ] **Step 5: Wire them in.** In `src/collections/articles/Articles.ts`, add:
 
 ```ts
-import { recordApproval, recordApprovedVersion, refuseBulkPublish } from './approval'
+import {
+  autosaveOnlyForDrafts,
+  recordApproval,
+  recordApprovedVersion,
+  refuseBulkPublish,
+} from './approval'
 import { enforcePublishRules } from './publish-rules'
 ```
 
@@ -4332,7 +4429,7 @@ and replace:
 with:
 
 ```ts
-    beforeOperation: [draftsOnlyForAssistant, refuseBulkPublish],
+    beforeOperation: [draftsOnlyForAssistant, refuseBulkPublish, autosaveOnlyForDrafts],
     beforeValidate: [deriveSlug('title')],
     beforeChange: [
       bodyLinksOnlyTo(['articles']),

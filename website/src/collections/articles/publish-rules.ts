@@ -29,9 +29,13 @@ async function difficultyOf(
   return level ? { needsPriorReading: level.needsPriorReading === true } : null
 }
 
-/** A media id as the database stores it: a whole number, or its digits. Nothing else reaches a query. */
+const MAX_MEDIA_ID = 2_147_483_647
+
+/** A media id as the database stores it: a whole number within int4, or its digits. Nothing else reaches a query. */
 const isMediaId = (id: number | string): boolean =>
-  typeof id === 'number' ? Number.isSafeInteger(id) && id > 0 : /^\d{1,15}$/.test(id)
+  typeof id === 'number'
+    ? Number.isSafeInteger(id) && id > 0 && id <= MAX_MEDIA_ID
+    : /^\d{1,10}$/.test(id) && Number(id) <= MAX_MEDIA_ID
 
 async function imagesOf(body: unknown, req: PayloadRequest): Promise<PublishCheckInput['images']> {
   const ids = findUploadIds(body)
