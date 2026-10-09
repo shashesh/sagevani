@@ -5378,6 +5378,20 @@ Expected:
 - the counts are `4` topics and `3` levels;
 - `t`, meaning the hardening step turned row-level security on for the new tables.
 
+Note: the generated `down()` of `*_stage_2_content.ts` needed `IF EXISTS` on its five `DROP CONSTRAINT "payload_locked_documents_rels_…_fk"` lines, because the earlier `DROP TABLE … CASCADE` statements already remove those foreign keys. Without it, `migrate:down` fails. Verify the rollback on a scratch database:
+
+```bash
+docker compose exec -T db psql -U postgres -c "DROP DATABASE IF EXISTS sagevani_rollback_check" -c "CREATE DATABASE sagevani_rollback_check"
+export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329/sagevani_rollback_check
+npm run deploy:migrate
+npx cross-env NODE_ENV=production NODE_OPTIONS=--no-deprecation payload migrate:down
+npm run deploy:migrate
+docker compose exec -T db psql -U postgres -d sagevani_rollback_check -tAc "select count(*) from payload.topics"
+docker compose exec -T db psql -U postgres -c "DROP DATABASE sagevani_rollback_check"
+```
+
+Expected: `migrate:down` finishes without an error, the second `deploy:migrate` re-applies the migrations, and the count is `4`.
+
 - [ ] **Step 8: Commit**
 
 ```bash
