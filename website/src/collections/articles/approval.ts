@@ -8,6 +8,7 @@ import {
 } from 'payload'
 
 import { isOwner } from '../../access/roles'
+import { isPublishing, RESTORING_AS_DRAFT } from '../shared/publishing'
 
 export const OWNER_PUBLISHES_MESSAGE = 'Only the owner publishes.'
 
@@ -42,6 +43,17 @@ async function readLiveRow(
 }
 
 /**
+ * Only the owner publishes. Runs first among the article's beforeChange hooks, so a publish
+ * from anyone else gets this refusal, not a list of rule problems.
+ */
+export const onlyOwnerPublishes: CollectionBeforeChangeHook = ({ data, req }) => {
+  if (isPublishing(data, req) && (!req.user || !isOwner(req.user))) {
+    throw new APIError(OWNER_PUBLISHES_MESSAGE, 403, undefined, true)
+  }
+  return data
+}
+
+/**
  * Publishing is the owner's approval (website design, 8.3). Only the owner publishes. A save
  * that publishes records who approved it and when, and sets publishedAt the first time. Every
  * other save keeps both exactly as stored: they come from the live row, never from the request
@@ -56,7 +68,7 @@ export const recordApproval: CollectionBeforeChangeHook = async ({
 }) => {
   const live = originalDoc?.id ? await readLiveRow(req, collection.slug, originalDoc.id) : null
 
-  if (data._status !== 'published') {
+  if (!isPublishing(data, req)) {
     return {
       ...data,
       publishedAt: live?.publishedAt ?? null,
@@ -69,14 +81,12 @@ export const recordApproval: CollectionBeforeChangeHook = async ({
     }
   }
 
-  if (!req.user || !isOwner(req.user)) {
-    throw new APIError(OWNER_PUBLISHES_MESSAGE, 403, undefined, true)
-  }
+  // onlyOwnerPublishes has already run, first, so only the owner reaches here.
   const now = new Date().toISOString()
   return {
     ...data,
     publishedAt: live?.publishedAt ?? now,
-    approval: { approvedBy: req.user.id, approvedAt: now, versionId: null },
+    approval: { approvedBy: req.user?.id, approvedAt: now, versionId: null },
   }
 }
 
@@ -161,5 +171,15 @@ export const autosaveOnlyForDrafts: CollectionBeforeOperationHook = ({ args, ope
   if (autosaving && (write.draft !== true || write.data?._status === 'published')) {
     throw new APIError(AUTOSAVE_MESSAGE, 403, undefined, true)
   }
+  return args
+}
+
+/**
+ * Restoring a version with `draft: true` is a draft save, though the old version's status is
+ * still 'published'. Marks the request so the publishing hooks treat it as one.
+ */
+export const markRestoreAsDraft: CollectionBeforeOperationHook = ({ args, operation, req }) => {
+  if (operation !== 'restoreVersion') return args
+  req.context[RESTORING_AS_DRAFT] = (args as { draft?: unknown }).draft === true
   return args
 }

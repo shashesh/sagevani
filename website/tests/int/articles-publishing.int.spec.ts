@@ -11,7 +11,7 @@ import { PUBLISH_MESSAGES } from '@/lib/publish-rules'
 import config from '@/payload.config'
 import type { Article, DifficultyLevel, User } from '@/payload-types'
 
-import { ASSISTANT_KEY, clearContent, createStaff, rest } from '../helpers/content'
+import { ASSISTANT_KEY, clearContent, createStaff, PASSWORD, rest } from '../helpers/content'
 import { image, paragraph, richText } from '../helpers/lexical'
 
 let payload: Payload
@@ -258,6 +258,20 @@ describe('articles: publishing', () => {
       ).rejects.toThrow(OWNER_PUBLISHES_MESSAGE)
     })
 
+    it('is refused for the owner check before the publish rules are listed', async () => {
+      await expect(
+        payload.create({
+          collection: 'articles',
+          data: {
+            title: 'Anon and incomplete',
+            shape: 'vani-note',
+            _status: 'published',
+          } as Article,
+          overrideAccess: true,
+        }),
+      ).rejects.toThrow(OWNER_PUBLISHES_MESSAGE)
+    })
+
     it('lets a bare publish rely on the stored difficulty and shape', async () => {
       const article = await publish({ difficulty: beginner.id })
       await payload.update({
@@ -308,6 +322,73 @@ describe('articles: publishing', () => {
       })
       expect(article.approval?.approvedAt ?? null).toBeNull()
       expect(article.publishedAt ?? null).toBeNull()
+    })
+  })
+
+  describe('restoring a version as a draft', () => {
+    // The Local API does not pass `draft` to restoreVersion, so these go through REST.
+    const restoreAsDraft = async (versionId: number | string) => {
+      const { token } = await payload.login({
+        collection: 'users',
+        data: { email: 'owner@example.com', password: PASSWORD },
+      })
+      return rest('POST', `articles/versions/${versionId}?draft=true`, { token: token ?? '' })
+    }
+
+    it('is a draft save: the live row and its approval stay as they were', async () => {
+      const first = await publishedVersionOf(() =>
+        publish({ title: 'First', difficulty: beginner.id }),
+      )
+      await payload.update({
+        collection: 'articles',
+        id: first.result.id,
+        data: { title: 'Second', _status: 'published' },
+        overrideAccess: false,
+        user: owner,
+      })
+      const before = await liveRow(first.result.id)
+
+      expect((await restoreAsDraft(first.version.id)).status).toBe(200)
+
+      const after = await liveRow(first.result.id)
+      expect(after.title).toBe('Second')
+      expect(after._status).toBe('published')
+      expect(after.approval?.versionId).toBe(before.approval?.versionId)
+      expect(after.approval?.approvedAt).toBe(before.approval?.approvedAt)
+
+      const { docs } = await payload.findVersions({
+        collection: 'articles',
+        where: { parent: { equals: first.result.id } },
+        sort: '-id',
+        limit: 1,
+        overrideAccess: true,
+      })
+      expect(docs[0].version.title).toBe('First')
+      expect(docs[0].version.approval?.approvedAt).toBe(before.approval?.approvedAt)
+    })
+
+    it('succeeds for a version that breaks a rule now in force', async () => {
+      const data = await sharp({
+        create: { width: 10, height: 10, channels: 3, background: '#000' },
+      })
+        .png()
+        .toBuffer()
+      const media = await payload.create({
+        collection: 'media',
+        data: { alt: 'A lamp', creator: 'c', source: 's', licence: 'l' },
+        file: { data, mimetype: 'image/png', name: 'x.png', size: data.length },
+        overrideAccess: true,
+      })
+      const first = await publishedVersionOf(() =>
+        publish({
+          title: 'With image',
+          difficulty: beginner.id,
+          body: richText(paragraph('Text.'), image(media.id)),
+        }),
+      )
+      await payload.delete({ collection: 'media', id: media.id, overrideAccess: true })
+
+      expect((await restoreAsDraft(first.version.id)).status).toBe(200)
     })
   })
 

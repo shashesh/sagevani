@@ -6,6 +6,8 @@ import { bodyLinksOnlyTo } from '../shared/body-links'
 import { checkSlug, deriveSlug, slugField } from '../shared/slug'
 import {
   autosaveOnlyForDrafts,
+  markRestoreAsDraft,
+  onlyOwnerPublishes,
   recordApproval,
   recordApprovedVersion,
   refuseBulkPublish,
@@ -62,9 +64,15 @@ export const Articles: CollectionConfig = {
     delete: ownerOnly,
   },
   hooks: {
-    beforeOperation: [draftsOnlyForAssistant, refuseBulkPublish, autosaveOnlyForDrafts],
+    beforeOperation: [
+      draftsOnlyForAssistant,
+      refuseBulkPublish,
+      autosaveOnlyForDrafts,
+      markRestoreAsDraft,
+    ],
     beforeValidate: [deriveSlug('title')],
     beforeChange: [
+      onlyOwnerPublishes,
       bodyLinksOnlyTo(['articles', 'pages']),
       checkSlug,
       deriveArticleText,

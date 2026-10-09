@@ -7,6 +7,7 @@ import {
 } from 'payload'
 
 import { slugify } from '../../lib/slug'
+import { isPublishing } from './publishing'
 
 export const SLUG_REQUIRED_MESSAGE =
   'Add a slug: the title has no letters a URL can use, such as Latin letters or digits.'
@@ -44,7 +45,7 @@ export const checkSlug: CollectionBeforeChangeHook = async ({
   req,
 }) => {
   const hasDrafts = Boolean(collection.versions && collection.versions.drafts)
-  const goingLive = !hasDrafts || data._status === 'published'
+  const goingLive = !hasDrafts || isPublishing(data, req)
   const slug: unknown = data.slug
 
   if (typeof slug !== 'string' || slug === '') {

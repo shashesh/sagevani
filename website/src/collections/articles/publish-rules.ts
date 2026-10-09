@@ -2,6 +2,7 @@ import { ValidationError, type CollectionBeforeChangeHook, type PayloadRequest }
 
 import { publishProblems, type PublishCheckInput } from '../../lib/publish-rules'
 import { findUploadIds } from '../../lib/rich-text'
+import { isPublishing } from '../shared/publishing'
 
 const idOf = (value: unknown): number | string | null => {
   if (typeof value === 'number' || typeof value === 'string') return value
@@ -66,7 +67,7 @@ export const enforcePublishRules: CollectionBeforeChangeHook = async ({
   data,
   req,
 }) => {
-  if (data._status !== 'published') return data
+  if (!isPublishing(data, req)) return data
   const problems = publishProblems({
     shape: data.shape,
     difficulty: await difficultyOf(data.difficulty, req),
