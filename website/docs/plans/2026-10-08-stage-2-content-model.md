@@ -5722,10 +5722,13 @@ with:
 ## 2026-10-08 — Website stage 2: content model and admin
 
 - Added the content collections: articles, pages, topics, difficulty levels and media, plus site settings. The editor has Verse, Tradition and Practice blocks and images.
-- Publishing is the owner's approval. It records the approver, the time and the approved version. A difficulty level is required, a level marked "needs prior reading" requires a prior reading, a Text / Story Study requires a source, and every image needs alt text.
-- The assistant saves drafts only, through its API key. Publishing, unpublishing, restoring versions, duplicating and deleting are refused.
-- Images go to Supabase Storage under random names. The media API is staff-only. Uploads are re-encoded, capped at 2,400 pixels and stripped of metadata such as GPS location.
-- A migration adds the four topics with the charter's questions and the three proposed difficulty levels.
+- Only the owner publishes, one article at a time. Publishing records the approver, the time and exactly the published version; the save fails rather than record a wrong or empty one. A difficulty level is required, a level marked "needs prior reading" requires a prior reading (one that points at a SageVani article must point at a published one), a Text / Story Study requires a source, and every image needs alt text.
+- The assistant only adds draft versions, through its API key. It is refused publishing, unpublishing, version restores, duplicating, bulk updates, deleting, the publication and locale flags, and autosave.
+- Article and page bodies can link only to articles and pages, by id, and show images only from media. The server enforces this. A body image whose media is gone stops publishing with "no longer exists".
+- Site settings: the featured article, featured picks (at most 3, each once) and Start here must be published articles. One unpublished later stays listed, isn't shown, and doesn't block saving. Navigation links must be paths on this site.
+- Images go to Supabase Storage under random names. The media API is staff-only. Uploads are capped at 4 MB, because Netlify functions accept about 6 MB request bodies. They are re-encoded, capped at 2,400 pixels and stripped of metadata such as GPS location. `MEDIA_PUBLIC_URL` must be an https URL with no `?` or `#`.
+- Search text keeps Devanagari intact; only Latin diacritics are folded.
+- A migration adds the four topics with the charter's questions and the three proposed difficulty levels, and can be rolled back.
 - Nothing public is built yet.
 ```
 

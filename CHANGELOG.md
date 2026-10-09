@@ -3,7 +3,7 @@
 ## 2026-10-08 — Website stage 2: content model and admin
 
 - Added the content collections: articles, pages, topics, difficulty levels and media, plus site settings. The editor has Verse, Tradition and Practice blocks and images.
-- Only the owner publishes, one article at a time. Publishing records the approver, the time and exactly the published version; the save fails rather than record a wrong or empty one. A difficulty level is required, a level marked "needs prior reading" requires a prior reading that points at a published article, a Text / Story Study requires a source, and every image needs alt text.
+- Only the owner publishes, one article at a time. Publishing records the approver, the time and exactly the published version; the save fails rather than record a wrong or empty one. A difficulty level is required, a level marked "needs prior reading" requires a prior reading (one that points at a SageVani article must point at a published one), a Text / Story Study requires a source, and every image needs alt text.
 - The assistant only adds draft versions, through its API key. It is refused publishing, unpublishing, version restores, duplicating, bulk updates, deleting, the publication and locale flags, and autosave.
 - Article and page bodies can link only to articles and pages, by id, and show images only from media. The server enforces this. A body image whose media is gone stops publishing with "no longer exists".
 - Site settings: the featured article, featured picks (at most 3, each once) and Start here must be published articles. One unpublished later stays listed, isn't shown, and doesn't block saving. Navigation links must be paths on this site.
