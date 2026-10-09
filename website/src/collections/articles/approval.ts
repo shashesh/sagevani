@@ -21,6 +21,8 @@ type Approval = {
 type LiveRow = {
   _status?: 'draft' | 'published' | null
   approval?: Approval | null
+  emailRecipients?: number | null
+  emailSentAt?: string | null
   id: number | string
   publishedAt?: string | null
 }
@@ -67,10 +69,17 @@ export const recordApproval: CollectionBeforeChangeHook = async ({
   req,
 }) => {
   const live = originalDoc?.id ? await readLiveRow(req, collection.slug, originalDoc.id) : null
+  // Stage 4 writes the email record on the live row. Like the approval, it is never taken from
+  // the request or from a version snapshot.
+  const emailRecord = {
+    emailSentAt: live?.emailSentAt ?? null,
+    emailRecipients: live?.emailRecipients ?? null,
+  }
 
   if (!isPublishing(data, req)) {
     return {
       ...data,
+      ...emailRecord,
       publishedAt: live?.publishedAt ?? null,
       // An empty group, not null: Payload reads the group's fields, so null would crash it.
       approval: {
@@ -85,6 +94,7 @@ export const recordApproval: CollectionBeforeChangeHook = async ({
   const now = new Date().toISOString()
   return {
     ...data,
+    ...emailRecord,
     publishedAt: live?.publishedAt ?? now,
     approval: { approvedBy: req.user?.id, approvedAt: now, versionId: null },
   }

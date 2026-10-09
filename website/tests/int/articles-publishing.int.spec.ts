@@ -325,6 +325,47 @@ describe('articles: publishing', () => {
     })
   })
 
+  describe('derived fields', () => {
+    it('drop the old summary from the search text when the summary is cleared', async () => {
+      const article = await publish({ difficulty: beginner.id, summary: 'Zanzibar lanterns.' })
+      expect((await liveRow(article.id)).searchText).toContain('zanzibar')
+
+      await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { summary: null, _status: 'published' },
+        overrideAccess: false,
+        user: owner,
+      })
+      expect((await liveRow(article.id)).searchText).not.toContain('zanzibar')
+    })
+
+    it('keep the email record on the live row whatever a draft save sends', async () => {
+      const article = await publish({ difficulty: beginner.id })
+      await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: {
+          title: 'Draft',
+          emailRecipients: 99,
+          emailSentAt: '2020-01-01T00:00:00.000Z',
+        },
+        draft: true,
+        overrideAccess: true,
+      })
+      await payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { _status: 'published' },
+        overrideAccess: false,
+        user: owner,
+      })
+      const stored = await liveRow(article.id)
+      expect(stored.emailRecipients ?? null).toBeNull()
+      expect(stored.emailSentAt ?? null).toBeNull()
+    })
+  })
+
   describe('restoring a version as a draft', () => {
     // The Local API does not pass `draft` to restoreVersion, so these go through REST.
     const restoreAsDraft = async (versionId: number | string) => {
