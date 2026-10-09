@@ -4478,6 +4478,7 @@ import type { DifficultyLevel, User } from '@/payload-types'
 
 import {
   ASSISTANT_KEY,
+  PASSWORD,
   clearContent,
   createStaff,
   rest,
@@ -4770,6 +4771,55 @@ describe('pages and site settings', () => {
       ])
     })
 
+    it.each([
+      ['featuredArticle', 'abc'],
+      ['featuredArticle', true],
+      ['featuredArticle', { foo: 1 }],
+      ['featuredPicks', ['abc']],
+      ['startHere', ['abc']],
+      ['startHere', [{ foo: 1 }]],
+      ['startHere', [null]],
+      ['startHere', [[1]]],
+      ['startHere', [true]],
+      ['startHere', ['99999999999']],
+      ['startHere', [0]],
+    ])('refuse %s set to %j as not an article', async (field, value) => {
+      expect(await fieldErrors(saveSettings({ [field]: value }))).toEqual([
+        { path: field, message: 'Not a valid article.' },
+      ])
+    })
+
+    it('answer a malformed article id over REST with 400, not 500', async () => {
+      const { token } = await payload.login({
+        collection: 'users',
+        data: { email: 'owner@example.com', password: PASSWORD },
+      })
+      const response = await rest('POST', 'globals/siteSettings', {
+        token: token ?? '',
+        body: { featuredArticle: 'abc' },
+      })
+      expect(response.status).toBe(400)
+    })
+
+    it.each(['featuredPicks', 'startHere'])('list an article once in %s', async (field) => {
+      const live = await article('Live', 'published')
+      expect(await fieldErrors(saveSettings({ [field]: [live.id, live.id] }))).toEqual([
+        { path: field, message: 'Each article can be listed once.' },
+      ])
+    })
+
+    it('accept an article id sent as digits', async () => {
+      const live = await article('Live', 'published')
+      const settings = await saveSettings({ featuredArticle: String(live.id) })
+      const featured = settings.featuredArticle
+      expect(typeof featured === 'object' ? featured?.id : featured).toBe(live.id)
+    })
+
+    it('accept no featured article at all', async () => {
+      const settings = await saveSettings({ featuredArticle: null })
+      expect(settings.featuredArticle ?? null).toBeNull()
+    })
+
     it.each(['/\\evil.com', '//evil.com', 'javascript:alert(1)', 'https://example.com', '/a b'])(
       'refuse the navigation path %s',
       async (path) => {
@@ -4796,7 +4846,8 @@ describe('pages and site settings', () => {
       await unpublish({ id: live.id })
 
       const settings = await currentSettings()
-      expect(settings.featuredArticle).toBe(live.id)
+      const featured = settings.featuredArticle
+      expect(typeof featured === 'object' ? featured?.id : featured).toBe(live.id)
       expect(settings.featuredPicks).toEqual([live.id, other.id])
       expect(settings.startHere).toEqual([other.id, live.id])
       const saved = await saveSettings({ footerMotto: 'Still saves' })
@@ -4938,14 +4989,40 @@ const sitePath: TextFieldSingleValidation = (value) =>
     : 'Use a path on this site, starting with a single /, such as /articles.'
 
 const ONLY_PUBLISHED = 'Only published articles can be added here.'
+const NOT_AN_ARTICLE = 'Not a valid article.'
+const LISTED_ONCE = 'Each article can be listed once.'
 
-const idsOf = (value: unknown): string[] =>
-  (Array.isArray(value) ? value : value == null ? [] : [value]).map((entry) =>
-    String(typeof entry === 'object' && entry !== null ? (entry as { id?: unknown }).id : entry),
+// The largest value of the database's integer ids.
+const MAX_ID = 2147483647
+const MAX_ID_DIGITS = 10
+
+const isArticleId = (value: unknown): boolean => {
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0 && value <= MAX_ID
+  return (
+    typeof value === 'string' &&
+    /^\d+$/.test(value) &&
+    value.length <= MAX_ID_DIGITS &&
+    Number(value) > 0 &&
+    Number(value) <= MAX_ID
   )
+}
+
+/** The id of one raw entry (an id, or a populated object with one), or null when malformed. */
+const entryId = (entry: unknown): string | null => {
+  const id =
+    typeof entry === 'object' && entry !== null && !Array.isArray(entry)
+      ? (entry as { id?: unknown }).id
+      : entry
+  return isArticleId(id) ? String(id) : null
+}
+
+/** The raw entries of a field value: none, one, or a list. */
+const entriesOf = (value: unknown): unknown[] =>
+  Array.isArray(value) ? value : value == null ? [] : [value]
 
 /**
- * The validator for a field that lists articles. It checks additions only: an article already
+ * The validator for a field that lists articles. Malformed entries are refused before any query,
+ * so nothing odd reaches the database. After that it checks additions only: an article already
  * listed stays valid when it is later unpublished, so an unpublished entry never blocks a save.
  * Stage 3 shows published entries only. A custom validator replaces Payload's default one, which
  * would re-check the published-only filter on every save.
@@ -4953,11 +5030,15 @@ const idsOf = (value: unknown): string[] =>
 const publishedWhenAdded =
   (maxRows?: number): Validate =>
   async (value, { previousValue, req }) => {
-    const ids = idsOf(value)
-    if (maxRows !== undefined && ids.length > maxRows) return `Choose at most ${maxRows}.`
+    const entries = entriesOf(value)
+    const ids = entries.map(entryId)
+    if (ids.some((id) => id === null)) return NOT_AN_ARTICLE
+    const wanted = ids as string[]
+    if (maxRows !== undefined && wanted.length > maxRows) return `Choose at most ${maxRows}.`
+    if (new Set(wanted).size < wanted.length) return LISTED_ONCE
 
-    const before = new Set(idsOf(previousValue))
-    const added = ids.filter((id) => !before.has(id))
+    const before = new Set(entriesOf(previousValue).map(entryId))
+    const added = wanted.filter((id) => !before.has(id))
     if (added.length === 0) return true
 
     const { totalDocs } = await req.payload.count({
@@ -4966,7 +5047,7 @@ const publishedWhenAdded =
       overrideAccess: true,
       req,
     })
-    return totalDocs < new Set(added).size ? ONLY_PUBLISHED : true
+    return totalDocs < added.length ? ONLY_PUBLISHED : true
   }
 
 /** Curation and site-wide text (website design 5.3 and 8.6). */

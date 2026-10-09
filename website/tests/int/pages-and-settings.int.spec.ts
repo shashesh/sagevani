@@ -8,6 +8,7 @@ import type { DifficultyLevel, User } from '@/payload-types'
 
 import {
   ASSISTANT_KEY,
+  PASSWORD,
   clearContent,
   createStaff,
   rest,
@@ -300,6 +301,55 @@ describe('pages and site settings', () => {
       ])
     })
 
+    it.each([
+      ['featuredArticle', 'abc'],
+      ['featuredArticle', true],
+      ['featuredArticle', { foo: 1 }],
+      ['featuredPicks', ['abc']],
+      ['startHere', ['abc']],
+      ['startHere', [{ foo: 1 }]],
+      ['startHere', [null]],
+      ['startHere', [[1]]],
+      ['startHere', [true]],
+      ['startHere', ['99999999999']],
+      ['startHere', [0]],
+    ])('refuse %s set to %j as not an article', async (field, value) => {
+      expect(await fieldErrors(saveSettings({ [field]: value }))).toEqual([
+        { path: field, message: 'Not a valid article.' },
+      ])
+    })
+
+    it('answer a malformed article id over REST with 400, not 500', async () => {
+      const { token } = await payload.login({
+        collection: 'users',
+        data: { email: 'owner@example.com', password: PASSWORD },
+      })
+      const response = await rest('POST', 'globals/siteSettings', {
+        token: token ?? '',
+        body: { featuredArticle: 'abc' },
+      })
+      expect(response.status).toBe(400)
+    })
+
+    it.each(['featuredPicks', 'startHere'])('list an article once in %s', async (field) => {
+      const live = await article('Live', 'published')
+      expect(await fieldErrors(saveSettings({ [field]: [live.id, live.id] }))).toEqual([
+        { path: field, message: 'Each article can be listed once.' },
+      ])
+    })
+
+    it('accept an article id sent as digits', async () => {
+      const live = await article('Live', 'published')
+      const settings = await saveSettings({ featuredArticle: String(live.id) })
+      const featured = settings.featuredArticle
+      expect(typeof featured === 'object' ? featured?.id : featured).toBe(live.id)
+    })
+
+    it('accept no featured article at all', async () => {
+      const settings = await saveSettings({ featuredArticle: null })
+      expect(settings.featuredArticle ?? null).toBeNull()
+    })
+
     it.each(['/\\evil.com', '//evil.com', 'javascript:alert(1)', 'https://example.com', '/a b'])(
       'refuse the navigation path %s',
       async (path) => {
@@ -326,7 +376,8 @@ describe('pages and site settings', () => {
       await unpublish({ id: live.id })
 
       const settings = await currentSettings()
-      expect(settings.featuredArticle).toBe(live.id)
+      const featured = settings.featuredArticle
+      expect(typeof featured === 'object' ? featured?.id : featured).toBe(live.id)
       expect(settings.featuredPicks).toEqual([live.id, other.id])
       expect(settings.startHere).toEqual([other.id, live.id])
       const saved = await saveSettings({ footerMotto: 'Still saves' })

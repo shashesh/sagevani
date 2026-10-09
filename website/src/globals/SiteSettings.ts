@@ -14,14 +14,40 @@ const sitePath: TextFieldSingleValidation = (value) =>
     : 'Use a path on this site, starting with a single /, such as /articles.'
 
 const ONLY_PUBLISHED = 'Only published articles can be added here.'
+const NOT_AN_ARTICLE = 'Not a valid article.'
+const LISTED_ONCE = 'Each article can be listed once.'
 
-const idsOf = (value: unknown): string[] =>
-  (Array.isArray(value) ? value : value == null ? [] : [value]).map((entry) =>
-    String(typeof entry === 'object' && entry !== null ? (entry as { id?: unknown }).id : entry),
+// The largest value of the database's integer ids.
+const MAX_ID = 2147483647
+const MAX_ID_DIGITS = 10
+
+const isArticleId = (value: unknown): boolean => {
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0 && value <= MAX_ID
+  return (
+    typeof value === 'string' &&
+    /^\d+$/.test(value) &&
+    value.length <= MAX_ID_DIGITS &&
+    Number(value) > 0 &&
+    Number(value) <= MAX_ID
   )
+}
+
+/** The id of one raw entry (an id, or a populated object with one), or null when malformed. */
+const entryId = (entry: unknown): string | null => {
+  const id =
+    typeof entry === 'object' && entry !== null && !Array.isArray(entry)
+      ? (entry as { id?: unknown }).id
+      : entry
+  return isArticleId(id) ? String(id) : null
+}
+
+/** The raw entries of a field value: none, one, or a list. */
+const entriesOf = (value: unknown): unknown[] =>
+  Array.isArray(value) ? value : value == null ? [] : [value]
 
 /**
- * The validator for a field that lists articles. It checks additions only: an article already
+ * The validator for a field that lists articles. Malformed entries are refused before any query,
+ * so nothing odd reaches the database. After that it checks additions only: an article already
  * listed stays valid when it is later unpublished, so an unpublished entry never blocks a save.
  * Stage 3 shows published entries only. A custom validator replaces Payload's default one, which
  * would re-check the published-only filter on every save.
@@ -29,11 +55,15 @@ const idsOf = (value: unknown): string[] =>
 const publishedWhenAdded =
   (maxRows?: number): Validate =>
   async (value, { previousValue, req }) => {
-    const ids = idsOf(value)
-    if (maxRows !== undefined && ids.length > maxRows) return `Choose at most ${maxRows}.`
+    const entries = entriesOf(value)
+    const ids = entries.map(entryId)
+    if (ids.some((id) => id === null)) return NOT_AN_ARTICLE
+    const wanted = ids as string[]
+    if (maxRows !== undefined && wanted.length > maxRows) return `Choose at most ${maxRows}.`
+    if (new Set(wanted).size < wanted.length) return LISTED_ONCE
 
-    const before = new Set(idsOf(previousValue))
-    const added = ids.filter((id) => !before.has(id))
+    const before = new Set(entriesOf(previousValue).map(entryId))
+    const added = wanted.filter((id) => !before.has(id))
     if (added.length === 0) return true
 
     const { totalDocs } = await req.payload.count({
@@ -42,7 +72,7 @@ const publishedWhenAdded =
       overrideAccess: true,
       req,
     })
-    return totalDocs < new Set(added).size ? ONLY_PUBLISHED : true
+    return totalDocs < added.length ? ONLY_PUBLISHED : true
   }
 
 /** Curation and site-wide text (website design 5.3 and 8.6). */
