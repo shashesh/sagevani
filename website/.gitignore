@@ -48,3 +48,6 @@ next-env.d.ts
 
 # JapaDhyan packs, built by npm run japa:content:build
 /japa-catalog/dist/
+
+# Media uploaded in development and tests (Supabase Storage holds the real ones)
+/uploads/

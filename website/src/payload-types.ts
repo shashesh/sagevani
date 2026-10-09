@@ -68,6 +68,11 @@ export interface Config {
   blocks: {};
   collections: {
     users: User;
+    articles: Article;
+    pages: Page;
+    topics: Topic;
+    difficultyLevels: DifficultyLevel;
+    media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -76,6 +81,11 @@ export interface Config {
   collectionsJoins: {};
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
+    articles: ArticlesSelect<false> | ArticlesSelect<true>;
+    pages: PagesSelect<false> | PagesSelect<true>;
+    topics: TopicsSelect<false> | TopicsSelect<true>;
+    difficultyLevels: DifficultyLevelsSelect<false> | DifficultyLevelsSelect<true>;
+    media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -85,8 +95,12 @@ export interface Config {
     defaultIDType: number;
   };
   fallbackLocale: null;
-  globals: {};
-  globalsSelect: {};
+  globals: {
+    siteSettings: SiteSetting;
+  };
+  globalsSelect: {
+    siteSettings: SiteSettingsSelect<false> | SiteSettingsSelect<true>;
+  };
   locale: null;
   widgets: {
     collections: CollectionsWidget;
@@ -149,6 +163,223 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "articles".
+ */
+export interface Article {
+  id: number;
+  title: string;
+  /**
+   * One sentence, shown under the title and in lists.
+   */
+  summary?: string | null;
+  shape: 'vani-note' | 'inquiry-essay' | 'text-story-study' | 'practice-journal';
+  topics?: (number | Topic)[] | null;
+  /**
+   * Required to publish.
+   */
+  difficulty?: (number | null) | DifficultyLevel;
+  background?: string | null;
+  readFirst?:
+    | {
+        kind: 'internal' | 'external';
+        article?: (number | null) | Article;
+        title?: string | null;
+        author?: string | null;
+        url?: string | null;
+        reason?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  body?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  sources?:
+    | {
+        type: 'primary-text' | 'commentary' | 'academic' | 'living-tradition' | 'general';
+        work: string;
+        author?: string | null;
+        edition?: string | null;
+        location?: string | null;
+        url?: string | null;
+        accessedOn?: string | null;
+        claim?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Drawn on the generated cover; the title is used when empty.
+   */
+  coverTerm?: string | null;
+  /**
+   * Replaces the generated cover.
+   */
+  coverImage?: (number | null) | Media;
+  corrections?:
+    | {
+        date: string;
+        change: string;
+        showPublicNote?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  seo?: {
+    title?: string | null;
+    description?: string | null;
+  };
+  /**
+   * Never public, and never blocks publishing. Ticking these is not approval: publishing is.
+   */
+  editorialChecklist?: {
+    integrity?: {
+      quotesLocated?: boolean | null;
+      claimsEvidenced?: boolean | null;
+      contextChecked?: boolean | null;
+      schoolDistinguished?: boolean | null;
+      symbolismLabelled?: boolean | null;
+      sanskritChecked?: boolean | null;
+      layersDistinct?: boolean | null;
+      sufferingRespected?: boolean | null;
+      noOpenProblem?: boolean | null;
+    };
+    voice?: {
+      questionAlive?: boolean | null;
+      readAloud?: boolean | null;
+      quietTest?: boolean | null;
+      authorStands?: boolean | null;
+      difficultyIncluded?: boolean | null;
+      priorReadingIncluded?: boolean | null;
+      bylineSagevani?: boolean | null;
+      draftsExcluded?: boolean | null;
+    };
+    unresolvedIssues?: string | null;
+    requiredChanges?: string | null;
+    sourceRecords?: string | null;
+  };
+  /**
+   * Plain ASCII, made from the title when left empty.
+   */
+  slug?: string | null;
+  sendEmail?: boolean | null;
+  publishedAt?: string | null;
+  readingTime?: number | null;
+  searchText?: string | null;
+  approval?: {
+    approvedBy?: (number | null) | User;
+    approvedAt?: string | null;
+    versionId?: string | null;
+  };
+  emailSentAt?: string | null;
+  emailRecipients?: number | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "topics".
+ */
+export interface Topic {
+  id: number;
+  name: string;
+  /**
+   * Plain ASCII, made from the name when left empty.
+   */
+  slug?: string | null;
+  question: string;
+  intro?: string | null;
+  order: number;
+  coverTint: {
+    background: string;
+    text: string;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "difficultyLevels".
+ */
+export interface DifficultyLevel {
+  id: number;
+  name: string;
+  description?: string | null;
+  order: number;
+  /**
+   * Articles at this level need at least one suggested prior reading to publish.
+   */
+  needsPriorReading?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+  id: number;
+  alt: string;
+  creator: string;
+  source: string;
+  licence: string;
+  notes?: string | null;
+  prefix?: string | null;
+  _objectKey?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages".
+ */
+export interface Page {
+  id: number;
+  title: string;
+  body?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
+   * Plain ASCII, made from the title when left empty.
+   */
+  slug?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -170,10 +401,31 @@ export interface PayloadKv {
  */
 export interface PayloadLockedDocument {
   id: number;
-  document?: {
-    relationTo: 'users';
-    value: number | User;
-  } | null;
+  document?:
+    | ({
+        relationTo: 'users';
+        value: number | User;
+      } | null)
+    | ({
+        relationTo: 'articles';
+        value: number | Article;
+      } | null)
+    | ({
+        relationTo: 'pages';
+        value: number | Page;
+      } | null)
+    | ({
+        relationTo: 'topics';
+        value: number | Topic;
+      } | null)
+    | ({
+        relationTo: 'difficultyLevels';
+        value: number | DifficultyLevel;
+      } | null)
+    | ({
+        relationTo: 'media';
+        value: number | Media;
+      } | null);
   globalSlug?: string | null;
   user: {
     relationTo: 'users';
@@ -247,6 +499,175 @@ export interface UsersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "articles_select".
+ */
+export interface ArticlesSelect<T extends boolean = true> {
+  title?: T;
+  summary?: T;
+  shape?: T;
+  topics?: T;
+  difficulty?: T;
+  background?: T;
+  readFirst?:
+    | T
+    | {
+        kind?: T;
+        article?: T;
+        title?: T;
+        author?: T;
+        url?: T;
+        reason?: T;
+        id?: T;
+      };
+  body?: T;
+  sources?:
+    | T
+    | {
+        type?: T;
+        work?: T;
+        author?: T;
+        edition?: T;
+        location?: T;
+        url?: T;
+        accessedOn?: T;
+        claim?: T;
+        id?: T;
+      };
+  coverTerm?: T;
+  coverImage?: T;
+  corrections?:
+    | T
+    | {
+        date?: T;
+        change?: T;
+        showPublicNote?: T;
+        id?: T;
+      };
+  seo?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+      };
+  editorialChecklist?:
+    | T
+    | {
+        integrity?:
+          | T
+          | {
+              quotesLocated?: T;
+              claimsEvidenced?: T;
+              contextChecked?: T;
+              schoolDistinguished?: T;
+              symbolismLabelled?: T;
+              sanskritChecked?: T;
+              layersDistinct?: T;
+              sufferingRespected?: T;
+              noOpenProblem?: T;
+            };
+        voice?:
+          | T
+          | {
+              questionAlive?: T;
+              readAloud?: T;
+              quietTest?: T;
+              authorStands?: T;
+              difficultyIncluded?: T;
+              priorReadingIncluded?: T;
+              bylineSagevani?: T;
+              draftsExcluded?: T;
+            };
+        unresolvedIssues?: T;
+        requiredChanges?: T;
+        sourceRecords?: T;
+      };
+  slug?: T;
+  sendEmail?: T;
+  publishedAt?: T;
+  readingTime?: T;
+  searchText?: T;
+  approval?:
+    | T
+    | {
+        approvedBy?: T;
+        approvedAt?: T;
+        versionId?: T;
+      };
+  emailSentAt?: T;
+  emailRecipients?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages_select".
+ */
+export interface PagesSelect<T extends boolean = true> {
+  title?: T;
+  body?: T;
+  slug?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "topics_select".
+ */
+export interface TopicsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  question?: T;
+  intro?: T;
+  order?: T;
+  coverTint?:
+    | T
+    | {
+        background?: T;
+        text?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "difficultyLevels_select".
+ */
+export interface DifficultyLevelsSelect<T extends boolean = true> {
+  name?: T;
+  description?: T;
+  order?: T;
+  needsPriorReading?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media_select".
+ */
+export interface MediaSelect<T extends boolean = true> {
+  alt?: T;
+  creator?: T;
+  source?: T;
+  licence?: T;
+  notes?: T;
+  prefix?: T;
+  _objectKey?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
@@ -287,6 +708,51 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "siteSettings".
+ */
+export interface SiteSetting {
+  id: number;
+  tagline: string;
+  featuredArticle?: (number | null) | Article;
+  featuredPicks?: (number | Article)[] | null;
+  /**
+   * In reading order.
+   */
+  startHere?: (number | Article)[] | null;
+  navigation?:
+    | {
+        label: string;
+        path: string;
+        id?: string | null;
+      }[]
+    | null;
+  footerMotto?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "siteSettings_select".
+ */
+export interface SiteSettingsSelect<T extends boolean = true> {
+  tagline?: T;
+  featuredArticle?: T;
+  featuredPicks?: T;
+  startHere?: T;
+  navigation?:
+    | T
+    | {
+        label?: T;
+        path?: T;
+        id?: T;
+      };
+  footerMotto?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "collections_widget".
  */
 export interface CollectionsWidget {
@@ -294,6 +760,45 @@ export interface CollectionsWidget {
     [k: string]: unknown;
   };
   width: 'full';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "VerseBlock".
+ */
+export interface VerseBlock {
+  devanagari?: string | null;
+  transliteration: string;
+  translation: string;
+  textName: string;
+  /**
+   * The exact location, for example 2.47.
+   */
+  location: string;
+  translator: string;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'verse';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TraditionBlock".
+ */
+export interface TraditionBlock {
+  school: string;
+  interpretation: string;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'tradition';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PracticeBlock".
+ */
+export interface PracticeBlock {
+  invitation: string;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'practice';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
