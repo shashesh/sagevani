@@ -5419,7 +5419,7 @@ import { assertTestDatabase } from '../helpers/test-database'
  * so anything whose name doesn't end in "_test" is refused.
  */
 export const E2E_DATABASE_URL =
-  process.env.DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:54329/sagevani_test'
+  process.env.DATABASE_URL || 'postgres://postgres:postgres@127.0.0.1:54329/sagevani_test'
 
 assertTestDatabase(E2E_DATABASE_URL)
 ```
@@ -5529,7 +5529,8 @@ export default defineConfig({
   webServer: {
     command: `npm run dev -- --port ${PORT}`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse a server already on this port: it may use another database, and these tests write to it.
+    reuseExistingServer: false,
     timeout: 120_000,
     // Merged over process.env. Next doesn't override a variable that is already set with .env.
     env: { DATABASE_URL: E2E_DATABASE_URL },

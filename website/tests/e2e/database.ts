@@ -5,6 +5,6 @@ import { assertTestDatabase } from '../helpers/test-database'
  * so anything whose name doesn't end in "_test" is refused.
  */
 export const E2E_DATABASE_URL =
-  process.env.DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:54329/sagevani_test'
+  process.env.DATABASE_URL || 'postgres://postgres:postgres@127.0.0.1:54329/sagevani_test'
 
 assertTestDatabase(E2E_DATABASE_URL)
