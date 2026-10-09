@@ -44,10 +44,12 @@ async function readLiveRow(
 
 /**
  * Only the owner publishes. Runs first among the article's beforeChange hooks, so a publish
- * from anyone else gets this refusal, not a list of rule problems.
+ * from anyone else gets this refusal, not a list of rule problems. It reads the raw status, not
+ * isPublishing: the owner check must not depend on a context flag, so it also applies to a
+ * version restored as a draft (which only the owner can reach anyway).
  */
 export const onlyOwnerPublishes: CollectionBeforeChangeHook = ({ data, req }) => {
-  if (isPublishing(data, req) && (!req.user || !isOwner(req.user))) {
+  if (data._status === 'published' && (!req.user || !isOwner(req.user))) {
     throw new APIError(OWNER_PUBLISHES_MESSAGE, 403, undefined, true)
   }
   return data

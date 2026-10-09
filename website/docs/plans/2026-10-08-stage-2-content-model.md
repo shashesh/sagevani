@@ -5821,6 +5821,10 @@ Expected: a draft pull request URL. Don't request a Copilot review; the owner do
 - **Public pages read through the Local API with `overrideAccess: false` (or an explicit `select`),** so relationship population can never pull staff-only data such as an account or a draft into a page.
 - **Allowed links populate staff-only fields.** An article link in a body, and `readFirst`, read through the Local API with the default `overrideAccess` populate the linked article's staff-only fields (approval, checklist, email record). Public reads therefore use `overrideAccess: false`, or a depth or `select` limit, or `LinkFeature({ maxDepth: 0 })`.
 
+## Notes for stage 4
+
+- `recordApproval` re-applies `emailSentAt` and `emailRecipients` from the live row on every save, so stage 4 must write them through the database adapter (as `recordApprovedVersion` does), not through `payload.update`, or the next save would overwrite them.
+
 ## Self-review against the spec
 
 | Spec section | Task |
