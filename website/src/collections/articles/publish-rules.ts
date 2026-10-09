@@ -1,17 +1,9 @@
 import { ValidationError, type CollectionBeforeChangeHook, type PayloadRequest } from 'payload'
 
+import { idOf, isDatabaseId } from '../../lib/ids'
 import { publishProblems, type PublishCheckInput } from '../../lib/publish-rules'
 import { findUploadIds } from '../../lib/rich-text'
 import { isPublishing } from '../shared/publishing'
-
-const idOf = (value: unknown): number | string | null => {
-  if (typeof value === 'number' || typeof value === 'string') return value
-  if (typeof value === 'object' && value !== null && 'id' in value) {
-    const { id } = value as { id: unknown }
-    if (typeof id === 'number' || typeof id === 'string') return id
-  }
-  return null
-}
 
 async function difficultyOf(
   value: unknown,
@@ -30,18 +22,10 @@ async function difficultyOf(
   return level ? { needsPriorReading: level.needsPriorReading === true } : null
 }
 
-const MAX_MEDIA_ID = 2_147_483_647
-
-/** A media id as the database stores it: a whole number within int4, or its digits. Nothing else reaches a query. */
-const isMediaId = (id: number | string): boolean =>
-  typeof id === 'number'
-    ? Number.isSafeInteger(id) && id > 0 && id <= MAX_MEDIA_ID
-    : /^\d{1,10}$/.test(id) && Number(id) <= MAX_MEDIA_ID
-
 async function imagesOf(body: unknown, req: PayloadRequest): Promise<PublishCheckInput['images']> {
   const ids = findUploadIds(body)
   if (ids.length === 0) return []
-  const validIds = ids.filter(isMediaId)
+  const validIds = ids.filter(isDatabaseId)
   const { docs } =
     validIds.length === 0
       ? { docs: [] }
@@ -57,7 +41,7 @@ async function imagesOf(body: unknown, req: PayloadRequest): Promise<PublishChec
   return ids.map((id) => ({
     id,
     alt: altById.get(String(id)),
-    missing: !isMediaId(id) || !altById.has(String(id)),
+    missing: !isDatabaseId(id) || !altById.has(String(id)),
   }))
 }
 

@@ -1,6 +1,7 @@
 import type { GlobalConfig, TextFieldSingleValidation, Validate, Where } from 'payload'
 
 import { anyone, ownerOnly } from '../access/roles'
+import { isDatabaseId } from '../lib/ids'
 
 export const DEFAULT_TAGLINE = 'Where silence learns to speak.'
 
@@ -17,28 +18,13 @@ const ONLY_PUBLISHED = 'Only published articles can be added here.'
 const NOT_AN_ARTICLE = 'Not a valid article.'
 const LISTED_ONCE = 'Each article can be listed once.'
 
-// The largest value of the database's integer ids.
-const MAX_ID = 2147483647
-const MAX_ID_DIGITS = 10
-
-const isArticleId = (value: unknown): boolean => {
-  if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0 && value <= MAX_ID
-  return (
-    typeof value === 'string' &&
-    /^\d+$/.test(value) &&
-    value.length <= MAX_ID_DIGITS &&
-    Number(value) > 0 &&
-    Number(value) <= MAX_ID
-  )
-}
-
 /** The id of one raw entry (an id, or a populated object with one), or null when malformed. */
 const entryId = (entry: unknown): string | null => {
   const id =
     typeof entry === 'object' && entry !== null && !Array.isArray(entry)
       ? (entry as { id?: unknown }).id
       : entry
-  return isArticleId(id) ? String(id) : null
+  return isDatabaseId(id) ? String(id) : null
 }
 
 /** The raw entries of a field value: none, one, or a list. */

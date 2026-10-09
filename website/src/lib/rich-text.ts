@@ -2,6 +2,8 @@
  * Reads Payload's serialized Lexical content without the editor. Only the parts this module needs
  * are typed; everything is checked at runtime, so malformed content gives empty results.
  */
+import { idOf } from './ids'
+
 interface LexicalNode {
   type?: unknown
   text?: unknown
@@ -54,15 +56,6 @@ export function extractText(value: unknown): string {
 /** Words in any script: a letter or digit, then letters, combining marks, digits or apostrophes. */
 export function countWords(text: string): number {
   return text.match(/[\p{L}\p{N}][\p{L}\p{M}\p{N}'’]*/gu)?.length ?? 0
-}
-
-const idOf = (value: unknown): number | string | null => {
-  if (typeof value === 'number' || typeof value === 'string') return value
-  if (isNode(value)) {
-    const id = (value as { id?: unknown }).id
-    if (typeof id === 'number' || typeof id === 'string') return id
-  }
-  return null
 }
 
 /** The ids of images from a collection (`media` by default) anywhere in editor content, each once. */

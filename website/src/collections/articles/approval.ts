@@ -8,6 +8,7 @@ import {
 } from 'payload'
 
 import { isOwner } from '../../access/roles'
+import { idOf } from '../../lib/ids'
 import { isPublishing, RESTORING_AS_DRAFT } from '../shared/publishing'
 
 export const OWNER_PUBLISHES_MESSAGE = 'Only the owner publishes.'
@@ -26,9 +27,6 @@ type LiveRow = {
   id: number | string
   publishedAt?: string | null
 }
-
-const idOf = (value: Approval['approvedBy']): number | string | null =>
-  value !== null && typeof value === 'object' ? value.id : (value ?? null)
 
 /** The stored row, straight from the database: the only source of truth for the approval. */
 async function readLiveRow(
