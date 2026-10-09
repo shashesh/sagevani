@@ -65,7 +65,7 @@ export const Articles: CollectionConfig = {
     beforeOperation: [draftsOnlyForAssistant, refuseBulkPublish, autosaveOnlyForDrafts],
     beforeValidate: [deriveSlug('title')],
     beforeChange: [
-      bodyLinksOnlyTo(['articles']),
+      bodyLinksOnlyTo(['articles', 'pages']),
       checkSlug,
       deriveArticleText,
       enforcePublishRules,
