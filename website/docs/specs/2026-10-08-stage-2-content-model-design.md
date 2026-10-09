@@ -66,7 +66,7 @@ An upload with alt text, creator, source, and licence or permission, all require
 
 ### 3.6 siteSettings (global)
 
-The featured article, up to three featured picks, the Start-here list (ordered articles), navigation (label and path), the footer motto and the tagline, which defaults to "Where silence learns to speak." Only published articles can be featured or listed, and unpublishing an article removes it from the site settings. Navigation paths must stay on the site: a single leading `/`, with no `//`, backslash, whitespace or control characters.
+The featured article, up to three featured picks, the Start-here list (ordered articles), navigation (label and path), the footer motto and the tagline, which defaults to "Where silence learns to speak." An article added to the featured article, the featured picks or the Start-here list must be published. One unpublished later stays listed, is not shown, and does not block saving the settings; it returns to its place if it is published again. Navigation paths must stay on the site: a single leading `/`, with no `//`, backslash, whitespace or control characters.
 
 ## 4. Access and publishing
 

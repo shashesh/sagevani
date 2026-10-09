@@ -1,4 +1,4 @@
-import { getPayload, ValidationError, type Payload } from 'payload'
+import { getPayload, ValidationError, type Payload, type Where } from 'payload'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { BODY_LINKS_MESSAGE } from '@/collections/shared/body-links'
@@ -77,8 +77,10 @@ const publishedPage = (title: string) =>
     user: owner,
   })
 
-/** The field paths a refused save reports (a ValidationError's message is generic). */
-async function errorPaths(attempt: Promise<unknown>): Promise<string[]> {
+/** The paths and messages a refused save reports (a ValidationError's message is generic). */
+async function fieldErrors(
+  attempt: Promise<unknown>,
+): Promise<{ path: string; message: string }[]> {
   const error = await attempt.then(
     () => undefined,
     (thrown: unknown) => thrown,
@@ -86,8 +88,25 @@ async function errorPaths(attempt: Promise<unknown>): Promise<string[]> {
   if (!(error instanceof ValidationError)) {
     throw new Error(`Expected a ValidationError, got ${String(error)}`)
   }
-  return error.data.errors.map(({ path }) => path)
+  return error.data.errors.map(({ path, message }) => ({ path, message }))
 }
+
+const errorPaths = async (attempt: Promise<unknown>) =>
+  (await fieldErrors(attempt)).map(({ path }) => path)
+
+const ONLY_PUBLISHED = 'Only published articles can be added here.'
+
+const currentSettings = () =>
+  payload.findGlobal({ slug: 'siteSettings', depth: 0, overrideAccess: true })
+
+const unpublish = (target: { id: number } | { where: Where }) =>
+  payload.update({
+    collection: 'articles',
+    ...target,
+    data: { _status: 'draft' },
+    user: owner,
+    overrideAccess: false,
+  } as Parameters<typeof payload.update>[0])
 
 const saveSettings = (data: Record<string, unknown>) =>
   payload.updateGlobal({ slug: 'siteSettings', data, overrideAccess: false, user: owner })
@@ -239,8 +258,11 @@ describe('pages and site settings', () => {
 
     it('feature published articles only', async () => {
       const draft = await article('Draft', 'draft')
-      expect(await errorPaths(saveSettings({ featuredArticle: draft.id }))).toEqual([
-        'featuredArticle',
+      expect(await fieldErrors(saveSettings({ featuredArticle: draft.id }))).toEqual([
+        { path: 'featuredArticle', message: ONLY_PUBLISHED },
+      ])
+      expect(await fieldErrors(saveSettings({ featuredPicks: [draft.id] }))).toEqual([
+        { path: 'featuredPicks', message: ONLY_PUBLISHED },
       ])
 
       const live = await article('Live', 'published')
@@ -258,7 +280,9 @@ describe('pages and site settings', () => {
       const ids = await Promise.all(
         ['a', 'b', 'c', 'd'].map(async (t) => (await article(t, 'published')).id),
       )
-      expect(await errorPaths(saveSettings({ featuredPicks: ids }))).toEqual(['featuredPicks'])
+      expect(await fieldErrors(saveSettings({ featuredPicks: ids }))).toEqual([
+        { path: 'featuredPicks', message: 'Choose at most 3.' },
+      ])
     })
 
     it('accept three featured picks', async () => {
@@ -271,7 +295,9 @@ describe('pages and site settings', () => {
 
     it('list published articles only in start here', async () => {
       const draft = await article('Draft', 'draft')
-      expect(await errorPaths(saveSettings({ startHere: [draft.id] }))).toEqual(['startHere'])
+      expect(await fieldErrors(saveSettings({ startHere: [draft.id] }))).toEqual([
+        { path: 'startHere', message: ONLY_PUBLISHED },
+      ])
     })
 
     it.each(['/\\evil.com', '//evil.com', 'javascript:alert(1)', 'https://example.com', '/a b'])(
@@ -288,7 +314,7 @@ describe('pages and site settings', () => {
       expect(settings.navigation?.[0]?.path).toBe(path)
     })
 
-    it('drop an article from the settings when it is unpublished', async () => {
+    it('keep an article listed when it is unpublished, and never block a save', async () => {
       const live = await article('Live', 'published')
       const other = await article('Other', 'published')
       await saveSettings({
@@ -297,22 +323,12 @@ describe('pages and site settings', () => {
         startHere: [other.id, live.id],
       })
 
-      await payload.update({
-        collection: 'articles',
-        id: live.id,
-        data: { _status: 'draft' },
-        overrideAccess: false,
-        user: owner,
-      })
+      await unpublish({ id: live.id })
 
-      const settings = await payload.findGlobal({
-        slug: 'siteSettings',
-        depth: 0,
-        overrideAccess: true,
-      })
-      expect(settings.featuredArticle ?? null).toBeNull()
-      expect(settings.featuredPicks).toEqual([other.id])
-      expect(settings.startHere).toEqual([other.id])
+      const settings = await currentSettings()
+      expect(settings.featuredArticle).toBe(live.id)
+      expect(settings.featuredPicks).toEqual([live.id, other.id])
+      expect(settings.startHere).toEqual([other.id, live.id])
       const saved = await saveSettings({ footerMotto: 'Still saves' })
       expect(saved.footerMotto).toBe('Still saves')
     })
@@ -331,31 +347,36 @@ describe('pages and site settings', () => {
         startHere: ids,
       })
 
-      await payload.update({
-        collection: 'articles',
-        where: { id: { in: ids } },
-        data: { _status: 'draft' },
-        user: owner,
-        overrideAccess: false,
-      })
+      await unpublish({ where: { id: { in: ids } } })
 
       for (const id of ids) {
         const row = await payload.findByID({ collection: 'articles', id, overrideAccess: true })
         expect(row._status).toBe('draft')
       }
-      const settings = await payload.findGlobal({
-        slug: 'siteSettings',
-        depth: 0,
-        overrideAccess: true,
-      })
-      expect(settings.featuredArticle ?? null).toBeNull()
-      expect(settings.featuredPicks ?? []).toEqual([])
-      expect(settings.startHere ?? []).toEqual([])
+      const settings = await currentSettings()
+      expect(settings.featuredArticle).toBe(a.id)
+      expect(settings.featuredPicks).toEqual([b.id, c.id])
+      expect(settings.startHere).toEqual(ids)
       expect(settings.tagline).toBe('A tagline')
-      expect(settings.footerMotto).toBe('A motto')
       expect(settings.navigation?.map(({ label, path }) => ({ label, path }))).toEqual([
         { label: 'Here', path: '/articles' },
       ])
+      const saved = await saveSettings({ footerMotto: 'Still saves' })
+      expect(saved.footerMotto).toBe('Still saves')
+    })
+
+    it('keep an unpublished article in place for when it is published again', async () => {
+      const [a, b] = await Promise.all(['a', 'b'].map((title) => article(title, 'published')))
+      await saveSettings({ startHere: [a.id, b.id] })
+      await unpublish({ id: a.id })
+      await payload.update({
+        collection: 'articles',
+        id: a.id,
+        data: { _status: 'published' },
+        overrideAccess: false,
+        user: owner,
+      })
+      expect((await currentSettings()).startHere).toEqual([a.id, b.id])
     })
 
     it('let the owner delete the featured article', async () => {
