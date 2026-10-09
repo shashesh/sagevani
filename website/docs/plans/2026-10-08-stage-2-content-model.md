@@ -1280,7 +1280,7 @@ export const ASSISTANT_KEY = 'test-assistant-key-0123456789abcdef'
 export function rest(
   method: 'DELETE' | 'GET' | 'PATCH' | 'POST',
   route: string,
-  { key, body }: { key?: string; body?: unknown } = {},
+  { key, token, body }: { key?: string; token?: string; body?: unknown } = {},
 ): Promise<Response> {
   return handleEndpoints({
     config,
@@ -1289,6 +1289,7 @@ export function rest(
       headers: {
         'Content-Type': 'application/json',
         ...(key ? { Authorization: `users API-Key ${key}` } : {}),
+        ...(token ? { Authorization: `JWT ${token}` } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     }),

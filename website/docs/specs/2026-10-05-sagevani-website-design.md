@@ -2,7 +2,7 @@
 
 - Date: 2026-10-05
 - Status: Approved by the owner on 2026-10-05
-- Implementation plans: [stage 1 — foundation](../plans/2026-10-05-stage-1-foundation.md)
+- Implementation plans: [stage 1 — foundation](../plans/2026-10-05-stage-1-foundation.md), [stage 2 — content model and admin](../plans/2026-10-08-stage-2-content-model.md)
 - Stage designs: [stage 2 — content model and admin](2026-10-08-stage-2-content-model-design.md)
 - Decision record: [D-004](../../../docs/governance/decisions.md)
 - Scope: the public blog website and its admin, from first build to launch

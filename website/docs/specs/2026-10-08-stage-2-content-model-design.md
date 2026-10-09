@@ -3,7 +3,7 @@
 - Date: 2026-10-08
 - Status: Design approved by the owner, section by section, on 2026-10-08. Written spec awaiting the owner's review
 - Parent spec: [SageVani website design](2026-10-05-sagevani-website-design.md), sections 5, 8 and 16
-- Implementation plan: to be written in `../plans/` once this spec is approved
+- Implementation plan: [stage 2 — content model and admin](../plans/2026-10-08-stage-2-content-model.md)
 - Scope: stage 2 of the build order. The content collections, the editor blocks, publishing with its rules and approval record, and media storage
 
 ## 1. Summary
