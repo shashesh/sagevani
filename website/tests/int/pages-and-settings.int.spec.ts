@@ -240,6 +240,41 @@ describe('pages and site settings', () => {
       })
       expect(response.status).toBe(403)
     })
+
+    it('restoring an older version as a draft does not publish it', async () => {
+      const page = await publishedPage('First')
+      const { docs } = await payload.findVersions({
+        collection: 'pages',
+        where: { parent: { equals: page.id } },
+        limit: 1,
+        overrideAccess: true,
+      })
+      const version = docs[0]
+      await payload.update({
+        collection: 'pages',
+        id: page.id,
+        data: { title: 'Second', _status: 'published' },
+        overrideAccess: false,
+        user: owner,
+      })
+
+      const { token } = await payload.login({
+        collection: 'users',
+        data: { email: owner.email, password: PASSWORD },
+      })
+      const response = await rest('POST', `pages/versions/${version.id}?draft=true`, {
+        token: token ?? '',
+      })
+      expect(response.status).toBe(200)
+
+      const stored = await payload.findByID({
+        collection: 'pages',
+        id: page.id,
+        overrideAccess: true,
+      })
+      expect(stored.title).toBe('Second')
+      expect(stored._status).toBe('published')
+    })
   })
 
   describe('site settings', () => {

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import {
   APIError,
   type CollectionAfterChangeHook,
@@ -8,8 +10,8 @@ import {
 } from 'payload'
 
 import { isOwner } from '../../access/roles'
-import { idOf } from '../../lib/ids'
-import { isPublishing, RESTORING_AS_DRAFT } from '../shared/publishing'
+import { idOf, isDatabaseId } from '../../lib/ids'
+import { isPublishing } from '../shared/publishing'
 
 export const OWNER_PUBLISHES_MESSAGE = 'Only the owner publishes.'
 
@@ -90,23 +92,26 @@ export const recordApproval: CollectionBeforeChangeHook = async ({
     }
   }
 
-  // onlyOwnerPublishes has already run, first, so only the owner reaches here.
+  // onlyOwnerPublishes has already run, first, so only the owner reaches here. versionId holds a
+  // one-time random token until recordApprovedVersion replaces it with the real version id:
+  // approvedAt alone has only millisecond precision, so two publishes landing in the same
+  // millisecond could otherwise each pick up the other's version.
   const now = new Date().toISOString()
   return {
     ...data,
     ...emailRecord,
     publishedAt: live?.publishedAt ?? now,
-    approval: { approvedBy: req.user?.id, approvedAt: now, versionId: null },
+    approval: { approvedBy: req.user?.id, approvedAt: now, versionId: randomUUID() },
   }
 }
 
 /**
  * Runs after Payload has saved the version. It reads the live row, not the document it is
- * handed (which a `select` can trim), and finds the version this publish made by its published
- * status and its approval time. It never guesses by creation order. If that version is not
- * found it throws, which rolls the whole save back: a wrong or empty id is never recorded. The id
- * is written to the live row only, through the database adapter, so no extra version is created
- * and no hooks run again.
+ * handed (which a `select` can trim), and finds the version this publish made by the one-time
+ * token recordApproval wrote into versionId, which is unique to this publish. It never guesses by
+ * timestamp or creation order. If that version is not found it throws, which rolls the whole save
+ * back: a wrong or empty id is never recorded. The id is written to the live row only, through the
+ * database adapter, so no extra version is created and no hooks run again.
  */
 export const recordApprovedVersion: CollectionAfterChangeHook = async ({
   collection,
@@ -114,8 +119,9 @@ export const recordApprovedVersion: CollectionAfterChangeHook = async ({
   req,
 }) => {
   const live = await readLiveRow(req, collection.slug, doc.id)
-  const approvedAt = live?.approval?.approvedAt
-  if (!live || live._status !== 'published' || !approvedAt || live.approval?.versionId) return doc
+  const token = live?.approval?.versionId
+  // Once resolved, versionId is a database id, not the token: skip re-resolving it.
+  if (!live || live._status !== 'published' || !token || isDatabaseId(token)) return doc
 
   const { docs } = await req.payload.db.findVersions({
     collection: collection.slug,
@@ -123,10 +129,9 @@ export const recordApprovedVersion: CollectionAfterChangeHook = async ({
       and: [
         { parent: { equals: live.id } },
         { 'version._status': { equals: 'published' } },
-        { 'version.approval.approvedAt': { equals: approvedAt } },
+        { 'version.approval.versionId': { equals: token } },
       ],
     },
-    sort: '-id',
     limit: 1,
     pagination: false,
     req,
@@ -181,15 +186,5 @@ export const autosaveOnlyForDrafts: CollectionBeforeOperationHook = ({ args, ope
   if (autosaving && (write.draft !== true || write.data?._status === 'published')) {
     throw new APIError(AUTOSAVE_MESSAGE, 403, undefined, true)
   }
-  return args
-}
-
-/**
- * Restoring a version with `draft: true` is a draft save, though the old version's status is
- * still 'published'. Marks the request so the publishing hooks treat it as one.
- */
-export const markRestoreAsDraft: CollectionBeforeOperationHook = ({ args, operation, req }) => {
-  if (operation !== 'restoreVersion') return args
-  req.context[RESTORING_AS_DRAFT] = (args as { draft?: unknown }).draft === true
   return args
 }

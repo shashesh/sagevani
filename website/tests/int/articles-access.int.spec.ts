@@ -382,6 +382,26 @@ describe('articles: who can do what', () => {
         'B11: a relationship with an array relationTo',
         (o: User) => ({ type: 'relationship', relationTo: ['users'], value: o.id }),
       ],
+      [
+        'B12: an upload whose value is NaN',
+        () => ({ type: 'upload', relationTo: 'media', value: Number.NaN }),
+      ],
+      [
+        'B13: an upload whose value is a fraction',
+        () => ({ type: 'upload', relationTo: 'media', value: 1.5 }),
+      ],
+      [
+        'B14: an upload whose value is an oversized number',
+        () => ({ type: 'upload', relationTo: 'media', value: 99_999_999_999 }),
+      ],
+      [
+        'B15: an upload whose value is a non-numeric string',
+        () => ({ type: 'upload', relationTo: 'media', value: '1; drop' }),
+      ],
+      [
+        'B16: an upload whose value is an empty string',
+        () => ({ type: 'upload', relationTo: 'media', value: '' }),
+      ],
     ])('refuses %s', async (_name, makeNode) => {
       const response = await rest('POST', 'articles?draft=true', {
         key: ASSISTANT_KEY,

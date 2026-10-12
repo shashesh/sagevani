@@ -7,6 +7,7 @@ import {
   BULK_PUBLISH_MESSAGE,
   OWNER_PUBLISHES_MESSAGE,
 } from '@/collections/articles/approval'
+import { BODY_LINKS_MESSAGE } from '@/collections/shared/body-links'
 import { PUBLISH_MESSAGES } from '@/lib/publish-rules'
 import config from '@/payload.config'
 import type { Article, DifficultyLevel, User } from '@/payload-types'
@@ -589,15 +590,18 @@ describe('articles: publishing', () => {
 
     it('refuse a malformed image id without reaching the database', async () => {
       const malformed = richText(paragraph('Text.'), { ...image(1), value: '1; drop' })
+      // bodyLinksOnlyTo runs before enforcePublishRules and refuses this on every save, drafts
+      // included (website/src/collections/shared/body-links.ts), so it never reaches the
+      // publish-only "no longer exists" check this test used to name.
       expect(await problemsOf(publish({ difficulty: beginner.id, body: malformed }))).toEqual([
-        { path: 'body', message: PUBLISH_MESSAGES.imageMissing('1; drop') },
+        { path: 'body', message: BODY_LINKS_MESSAGE },
       ])
     })
 
     it('refuse an image id too large for the media table, without a database error', async () => {
       const huge = richText(paragraph('Text.'), image(99999999999))
       expect(await problemsOf(publish({ difficulty: beginner.id, body: huge }))).toEqual([
-        { path: 'body', message: PUBLISH_MESSAGES.imageMissing(99999999999) },
+        { path: 'body', message: BODY_LINKS_MESSAGE },
       ])
     })
 

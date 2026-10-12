@@ -1,5 +1,6 @@
 import { ValidationError, type CollectionBeforeChangeHook } from 'payload'
 
+import { isDatabaseId } from '../../lib/ids'
 import { findLinkedDocuments, type LinkedDocument } from '../../lib/rich-text'
 
 export const BODY_LINKS_MESSAGE =
@@ -7,14 +8,12 @@ export const BODY_LINKS_MESSAGE =
 
 const UPLOAD_COLLECTION = 'media'
 
-const isId = (value: unknown): boolean => typeof value === 'number' || typeof value === 'string'
-
 const isAllowed = (
   { kind, relationTo, value }: LinkedDocument,
   linkTo: readonly string[],
 ): boolean => {
   // The admin saves at depth 0, so it always sends ids. An object is a forged populated document.
-  if (typeof relationTo !== 'string' || !isId(value)) return false
+  if (typeof relationTo !== 'string' || !isDatabaseId(value)) return false
   if (kind === 'link') return linkTo.includes(relationTo)
   if (kind === 'upload') return relationTo === UPLOAD_COLLECTION
   return false

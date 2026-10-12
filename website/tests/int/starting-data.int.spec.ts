@@ -19,6 +19,11 @@ const runUp = async () => {
   await startingData().up({ db: payload.db.drizzle, payload, req } as never)
 }
 
+const runDown = async () => {
+  const req = await createLocalReq({}, payload)
+  await startingData().down({ db: payload.db.drizzle, payload, req } as never)
+}
+
 describe('starting data migration', () => {
   beforeAll(async () => {
     payload = await getPayload({ config: await config })
@@ -122,5 +127,75 @@ describe('starting data migration', () => {
       overrideAccess: true,
     })
     expect(again.intro).toBe('Owner’s words.')
+  })
+
+  describe('down', () => {
+    it('removes the rows it added', async () => {
+      await runUp()
+      await runDown()
+      expect((await payload.count({ collection: 'topics', overrideAccess: true })).totalDocs).toBe(
+        0,
+      )
+      expect(
+        (await payload.count({ collection: 'difficultyLevels', overrideAccess: true })).totalDocs,
+      ).toBe(0)
+    })
+
+    it('leaves behind a pre-existing row the up migration skipped', async () => {
+      const preexisting = await payload.create({
+        collection: 'topics',
+        data: {
+          name: 'Someone else’s Dharma',
+          slug: 'dharma',
+          question: 'A question the owner wrote.',
+          order: 1,
+          coverTint: { background: '#000000', text: '#ffffff' },
+        },
+        overrideAccess: true,
+      })
+
+      await runUp()
+      await runDown()
+
+      const stillThere = await payload.findByID({
+        collection: 'topics',
+        id: preexisting.id,
+        overrideAccess: true,
+      })
+      expect(stillThere.name).toBe('Someone else’s Dharma')
+      // The three topics this migration did add are gone; only the pre-existing one remains.
+      expect((await payload.count({ collection: 'topics', overrideAccess: true })).totalDocs).toBe(
+        1,
+      )
+    })
+
+    it('leaves behind a row whose seeded fields were edited after creation', async () => {
+      await runUp()
+      const dharma = (
+        await payload.find({
+          collection: 'topics',
+          where: { slug: { equals: 'dharma' } },
+          overrideAccess: true,
+        })
+      ).docs[0]
+      await payload.update({
+        collection: 'topics',
+        id: dharma.id,
+        data: { question: 'A rewritten question.' },
+        overrideAccess: true,
+      })
+
+      await runDown()
+
+      const stillThere = await payload.findByID({
+        collection: 'topics',
+        id: dharma.id,
+        overrideAccess: true,
+      })
+      expect(stillThere.question).toBe('A rewritten question.')
+      expect((await payload.count({ collection: 'topics', overrideAccess: true })).totalDocs).toBe(
+        1,
+      )
+    })
   })
 })

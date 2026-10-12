@@ -71,15 +71,39 @@ export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
   }
 }
 
+// The up migration skips a row whose slug or name already exists, leaving it untouched. Deleting
+// by slug or name alone on the way down would then delete a pre-existing row this migration never
+// created. Matching every field checked below keeps the delete to rows this migration could have
+// made: a pre-existing row, or one edited in the admin since, differs in at least one and survives.
 export async function down({ payload, req }: MigrateDownArgs): Promise<void> {
-  await payload.delete({
-    collection: 'topics',
-    where: { slug: { in: TOPICS.map((topic) => topic.slug) } },
-    req,
-  })
-  await payload.delete({
-    collection: 'difficultyLevels',
-    where: { name: { in: LEVELS.map((level) => level.name) } },
-    req,
-  })
+  for (const topic of TOPICS) {
+    await payload.delete({
+      collection: 'topics',
+      where: {
+        and: [
+          { slug: { equals: topic.slug } },
+          { name: { equals: topic.name } },
+          { question: { equals: topic.question } },
+          { order: { equals: topic.order } },
+          { 'coverTint.background': { equals: topic.coverTint.background } },
+          { 'coverTint.text': { equals: topic.coverTint.text } },
+        ],
+      },
+      req,
+    })
+  }
+  for (const level of LEVELS) {
+    await payload.delete({
+      collection: 'difficultyLevels',
+      where: {
+        and: [
+          { name: { equals: level.name } },
+          { description: { equals: level.description } },
+          { order: { equals: level.order } },
+          { needsPriorReading: { equals: level.needsPriorReading } },
+        ],
+      },
+      req,
+    })
+  }
 }

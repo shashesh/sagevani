@@ -3,10 +3,10 @@ import type { CollectionConfig, Where } from 'payload'
 import { nobody, ownerOnly, publishedOrStaff, staffOnly, staffOnlyField } from '../../access/roles'
 import { contentEditor } from '../../blocks/content-editor'
 import { bodyLinksOnlyTo } from '../shared/body-links'
+import { markRestoreAsDraft } from '../shared/publishing'
 import { checkSlug, deriveSlug, slugField } from '../shared/slug'
 import {
   autosaveOnlyForDrafts,
-  markRestoreAsDraft,
   onlyOwnerPublishes,
   recordApproval,
   recordApprovedVersion,
