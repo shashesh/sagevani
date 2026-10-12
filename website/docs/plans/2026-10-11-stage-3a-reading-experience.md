@@ -6127,7 +6127,10 @@ Expected: a draft pull request URL. Don't request a Copilot review; the owner do
 - **404 for unmatched URLs.** The app has two root layouts, `(frontend)` and `(payload)`, and no top-level not-found. A URL that matches no route therefore gets Next's built-in 404, with system fonts and no header or footer. `notFound()` inside a `(frontend)` route renders within the layout. 3b's 404 needs `global-not-found` (or an equivalent) for unmatched URLs.
 - **Errors in the root layout.** If the site-settings read fails on an uncached page, the throw happens in the root layout, which only a `global-error.tsx` can catch. Build one in 3b, with its own `<html>` and `<body>` in the site's design, or let the chrome read fall back to defaults.
 - **Pages.** `/[slug]` and `/start-here` reuse `PageView` and `toPageView`; add a `findPublishedPage(payload, slug)` beside them in `src/lib/site/pages.ts`, and a cached wrapper in `cached.ts`.
-- **Link previews.** `/og/[slug]` makes `articleMetadata` offer an image for every article: add it where `images` is undefined today.
+- **Link previews.**
+  - `/og/[slug]` makes `articleMetadata` offer an image for every article: add it where `images` is undefined today.
+  - Draw the term with the same `coverTermSize` classes, measured against the static Literata files Satori uses.
+  - A cover photo used as a link preview should be served at 1200 × 630 in JPEG. X doesn't accept AVIF, and the original may be large.
 - **When the refresh takes effect.**
   - `revalidateTag` only queues the tag. Next 16.3.8 applies it after the route handler returns, which is after Payload commits, so the refresh never runs before the save is stored.
   - On Netlify, `waitUntil` can send the response before the tag update finishes. A reload within a fraction of a second of the admin's toast may still show the old page. Check this on a deploy preview.
@@ -6206,3 +6209,14 @@ Each task's reviews changed the following. Where a code block earlier in this pl
   - **New-tab links** say so, to screen readers.
   - **Copy to approve:** " (done)", " (not done)" and " (opens in a new tab)" are placeholder copy for the owner (spec 9).
   - **Editor features:** whether the editor should offer only h2 to h4, and whether to keep check lists, are the owner's decisions, so `content-editor.ts` is unchanged.
+- **M. Task 13: the article page, corrected in the browser.**
+  - **Cover scaling:** the cover is an outer frame (`container-type: inline-size`, no padding) with an absolutely positioned inner `.drawn` that holds the 6cqw padding. Before, the padding sat on the container itself and resolved against the viewport, so covers grew past their cards on desktop.
+  - **Cover term sizes:** `coverTermSize` uses the longest word as well as the total length, measured against Literata italic. Short is up to 9 letters. Medium is up to 24 letters with no word over 14. A word is never split.
+  - **Wrapping:** `overflow-wrap: break-word` on `body`, so long Sanskrit compounds wrap anywhere on the page.
+  - **Byline:** its separators keep their spaces outside the hidden span, so screen readers hear the parts apart.
+  - **"More from":** explicit 1/2/3 columns (`minmax(0, 1fr)`) with matching `sizes`. Card photos are decorative, because the link carries the title.
+  - **Share row:** targets at least 24px, and new-tab hints on WhatsApp and X. It is hidden for a draft without a slug. "Copy link" keeps its label and shows its outcome in a visible `role="status"` message.
+  - **Sources:** tiers are plain `div`s, not landmark regions.
+  - **Reading progress:** the line follows body size changes through a `ResizeObserver`.
+  - **Copy to approve:** "Share", "Copy link", "Link copied", "Copy failed", "Supports:", "accessed" and "Correction," are placeholder copy for the owner (spec 9).
+  - **Card label row:** spec 6.1 says cards show the label row, but the approved mockup and this plan don't. The owner decides before 3b reuses the card.
