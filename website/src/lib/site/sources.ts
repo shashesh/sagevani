@@ -1,5 +1,5 @@
 import { SOURCE_TYPES } from '../../collections/articles/options'
-import { formatDate } from './format'
+import { formatDate, text } from './format'
 import { safeHref } from './links'
 
 export interface SourceInput {
@@ -29,8 +29,6 @@ export interface SourceGroup {
   label: string
   entries: SourceEntry[]
 }
-
-const text = (value: string | null | undefined): string | null => value?.trim() || null
 
 /** A source with no work yet (a draft saved mid-edit) is skipped. */
 const toEntries = (source: SourceInput): SourceEntry[] => {

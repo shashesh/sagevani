@@ -14,6 +14,9 @@ export function formatDate(value: string | null | undefined): string | null {
   return Number.isNaN(date.getTime()) ? null : DATE_FORMAT.format(date)
 }
 
+/** Trimmed text, or null when there is none. */
+export const text = (value: string | null | undefined): string | null => value?.trim() || null
+
 export const readingTimeLabel = (minutes: number): string => `${minutes} min read`
 
 /** The shape's label, such as "Inquiry Essay"; null for an unknown or missing shape. */

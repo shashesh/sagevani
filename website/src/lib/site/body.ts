@@ -18,6 +18,12 @@ export function uniqueIds(values: readonly unknown[]): number[] {
   ]
 }
 
+/** The key form of a well-formed id ("03" and 3 are both "3"), or null. The same rule as uniqueIds. */
+function normalId(value: unknown): string | null {
+  const id = idOf(value)
+  return isDatabaseId(id) ? String(Number(id)) : null
+}
+
 export interface BodyReferences {
   articles: number[]
   pages: number[]
@@ -68,7 +74,7 @@ export function bodyLinkHref(fields: unknown, links: Record<string, string>): st
     relationTo?: unknown
     value?: unknown
   }
-  const id = idOf(value)
+  const id = normalId(value)
   return typeof relationTo === 'string' && id !== null
     ? (links[docKey(relationTo, id)] ?? null)
     : null
@@ -80,6 +86,6 @@ export function bodyImage(
   images: Record<string, PublicImage>,
 ): PublicImage | null {
   if (node.relationTo !== 'media') return null
-  const id = idOf(node.value)
-  return id === null ? null : (images[String(id)] ?? null)
+  const id = normalId(node.value)
+  return id === null ? null : (images[id] ?? null)
 }

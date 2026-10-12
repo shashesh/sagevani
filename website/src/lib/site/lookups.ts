@@ -5,9 +5,6 @@ import { mediaStorageSettings } from '../media-storage'
 import { imageSrcFor } from './local-media'
 import type { PublicImage, TopicRef } from './types'
 
-/** Enough rows for the owner-edited lists: a handful of topics and levels. */
-const ALL = 100
-
 // Every read here but publicImages is anonymous: overrideAccess false and no user, so the
 // collections' access rules decide what comes back (stage 3 design, 4.2).
 
@@ -18,7 +15,7 @@ export async function allTopics(payload: Payload): Promise<TopicRef[]> {
     overrideAccess: false,
     depth: 0,
     sort: 'order',
-    limit: ALL,
+    pagination: false,
     select: { name: true, slug: true, question: true, coverTint: true },
   })
   return docs.map((topic) => ({
@@ -36,7 +33,7 @@ export async function levelNames(payload: Payload): Promise<Record<string, strin
     collection: 'difficultyLevels',
     overrideAccess: false,
     depth: 0,
-    limit: ALL,
+    pagination: false,
     select: { name: true },
   })
   return Object.fromEntries(docs.map((level) => [String(level.id), level.name]))
@@ -53,7 +50,7 @@ export async function publishedArticles(
     overrideAccess: false,
     depth: 0,
     where: { id: { in: [...ids] } },
-    limit: ids.length,
+    pagination: false,
     select: { slug: true, title: true },
   })
   return Object.fromEntries(
@@ -74,7 +71,7 @@ export async function publishedPageSlugs(
     overrideAccess: false,
     depth: 0,
     where: { id: { in: [...ids] } },
-    limit: ids.length,
+    pagination: false,
     select: { slug: true },
   })
   return Object.fromEntries(
@@ -85,7 +82,7 @@ export async function publishedPageSlugs(
 /**
  * Images by id, with only what a page needs. Media is staff-only (stage 2 design, 4.1), so an
  * anonymous read returns nothing. This is the one public read that overrides access: the ids
- * come from published content, and nothing but these fields is read (stage 3 design, 4.2).
+ * come from content (a preview's come from a draft), and nothing but these fields is read (stage 3 design, 4.2).
  */
 export async function publicImages(
   payload: Payload,
@@ -98,7 +95,7 @@ export async function publicImages(
     overrideAccess: true,
     depth: 0,
     where: { id: { in: [...ids] } },
-    limit: ids.length,
+    pagination: false,
     select: { filename: true, prefix: true, alt: true, width: true, height: true },
   })
   return Object.fromEntries(

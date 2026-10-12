@@ -8,11 +8,11 @@ import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { DEFAULT_TAGLINE } from '@/globals/SiteSettings'
-import { findPublishedArticle, findRelatedArticles } from '@/lib/site/articles'
+import { ARTICLE_SELECT, findPublishedArticle, findRelatedArticles } from '@/lib/site/articles'
 import { findSiteChrome } from '@/lib/site/chrome'
 import { findArticlePreview, findPagePreview } from '@/lib/site/preview'
 import config from '@/payload.config'
-import type { Article, DifficultyLevel, Media, Topic, User } from '@/payload-types'
+import type { Article, DifficultyLevel, Media, Page, Topic, User } from '@/payload-types'
 
 import { clearContent, createStaff } from '../helpers/content'
 import { image, linkTo, paragraph, richText } from '../helpers/lexical'
@@ -25,6 +25,8 @@ let photo: Media
 let linked: Article
 let later: Article
 let main: Article
+let livePage: Page
+let draftPage: Page
 
 type ArticleData = Partial<RequiredDataFromCollectionSlug<'articles'>> & { title: string }
 
@@ -101,6 +103,22 @@ describe('the public data layer', () => {
       draft: true,
       overrideAccess: true,
     })
+    livePage = await payload.create({
+      collection: 'pages',
+      data: {
+        title: 'Live page',
+        slug: 'live-page',
+        body: richText(paragraph('Live.')),
+        _status: 'published',
+      },
+      overrideAccess: true,
+    })
+    draftPage = await payload.create({
+      collection: 'pages',
+      data: { title: 'Draft page', slug: 'draft-page', body: richText(paragraph('Draft.')) },
+      draft: true,
+      overrideAccess: true,
+    })
     main = await publish({
       title: 'The main article',
       slug: 'main',
@@ -124,6 +142,8 @@ describe('the public data layer', () => {
         paragraph('Opening.'),
         linkTo('to the linked article', 'articles', linked.id),
         linkTo('to a draft', 'articles', draftOnly.id),
+        linkTo('to a live page', 'pages', livePage.id),
+        linkTo('to a draft page', 'pages', draftPage.id),
         image(photo.id),
       ),
       sources: [
@@ -206,7 +226,10 @@ describe('the public data layer', () => {
 
     it('links only to published documents', async () => {
       const view = await findPublishedArticle(payload, 'main')
-      expect(view?.bodyContext.links).toEqual({ [`articles:${linked.id}`]: '/articles/linked' })
+      expect(view?.bodyContext.links).toEqual({
+        [`articles:${linked.id}`]: '/articles/linked',
+        [`pages:${livePage.id}`]: '/live-page',
+      })
     })
 
     it('gives the cover and body images with only what a page needs', async () => {
@@ -243,6 +266,19 @@ describe('the public data layer', () => {
     })
   })
 
+  describe('the raw article read', () => {
+    it('returns exactly the selected fields to an anonymous reader', async () => {
+      const { docs } = await payload.find({
+        collection: 'articles',
+        overrideAccess: false,
+        depth: 0,
+        where: { slug: { equals: 'main' } },
+        select: ARTICLE_SELECT,
+      })
+      expect(Object.keys(docs[0]).sort()).toEqual([...Object.keys(ARTICLE_SELECT), 'id'].sort())
+    })
+  })
+
   describe('findRelatedArticles', () => {
     it('lists other published articles from the topic, newest first, at most three', async () => {
       for (const n of [1, 2, 3, 4]) {
@@ -254,8 +290,28 @@ describe('the public data layer', () => {
         draft: true,
         overrideAccess: true,
       })
+      const otherTopic = await payload.create({
+        collection: 'topics',
+        data: {
+          name: 'Karma',
+          slug: 'karma',
+          question: 'What follows from what I do?',
+          order: 2,
+          coverTint: { background: '#d5e0c8', text: '#2c3a22' },
+        },
+        overrideAccess: true,
+      })
+      await publish({ title: 'Newer, other topic', slug: 'other-topic', topics: [otherTopic.id] })
+      await publish({ title: 'Newer, no topic', slug: 'no-topic' })
       const related = await findRelatedArticles(payload, topic.id, main.id)
       expect(related.map(({ slug }) => slug)).toEqual(['related-4', 'related-3', 'related-2'])
+      const everyRelated = (await findRelatedArticles(payload, topic.id, main.id, 10)).map(
+        ({ slug }) => slug,
+      )
+      expect(everyRelated).toEqual(['related-4', 'related-3', 'related-2', 'related-1', 'linked'])
+      expect(everyRelated).not.toContain('main')
+      const withoutNewest = await findRelatedArticles(payload, topic.id, related[0].id, 10)
+      expect(withoutNewest.map(({ id }) => id)).not.toContain(related[0].id)
       expect(related[0]).toMatchObject({
         title: 'Related 4',
         difficulty: 'Beginner',
@@ -302,7 +358,10 @@ describe('the public data layer', () => {
       })
       const view = await findArticlePreview(payload, String(main.id), asViewer(owner))
       expect(view?.title).toBe('A newer draft title')
-      expect(view?.bodyContext.links).toEqual({ [`articles:${linked.id}`]: '/articles/linked' })
+      expect(view?.bodyContext.links).toEqual({
+        [`articles:${linked.id}`]: '/articles/linked',
+        [`pages:${livePage.id}`]: '/live-page',
+      })
     })
 
     it('skip a correction a draft has not finished', async () => {

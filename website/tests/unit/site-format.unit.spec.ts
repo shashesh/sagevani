@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatDate, paragraphsOf, readingTimeLabel, shapeLabel } from '@/lib/site/format'
+import { formatDate, paragraphsOf, readingTimeLabel, shapeLabel, text } from '@/lib/site/format'
 import { isSlug } from '@/lib/site/params'
 import { PREVIEW_BREAKPOINTS, previewPath } from '@/lib/site/preview-path'
 import { readingProgress } from '@/lib/site/progress'
@@ -105,5 +105,15 @@ describe('readingProgress', () => {
 
   it('is 1 when the whole body fits in the window', () => {
     expect(readingProgress(100, 500, 800)).toBe(1)
+  })
+})
+
+describe('text', () => {
+  it('trims, and gives null for nothing or only spaces', () => {
+    expect(text('  a motto ')).toBe('a motto')
+    expect(text('   ')).toBeNull()
+    expect(text('')).toBeNull()
+    expect(text(null)).toBeNull()
+    expect(text(undefined)).toBeNull()
   })
 })

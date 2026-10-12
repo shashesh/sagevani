@@ -4,7 +4,7 @@ import type { Article } from '../../payload-types'
 import { idOf } from '../ids'
 import { bodyReferences, linkTargets, uniqueIds } from './body'
 import { coverFor } from './cover'
-import { formatDate, shapeLabel } from './format'
+import { formatDate, shapeLabel, text } from './format'
 import { safeHref } from './links'
 import {
   allTopics,
@@ -55,20 +55,19 @@ export const ARTICLE_SELECT = {
 export type ArticleRow = Pick<Article, 'id'> & Partial<Pick<Article, keyof typeof ARTICLE_SELECT>>
 
 interface Lookups {
-  topics: TopicRef[]
+  topics: Map<string, TopicRef>
   levels: Record<string, string>
   images: Record<string, PublicImage>
 }
 
-const text = (value: string | null | undefined): string | null => value?.trim() || null
+const topicsById = (topics: readonly TopicRef[]): Map<string, TopicRef> =>
+  new Map(topics.map((topic) => [String(topic.id), topic]))
 
 function toCard(row: ArticleRow, { topics, levels, images }: Lookups): ArticleCard {
-  const byId = new Map(topics.map((topic) => [String(topic.id), topic]))
-  // The article's own order of topics: the first gives the cover tint and "More from".
-  const articleTopics = (row.topics ?? []).flatMap((value) => {
-    const topic = byId.get(String(idOf(value)))
-    return topic ? [topic] : []
-  })
+  // The article's own order of topics, each once: the first gives the cover tint and "More from".
+  const articleTopics = [
+    ...new Set((row.topics ?? []).map((value) => topics.get(String(idOf(value))))),
+  ].filter((topic): topic is TopicRef => topic !== undefined)
   const coverId = idOf(row.coverImage)
   const difficultyId = idOf(row.difficulty)
   const title = text(row.title) ?? UNTITLED
@@ -101,7 +100,7 @@ export async function toArticleCards(
     levelNames(payload),
     publicImages(payload, uniqueIds(rows.map((row) => row.coverImage))),
   ])
-  return rows.map((row) => toCard(row, { topics, levels, images }))
+  return rows.map((row) => toCard(row, { topics: topicsById(topics), levels, images }))
 }
 
 function priorReadings(
@@ -151,7 +150,7 @@ export async function toArticleView(payload: Payload, row: ArticleRow): Promise<
     publishedPageSlugs(payload, refs.pages),
   ])
   return {
-    ...toCard(row, { topics, levels, images }),
+    ...toCard(row, { topics: topicsById(topics), levels, images }),
     background: text(row.background),
     readFirst: priorReadings(row.readFirst, articles),
     body: row.body ?? null,
@@ -172,6 +171,7 @@ export async function findPublishedArticle(
     overrideAccess: false,
     depth: 0,
     where: { slug: { equals: slug } },
+    pagination: false,
     limit: 1,
     select: ARTICLE_SELECT,
   })
@@ -191,6 +191,7 @@ export async function findRelatedArticles(
     depth: 0,
     where: { and: [{ topics: { in: [topicId] } }, { id: { not_equals: excludeId } }] },
     sort: ['-publishedAt', '-id'],
+    pagination: false,
     limit,
     select: ARTICLE_CARD_SELECT,
   })

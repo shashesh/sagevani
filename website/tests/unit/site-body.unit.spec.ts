@@ -71,6 +71,12 @@ describe('bodyLinkHref', () => {
     expect(bodyLinkHref({ linkType: 'custom', url: 'javascript:alert(1)' }, links)).toBeNull()
   })
 
+  it('reads an id the way uniqueIds does, so "03" finds document 3', () => {
+    expect(
+      bodyLinkHref({ linkType: 'internal', doc: { relationTo: 'articles', value: '03' } }, links),
+    ).toBe('/articles/maya')
+  })
+
   it('gives null for malformed fields', () => {
     expect(bodyLinkHref(null, links)).toBeNull()
     expect(bodyLinkHref({ linkType: 'internal' }, links)).toBeNull()
@@ -84,6 +90,10 @@ describe('bodyImage', () => {
   it('gives an image the page may show', () => {
     expect(bodyImage({ relationTo: 'media', value: 7 }, images)).toBe(IMAGE)
     expect(bodyImage({ relationTo: 'media', value: { id: 7 } }, images)).toBe(IMAGE)
+  })
+
+  it('reads an id the way uniqueIds does, so "07" finds image 7', () => {
+    expect(bodyImage({ relationTo: 'media', value: '07' }, images)).toBe(IMAGE)
   })
 
   it('gives null for an image that is gone or from another collection', () => {
