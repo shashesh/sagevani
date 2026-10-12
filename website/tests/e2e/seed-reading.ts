@@ -124,7 +124,7 @@ export async function seedReading(payload: Payload, owner: User): Promise<void> 
     ],
   })
 
-  // The pages below have no topic, so they stay out of the article's "More from Dharma" row,
+  // The articles below have no topic, so they stay out of the article's "More from Dharma" row,
   // which lists only the three newest.
   // One unbroken word in the title, to check that nothing scrolls sideways on a phone.
   await publish({

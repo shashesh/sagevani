@@ -23,15 +23,26 @@ export default async function globalSetup(): Promise<void> {
   await saveSettingsThroughTheSite()
 }
 
+const RETRY_WAIT_MS = 3_000
+
+/** A cold compile can answer an /api call with a 5xx; try once more after a short wait. */
+async function fetchWithOneRetry(url: string, init: RequestInit): Promise<Response> {
+  const first = await fetch(url, init)
+  if (first.status < 500) return first
+  await new Promise((resolve) => setTimeout(resolve, RETRY_WAIT_MS))
+  return fetch(url, init)
+}
+
 async function saveSettingsThroughTheSite(): Promise<void> {
-  const login = await fetch(`${E2E_BASE_URL}/api/users/login`, {
+  const login = await fetchWithOneRetry(`${E2E_BASE_URL}/api/users/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: E2E_OWNER.email, password: E2E_OWNER.password }),
   })
   if (!login.ok) throw new Error(`The test owner could not sign in: ${login.status}`)
   const { token } = (await login.json()) as { token?: string }
-  const saved = await fetch(`${E2E_BASE_URL}/api/globals/siteSettings`, {
+  if (!token) throw new Error('The sign-in answered without a token')
+  const saved = await fetchWithOneRetry(`${E2E_BASE_URL}/api/globals/siteSettings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `JWT ${token}` },
     body: JSON.stringify({ navigation: E2E_NAVIGATION }),

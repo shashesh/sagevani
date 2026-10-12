@@ -73,6 +73,21 @@ test.describe('reading an article', () => {
     await expect(more.getByRole('link', { name: 'A test article to read' })).toHaveCount(0)
 
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/)
+
+    // Top edges, from the title to the "More from" row, only ever go down the page.
+    const tops = await Promise.all(
+      [
+        head.getByRole('heading', { level: 1 }),
+        head.locator('xpath=following-sibling::*[1]'),
+        before,
+        body,
+        page.getByRole('region', { name: 'Share this article' }),
+        page.getByRole('heading', { name: 'Sources', level: 2 }),
+        page.getByText('Correction, 9 October 2026.'),
+        more,
+      ].map(async (locator) => (await locator.boundingBox())?.y ?? Number.NaN),
+    )
+    expect(tops.every((top, index) => index === 0 || top > tops[index - 1]!)).toBe(true)
   })
 
   test('loads the Devanagari font only where a verse needs it', async ({ page }) => {
@@ -160,6 +175,8 @@ test.describe('reading an article', () => {
         await page.setViewportSize({ width, height: 900 })
         await page.goto('/articles/e2e-reading')
         await page.evaluate(() => document.fonts.ready)
+        // Next's dev-tools button would sit on top of the content.
+        await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' })
         // Saved for review as a CI artifact; not compared pixel by pixel (spec 10).
         await page.screenshot({
           path: testInfo.outputPath(`article-${colorScheme}-${width}.png`),

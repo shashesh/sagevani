@@ -1,5 +1,5 @@
 // Run by global-setup.ts before the browser tests. It empties the test database, then creates the
-// owner and the one difficulty level the tests use, and seeds the reading content
+// owner and the two difficulty levels the tests use (Advanced here, Beginner in seed-reading.ts), and seeds the reading content
 // (seed-reading.ts). It refuses any database whose name does not end in "_test".
 import 'dotenv/config'
 import { getPayload } from 'payload'

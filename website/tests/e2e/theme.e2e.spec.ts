@@ -24,11 +24,25 @@ test.describe('the theme', () => {
     await expect(page.getByRole('button', { name: 'Switch to dark theme' })).toBeVisible()
   })
 
-  test('applies the stored choice from a script in the head, before the page renders', async ({
-    request,
-  }) => {
-    const html = await (await request.get('/articles/e2e-related-one')).text()
-    const head = html.slice(0, html.indexOf('</head>'))
-    expect(head).toContain("localStorage.getItem('sagevani-theme')")
+  test('puts the stored choice on <html> before <body> exists', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('sagevani-theme', 'light')
+      } catch {}
+      const probe = { themeWhenBodyAppeared: 'unset' }
+      Object.assign(window, { __themeProbe: probe })
+      new MutationObserver((_, observer) => {
+        if (document.body) {
+          probe.themeWhenBodyAppeared = document.documentElement.dataset.theme ?? 'none'
+          observer.disconnect()
+        }
+      }).observe(document, { childList: true, subtree: true })
+    })
+    await page.goto('/articles/e2e-related-one')
+    const probe = await page.evaluate(
+      () => (window as unknown as { __themeProbe: { themeWhenBodyAppeared: string } }).__themeProbe,
+    )
+    expect(probe.themeWhenBodyAppeared).toBe('light')
   })
 })

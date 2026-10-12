@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test'
 
 import { publishedArticleId, signInAsOwner } from './sign-in'
 
+// They change seeded data, so a retry can't start clean.
+test.describe.configure({ retries: 0 })
+
 test('a draft leaves the public page alone, and publishing updates it', async ({ page }) => {
   test.setTimeout(180_000)
   const reader = await page.context().newPage()

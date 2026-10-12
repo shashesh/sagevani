@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test'
 
 import { publishedArticleId, signInAsOwner } from './sign-in'
 
+// They change seeded data, so a retry can't start clean.
+test.describe.configure({ retries: 0 })
+
 test.describe('live preview', () => {
   test.setTimeout(180_000)
 
@@ -36,7 +39,11 @@ test.describe('live preview', () => {
 
     // The admin remembers an open preview for the owner, and its narrow editor hides the sidebar
     // fields the publish test reads. Close it again.
+    const saved = page.waitForResponse(
+      (r) => r.url().includes('/api/payload-preferences/') && r.request().method() === 'POST',
+    )
     await page.getByRole('button', { name: 'Live Preview' }).click()
+    await saved
     await expect(page.locator('iframe')).toBeHidden()
   })
 })
