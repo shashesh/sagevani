@@ -8,6 +8,7 @@ describe('safeHref', () => {
     for (const value of [
       '/articles/maya',
       '/',
+      '/a?b#c',
       'https://example.org/a?b=c#d',
       'http://example.org',
       'mailto:someone@example.org',
@@ -28,6 +29,10 @@ describe('safeHref', () => {
       'data:text/html,<p>x</p>',
       'ftp://example.org',
       '//evil.example',
+      '/\t/evil.example',
+      '/\n/evil.example',
+      '/\r\n/evil.example',
+      '/\t\\evil.example',
       '/\\evil.example',
       'relative/path',
       '',
