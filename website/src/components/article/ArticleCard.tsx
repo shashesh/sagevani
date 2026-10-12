@@ -1,7 +1,7 @@
 import Link from 'next/link'
 
 import { readingTimeLabel } from '@/lib/site/format'
-import { articlePath } from '@/lib/site/metadata'
+import { articlePath } from '@/lib/site/paths'
 import type { ArticleCard as Card } from '@/lib/site/types'
 
 import styles from './ArticleCard.module.css'

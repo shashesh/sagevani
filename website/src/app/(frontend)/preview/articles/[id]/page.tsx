@@ -8,7 +8,7 @@ import { ArticleView } from '@/components/article/ArticleView'
 import { LivePreviewRefresh } from '@/components/preview/LivePreviewRefresh'
 import { findRelatedArticles } from '@/lib/site/articles'
 import { siteConfig } from '@/lib/site/config'
-import { articlePath } from '@/lib/site/metadata'
+import { articlePath } from '@/lib/site/paths'
 import { findArticlePreview } from '@/lib/site/preview'
 
 export const metadata: Metadata = { title: 'Preview', robots: { index: false, follow: false } }

@@ -354,6 +354,22 @@ describe('the public data layer', () => {
         navigation: [{ label: 'Articles', path: '/articles' }],
       })
     })
+
+    it('drops a navigation path that is not a site path, even one written around validation', async () => {
+      await payload.db.updateGlobal({
+        slug: 'siteSettings',
+        data: {
+          navigation: [
+            { id: 'a', label: 'Articles', path: '/articles' },
+            { id: 'b', label: 'Elsewhere', path: 'https://evil.example/' },
+            { id: 'c', label: 'Script', path: 'javascript:alert(1)' },
+            { id: 'd', label: 'Slashes', path: String.raw`/\evil.example` },
+          ],
+        },
+      })
+      const { navigation } = await findSiteChrome(payload)
+      expect(navigation).toEqual([{ label: 'Articles', path: '/articles' }])
+    })
   })
 
   describe('previews', () => {

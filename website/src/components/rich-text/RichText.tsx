@@ -82,10 +82,10 @@ const convertersFor =
       }
       const children = nodesToJSX({ nodes: node.children })
       if (node.children.some((child) => child.type === 'list')) {
-        return <li style={{ listStyleType: 'none' }}>{children}</li>
+        return <li className={styles.checkItem}>{children}</li>
       }
       return (
-        <li value={node.value} style={{ listStyleType: 'none' }}>
+        <li value={node.value} className={styles.checkItem}>
           <span aria-hidden="true">{node.checked ? '☑' : '☐'} </span>
           {children}
           {/* Placeholder copy for the owner to approve (spec 9). */}

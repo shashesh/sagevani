@@ -4,7 +4,8 @@ import { notFound } from 'next/navigation'
 import { ArticleView } from '@/components/article/ArticleView'
 import { getArticle, getRelatedArticles } from '@/lib/site/cached'
 import { siteConfig } from '@/lib/site/config'
-import { articleMetadata, articlePath } from '@/lib/site/metadata'
+import { articleMetadata } from '@/lib/site/metadata'
+import { articlePath } from '@/lib/site/paths'
 import { isSlug } from '@/lib/site/params'
 
 interface ArticlePageProps {

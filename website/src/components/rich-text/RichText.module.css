@@ -58,3 +58,8 @@
 .figure img {
   border-radius: 3px;
 }
+
+/* A check-list item shows its own box, so it has no list marker. */
+.checkItem {
+  list-style-type: none;
+}

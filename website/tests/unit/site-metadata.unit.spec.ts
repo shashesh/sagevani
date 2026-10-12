@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { articleMetadata, articlePath } from '@/lib/site/metadata'
+import { articleMetadata } from '@/lib/site/metadata'
+import { articlePath } from '@/lib/site/paths'
 
 import { articleView } from '../helpers/site'
 
