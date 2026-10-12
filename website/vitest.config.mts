@@ -20,7 +20,8 @@ export default defineConfig({
         'src/blocks/**',
         'src/japa/**',
       ],
-      exclude: ['src/japa/**/index.ts', 'src/japa/**/*.fixtures.ts'],
+      // Runs only inside Next (unstable_cache); the browser tests cover it.
+      exclude: ['src/japa/**/index.ts', 'src/japa/**/*.fixtures.ts', 'src/lib/site/cached.ts'],
       thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
     },
   },
