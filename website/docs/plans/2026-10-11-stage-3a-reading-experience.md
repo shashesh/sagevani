@@ -6125,7 +6125,9 @@ Expected: a draft pull request URL. Don't request a Copilot review; the owner do
 - **Corrections link.** `CorrectionNotes` gets its "All corrections" link to `/corrections` once that page exists.
 - **Pages.** `/[slug]` and `/start-here` reuse `PageView` and `toPageView`; add a `findPublishedPage(payload, slug)` beside them in `src/lib/site/pages.ts`, and a cached wrapper in `cached.ts`.
 - **Link previews.** `/og/[slug]` makes `articleMetadata` offer an image for every article: add it where `images` is undefined today.
-- **The refresh runs before Payload commits.** `afterChange` runs inside the save's transaction, so a request landing in the few milliseconds between the refresh and the commit could cache the old content again, until the next change. The window is tiny on a site this size. Revisit if it is ever seen.
+- **When the refresh takes effect.**
+  - `revalidateTag` only queues the tag. Next 16.3.8 applies it after the route handler returns, which is after Payload commits, so the refresh never runs before the save is stored.
+  - On Netlify, `waitUntil` can send the response before the tag update finishes. A reload within a fraction of a second of the admin's toast may still show the old page. Check this on a deploy preview.
 - **Fonts.** Literata's italic files are preloaded on every page, though few pages show italic above the fold (before you start, fact 7). Measure in stage 6's performance pass before changing it.
 
 ## Self-review against the spec
@@ -6167,3 +6169,9 @@ Each task's reviews changed the following. Where a code block earlier in this pl
   - Its tests pin the storage variables, including a storage-on case.
   - `next.config.ts` gives a clear message for a malformed `MEDIA_PUBLIC_URL`.
 - **G. Task 7: no change to `deriveSlug`.** The failing test the task expected passed before any change: Payload 3.90.2 merges the stored document into the data before `beforeValidate`, so an edit that leaves out the slug keeps it. Both tests stay, as regression tests.
+- **H. Task 8: a publish sent with the draft flag refreshes.**
+  - **The bug:** Payload publishes an update that has `draft: true` and `_status: 'published'`, for example the admin's bulk Publish of pages. `markDraftSave` had called that a draft save, so nothing refreshed.
+  - **The fix:** `markDraftSave` now follows Payload's own `isSavingDraft` rule.
+  - **Deletes:** `refreshIfPublishedDeleted` became `refreshUnlessDraftDeleted`. A delete called with a `select` can leave out `_status`, so it refreshes unless the document is known to be a draft.
+  - **Next's errors:** `refreshSite` calls `unstable_rethrow` first in its catch, so Next's own errors aren't swallowed.
+  - **Documented limits:** the JSDoc says `NEXT_RUNTIME` means "compiled by Next", so jobs, `onInit` and instrumentation would need another refresh path. It also says `DRAFT_SAVE` is per request.
