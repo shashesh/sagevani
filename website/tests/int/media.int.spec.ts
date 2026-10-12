@@ -63,7 +63,7 @@ describe('media', () => {
         overrideAccess: false,
         user: owner,
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/cannot be duplicated/)
   })
 
   it('refuses SVG content declared as a JPEG', async () => {
