@@ -6125,6 +6125,8 @@ Expected: a draft pull request URL. Don't request a Copilot review; the owner do
 - **Corrections link.** `CorrectionNotes` gets its "All corrections" link to `/corrections` once that page exists.
 - **Links to pages.** In 3a, a body link to a published page already points at `/<slug>`, which 404s until 3b builds `/[slug]`. Merge 3b before launch.
 - **404 for unmatched URLs.** The app has two root layouts, `(frontend)` and `(payload)`, and no top-level not-found. A URL that matches no route therefore gets Next's built-in 404, with system fonts and no header or footer. `notFound()` inside a `(frontend)` route renders within the layout. 3b's 404 needs `global-not-found` (or an equivalent) for unmatched URLs.
+- **The theme on 404 pages.** Under `next dev`, an article's 404 is served as Next's error shell. The layout, theme script included, arrives only in the server-components payload, where React doesn't run scripts. So a 404 page may flash the device's theme before applying the reader's. Check under `next start` when 3b builds the 404 page.
+- **Autosave and a late edit.** A review saw an autosave that never carried an upload inserted just before it, which suggests an edit made while an autosave is in flight could go unsaved. This is unconfirmed. On the deploy preview, insert an image, wait for the autosave, reload and check the image is still there.
 - **Errors in the root layout.** If the site-settings read fails on an uncached page, the throw happens in the root layout, which only a `global-error.tsx` can catch. Build one in 3b, with its own `<html>` and `<body>` in the site's design, or let the chrome read fall back to defaults.
 - **Pages.** `/[slug]` and `/start-here` reuse `PageView` and `toPageView`; add a `findPublishedPage(payload, slug)` beside them in `src/lib/site/pages.ts`, and a cached wrapper in `cached.ts`.
 - **Link previews.**
@@ -6220,3 +6222,19 @@ Each task's reviews changed the following. Where a code block earlier in this pl
   - **Reading progress:** the line follows body size changes through a `ResizeObserver`.
   - **Copy to approve:** "Share", "Copy link", "Link copied", "Copy failed", "Supports:", "accessed" and "Correction," are placeholder copy for the owner (spec 9).
   - **Card label row:** spec 6.1 says cards show the label row, but the approved mockup and this plan don't. The owner decides before 3b reuses the card.
+- **N. Task 15: the browser tests, made deterministic.**
+  - **Seeded topics:** the preview, publish and long-title articles have no topic, so "More from Dharma" still shows the expected related article. The plan's seed pushed it out of the row of three.
+  - **Added checks:**
+    - the Practice block's spacing;
+    - no sideways scroll at 320px, including on a title with one long word;
+    - each card cover keeps its 1200:630 shape at 1280px;
+    - the page's parts appear in order;
+    - the stored theme is applied before `<body>` exists, recorded by a MutationObserver.
+  - **The flaky publish test (Payload 3.90.2):**
+    - **The cause:** a debounced form-state request that skips validation can be merged after a refused publish. Its response marks the field valid again, so the inline error vanishes. The publish is still refused, and the toast still shows.
+    - **The fix:** the test now asserts the server's answers (400, then 200) instead of the inline message.
+    - **In the real admin:** the owner can lose the inline explanation the same way. It is worth reporting to Payload.
+  - **Retries:** the tests that change seeded data run with no retries, because a retry can't start clean.
+  - **Live Preview preference:** the preview test waits for its preference to save before ending, so the next file doesn't open with Live Preview on.
+  - **Global setup:** it checks the login token and retries once on a cold-compile error.
+  - **CI:** it uploads `test-results/` unless the run was cancelled.
