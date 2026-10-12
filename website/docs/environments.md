@@ -22,7 +22,7 @@ Previews only build. Migrations run with database-owner credentials, so unreview
 | `MEDIA_S3_BUCKET` | The app | `media` |
 | `MEDIA_PUBLIC_URL` | The app | `https://<ref>.supabase.co/storage/v1/object/public/media` |
 | `SITE_URL` | The app | The site's address, such as `https://<site>.netlify.app` until the domain is bought. No path or trailing slash. Not set locally |
-| `SITE_INDEXING` | The app | `on` to let search engines index the site. Leave it unset until launch |
+| `SITE_INDEXING` | The app | `on` to let search engines index the site. Set it in the Production context only, at launch; leave it unset everywhere else |
 
 Never commit `.env`. `.env.test` holds test-only values and is committed on purpose.
 

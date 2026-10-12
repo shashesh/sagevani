@@ -76,7 +76,7 @@ Public routes live in `src/app/(frontend)/`.
 ### 4.3 Caching and refresh
 
 - **What is cached**
-  - Every function in `src/lib/site/` is cached with the tag `site`.
+  - Every public route reads through the cached functions in `src/lib/site/cached.ts`, which carry the tag `site`. The preview routes call the uncached functions directly.
   - Pages are static where they can be and are served from Netlify's network. The archive and topic pages, which read the query string for filters and page numbers, render per request from the cached functions.
 - **What refreshes pages:** a change to what the public sees calls `revalidateTag('site', { expire: 0 })`. Every cached page and query then rebuilds on its next request, so the first reload after publishing shows the new version.
   - **Articles and pages:** publishing (including restoring a version without the draft flag), unpublishing, and deleting a published document.
@@ -258,7 +258,8 @@ Written now as placeholders and approved or rewritten by the owner, alongside pa
 - the landing page's line when nothing is published;
 - the headings "Featured", "Latest", "Four questions", "Before you read", "Suggested prior reading", "Sources" and "More from [topic]";
 - the 404 and error page text;
-- the reader-facing strings that stage 3a added: "Share", "Copy link", "Link copied", "Copy failed", "Supports:", "accessed" and "Correction,", and the screen-reader-only " (done)", " (not done)" and " (opens in a new tab)".
+- the reader-facing strings that stage 3a added: "Share", "Copy link", "Link copied", "Copy failed", "Supports:", "accessed", "Correction,", "Sources (n)", "Menu", and the theme toggle's "Switch to light theme", "Switch to dark theme" and "Switch theme";
+- the names only screen readers hear: " (done)", " (not done)", " (opens in a new tab)", and the landmark names "Main", "Footer", "Share this article" and "Corrections".
 
 The interface never invents article content, translations or attributions. Every block's text comes from the article.
 

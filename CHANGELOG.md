@@ -3,7 +3,7 @@
 ## 2026-10-12 — Website stage 3a: the reading experience
 
 - Published articles have a public page at `/articles/[slug]`, in the "Manuscript" design: Literata, warm paper and a lamp-lit dark theme that follows the device, with a toggle that remembers the choice and never flashes the wrong theme.
-- The article page shows the topic and shape, the byline, a generated cover (or the cover photo), the Before you read box, the body with the Verse, Tradition and Practice blocks in the gloss style, share links, sources grouped by tier, public correction notes, and three more articles from the topic. The sources format is a proposal until Q-07 is decided.
+- The article page shows the topic and shape, the byline, a generated cover (or the cover photo), the Before you read box, the body with the Verse, Tradition and Practice blocks in the gloss style, share links, sources grouped by tier, public correction notes, and up to three more articles from the topic. The sources format is a proposal until Q-07 is decided.
 - Public pages read only published content, as an anonymous visitor, and never staff-only fields. Links to anything unpublished show as plain text, and only http, https, mailto and on-site addresses become links.
 - Pages are cached and refresh when published content changes: a publish, an unpublish, a deletion, or an edit to topics, levels, site settings or an image. Saving a draft never refreshes anything.
 - Live preview shows the latest draft of an article or a page beside the editor and follows each autosave. The preview routes show a 404 to anyone not signed in as staff, and are never cached.

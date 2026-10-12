@@ -6,7 +6,7 @@
 
 **Architecture:**
 
-- **One public data layer.** `src/lib/site/` holds every public read. Its functions take a `Payload` instance and read as an anonymous visitor (`overrideAccess: false`, no user, `depth: 0`, an explicit `select`), so the collections' access rules decide what comes back. Related documents (topics, levels, images, link targets) are looked up by id in batched queries rather than populated. Images are the one read that overrides access, for four fields only.
+- **One public data layer.** `src/lib/site/` holds every public read. Its functions take a `Payload` instance and read as an anonymous visitor (`overrideAccess: false`, no user, `depth: 0`, an explicit `select`), so the collections' access rules decide what comes back. Related documents (topics, levels, images, link targets) are looked up by id in batched queries rather than populated. Images are the one read that overrides access: it selects five columns and returns four fields.
 - **Caching.** `src/lib/site/cached.ts` wraps those functions in `unstable_cache` with the tag `site`. Pages are static where they can be. `refreshSite()` calls `revalidateTag('site', { expire: 0 })` after any change to published content. Payload hooks in `src/collections/shared/refresh.ts` decide when, using a `draftSave` flag that a `beforeOperation` hook records. Outside a Next runtime (scripts, migrations, tests) the refresh does nothing.
 - **Pure helpers** (dates, links, sources, covers, progress, the theme script) live in `src/lib/site/` with unit tests. Components in `src/components/` only arrange their output.
 - **Live preview.** Staff-only, uncached routes at `/preview/articles/[id]` and `/preview/pages/[id]` render the latest draft with the public components. Payload's live preview shows them beside the editor and `RefreshRouteOnSave` reloads them after each autosave.
@@ -6067,7 +6067,7 @@ Expected: PASS, with coverage at 80% or more on every measure.
 
 ```bash
 docker exec sagevani-db-1 psql -U postgres -c "DROP DATABASE IF EXISTS sagevani_deploy" -c "CREATE DATABASE sagevani_deploy"
-DATABASE_MIGRATION_URL=postgres://postgres:postgres@127.0.0.1:54329/sagevani_deploy npm run deploy:build
+DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329/sagevani_deploy DATABASE_MIGRATION_URL=postgres://postgres:postgres@127.0.0.1:54329/sagevani_deploy npm run deploy:build
 ```
 
 Expected: the migrations apply, and `next build` lists `/articles/[slug]` as `●` (SSG) with no pages generated, and the preview routes as `ƒ` (dynamic).
@@ -6124,6 +6124,13 @@ Expected: a draft pull request URL. Don't request a Copilot review; the owner do
 
 - **Corrections link.** `CorrectionNotes` gets its "All corrections" link to `/corrections` once that page exists.
 - **Links to pages.** In 3a, a body link to a published page already points at `/<slug>`, which 404s until 3b builds `/[slug]`. Merge 3b before launch.
+- **Parent-spec updates that are 3b's.** Spec 12 lists the `/[slug]` route with its reserved slugs, and `aboutText`. Add both to the parent spec when 3b builds them.
+- **A rare stale page after a publish.**
+  - **How it happens:** a page that is rendering when a publish commits can store the old content after the refresh, and it then stays until the next change. Next stamps a cache entry when it is written, not when its data was read.
+  - **Recovery:** any save that refreshes, such as re-saving site settings, clears it. Add this to the deploy-preview checks.
+- **Unknown slugs and the cache.** Every unknown slug that passes `isSlug` costs one query and leaves a cached 404 until the next refresh. Look at this in stage 6's hardening.
+- **Links within a page.** `safeHref` keeps only site paths and http, https and mailto addresses, so an in-page anchor such as `#notes` renders as text. Whether footnote anchors should work is the owner's decision.
+- **Corrections through REST (stage 2's access table).** An anonymous `GET /api/articles` returns every field of a published article. That includes corrections whose `showPublicNote` is off, `sendEmail` and `searchText`. The public pages hide them. Whether REST should hide them too is the owner's decision.
 - **404 for unmatched URLs.** The app has two root layouts, `(frontend)` and `(payload)`, and no top-level not-found. A URL that matches no route therefore gets Next's built-in 404, with system fonts and no header or footer. `notFound()` inside a `(frontend)` route renders within the layout. 3b's 404 needs `global-not-found` (or an equivalent) for unmatched URLs.
 - **The theme on 404 pages.** Under `next dev`, an article's 404 is served as Next's error shell. The layout, theme script included, arrives only in the server-components payload, where React doesn't run scripts. So a 404 page may flash the device's theme before applying the reader's. Check under `next start` when 3b builds the 404 page.
 - **Autosave and a late edit.** A review saw an autosave that never carried an upload inserted just before it, which suggests an edit made while an autosave is in flight could go unsaved. This is unconfirmed. On the deploy preview, insert an image, wait for the autosave, reload and check the image is still there.
@@ -6238,3 +6245,9 @@ Each task's reviews changed the following. Where a code block earlier in this pl
   - **Live Preview preference:** the preview test waits for its preference to save before ending, so the next file doesn't open with Live Preview on.
   - **Global setup:** it checks the login token and retries once on a cold-compile error.
   - **CI:** it uploads `test-results/` unless the run was cancelled.
+- **O. The final whole-branch review.**
+  - **CI build database:** CI's deploy build now builds against the freshly migrated database, not the test database whose tables come from schema push, so a field without a migration fails CI as it would fail Netlify. Task 17 step 2 sets `DATABASE_URL` the same way.
+  - **`articlePath`:** imported from `paths.ts` everywhere, with no re-exports.
+  - **Navigation paths:** re-checked with `safeHref` when they are read, like every other stored address.
+  - **Check-list items:** they use a CSS Module class instead of an inline style.
+  - **Spec 9:** it lists every new interface string, including "Menu", the theme toggle's names and the landmark names.

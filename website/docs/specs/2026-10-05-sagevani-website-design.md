@@ -509,7 +509,7 @@ Each stage ends in something that can be reviewed. Implementation plans may be w
    - Likes, comments and moderation.
    - Views and full reads, and the statistics dashboard.
    - Subscribe and the new-article email.
-5. **Discovery and compliance:** search, RSS, sitemap, structured data, Google Analytics with the cookie banner, and the privacy page.
+5. **Discovery and compliance:** search, RSS, sitemap, `robots.txt`, structured data, Google Analytics with the cookie banner, and the privacy page.
 6. **Hardening and launch**
    - Security headers, and rate limits on admin login and reader endpoints.
    - Sentry.
