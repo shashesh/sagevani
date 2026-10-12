@@ -16,21 +16,7 @@ import { deriveArticleText } from './derived-text'
 import { draftsOnlyForAssistant } from './drafts-only'
 import { editorialChecklist } from './editorial-checklist'
 import { enforcePublishRules } from './publish-rules'
-
-export const ARTICLE_SHAPES = [
-  { label: 'Vani Note', value: 'vani-note' },
-  { label: 'Inquiry Essay', value: 'inquiry-essay' },
-  { label: 'Text / Story Study', value: 'text-story-study' },
-  { label: 'Practice Journal', value: 'practice-journal' },
-]
-
-export const SOURCE_TYPES = [
-  { label: 'Primary text', value: 'primary-text' },
-  { label: 'Commentary', value: 'commentary' },
-  { label: 'Academic', value: 'academic' },
-  { label: 'Living tradition', value: 'living-tradition' },
-  { label: 'General', value: 'general' },
-]
+import { ARTICLE_SHAPES, SOURCE_TYPES } from './options'
 
 /** Fields only the server writes, in hooks: no API request can set them, the owner's included. */
 const SERVER_ONLY = { create: nobody, update: nobody }
