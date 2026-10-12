@@ -6123,6 +6123,7 @@ Expected: a draft pull request URL. Don't request a Copilot review; the owner do
 ## Notes for stage 3b
 
 - **Corrections link.** `CorrectionNotes` gets its "All corrections" link to `/corrections` once that page exists.
+- **Links to pages.** In 3a, a body link to a published page already points at `/<slug>`, which 404s until 3b builds `/[slug]`. Merge 3b before launch.
 - **Pages.** `/[slug]` and `/start-here` reuse `PageView` and `toPageView`; add a `findPublishedPage(payload, slug)` beside them in `src/lib/site/pages.ts`, and a cached wrapper in `cached.ts`.
 - **Link previews.** `/og/[slug]` makes `articleMetadata` offer an image for every article: add it where `images` is undefined today.
 - **When the refresh takes effect.**
@@ -6175,3 +6176,10 @@ Each task's reviews changed the following. Where a code block earlier in this pl
   - **Deletes:** `refreshIfPublishedDeleted` became `refreshUnlessDraftDeleted`. A delete called with a `select` can leave out `_status`, so it refreshes unless the document is known to be a draft.
   - **Next's errors:** `refreshSite` calls `unstable_rethrow` first in its catch, so Next's own errors aren't swallowed.
   - **Documented limits:** the JSDoc says `NEXT_RUNTIME` means "compiled by Next", so jobs, `onInit` and instrumentation would need another refresh path. It also says `DRAFT_SAVE` is per request.
+- **I. Task 9: the data layer, tightened.**
+  - `publicCorrections` skips a correction whose text is blank, which only a draft can have.
+  - Every lookup passes `pagination: false`, which drops eight unused count queries per article view and the 100-row cap on topics and levels.
+  - `bodyLinkHref` and `bodyImage` normalise ids the way `uniqueIds` does, so an id written `"03"` still matches.
+  - A topic listed twice on an article shows once.
+  - `text()` moved to `format.ts`.
+  - The tests now prove that "More from" filters by topic and leaves out the current article, that a link to a draft page stays plain text, and that an anonymous raw row has exactly the selected fields.

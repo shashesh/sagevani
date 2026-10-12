@@ -68,7 +68,7 @@ Public routes live in `src/app/(frontend)/`.
   - only published articles and pages are returned;
   - staff-only fields (the approval record, the editorial checklist, the email record) never appear, including through body links and prior readings;
   - an unpublished entry in site settings, or an unpublished prior reading, comes back as a bare id, and the module drops it.
-- **Images are the one deliberate exception.** The `media` collection is staff-only (stage 2 design, 4.1), so an anonymous read can't populate an image. The module collects the image ids that published content references (the cover image and the body's upload nodes) and reads them in one query with `overrideAccess: true`, selecting only `url`, `filename`, `alt`, `width` and `height`. Nothing else in `media` is ever read for a public page.
+- **Images are the one deliberate exception.** The `media` collection is staff-only (stage 2 design, 4.1), so an anonymous read can't populate an image. The module collects the image ids that published content references (the cover image and the body's upload nodes) and reads them in one query with `overrideAccess: true`, selecting only `filename`, `prefix`, `alt`, `width` and `height`. It builds each image's address itself, because Payload's own `url` points at the staff-only file route. Nothing else in `media` is ever read for a public page.
 - **Links**
   - A body link to an article or page that isn't published renders as plain text, not a link to a 404.
   - Only `http:`, `https:` and `mailto:` addresses and paths on this site become links, in the body, in prior readings and in sources. Anything else, such as `javascript:`, renders as text.
