@@ -100,7 +100,8 @@ export async function toArticleCards(
     levelNames(payload),
     publicImages(payload, uniqueIds(rows.map((row) => row.coverImage))),
   ])
-  return rows.map((row) => toCard(row, { topics: topicsById(topics), levels, images }))
+  const byId = topicsById(topics)
+  return rows.map((row) => toCard(row, { topics: byId, levels, images }))
 }
 
 function priorReadings(

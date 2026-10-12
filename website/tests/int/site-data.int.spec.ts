@@ -266,6 +266,16 @@ describe('the public data layer', () => {
     })
   })
 
+  describe('findPublishedArticle with a topic listed twice', () => {
+    it('shows the topic once', async () => {
+      // Payload keeps both copies of the relationship, so the view has to drop one.
+      const twice = await publish({ title: 'Twice', slug: 'twice', topics: [topic.id, topic.id] })
+      expect(twice.topics).toHaveLength(2)
+      const view = await findPublishedArticle(payload, 'twice')
+      expect(view?.topics.map(({ name }) => name)).toEqual(['Dharma'])
+    })
+  })
+
   describe('the raw article read', () => {
     it('returns exactly the selected fields to an anonymous reader', async () => {
       const { docs } = await payload.find({

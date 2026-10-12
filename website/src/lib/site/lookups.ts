@@ -39,7 +39,10 @@ export async function levelNames(payload: Payload): Promise<Record<string, strin
   return Object.fromEntries(docs.map((level) => [String(level.id), level.name]))
 }
 
-/** Published articles by id, with their slug and current title. The access rules leave out the rest. */
+/**
+ * Published articles by id, with their slug and current title. The access rules leave out the
+ * rest.
+ */
 export async function publishedArticles(
   payload: Payload,
   ids: readonly number[],
@@ -82,7 +85,8 @@ export async function publishedPageSlugs(
 /**
  * Images by id, with only what a page needs. Media is staff-only (stage 2 design, 4.1), so an
  * anonymous read returns nothing. This is the one public read that overrides access: the ids
- * come from content (a preview's come from a draft), and nothing but these fields is read (stage 3 design, 4.2).
+ * come from content (a preview's come from a draft), and nothing but these fields is read
+ * (stage 3 design, 4.2).
  */
 export async function publicImages(
   payload: Payload,
