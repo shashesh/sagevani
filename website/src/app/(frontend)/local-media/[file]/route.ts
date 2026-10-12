@@ -23,9 +23,16 @@ export async function GET(
   try {
     const data = await readFile(path.join(LOCAL_MEDIA_DIR, file))
     return new Response(new Uint8Array(data), {
-      headers: { 'Content-Type': type, 'Cache-Control': 'no-store' },
+      headers: {
+        'Content-Type': type,
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
     })
-  } catch {
-    return notFound()
+  } catch (error) {
+    // Only a missing file is a 404; anything else is a server error that Next should log.
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT' || code === 'EISDIR') return notFound()
+    throw error
   }
 }
