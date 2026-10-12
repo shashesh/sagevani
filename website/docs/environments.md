@@ -21,6 +21,8 @@ Previews only build. Migrations run with database-owner credentials, so unreview
 | `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY` | The app | An S3 access key pair created on the same page |
 | `MEDIA_S3_BUCKET` | The app | `media` |
 | `MEDIA_PUBLIC_URL` | The app | `https://<ref>.supabase.co/storage/v1/object/public/media` |
+| `SITE_URL` | The app | The site's address, such as `https://<site>.netlify.app` until the domain is bought. No path or trailing slash. Not set locally |
+| `SITE_INDEXING` | The app | `on` to let search engines index the site. Leave it unset until launch |
 
 Never commit `.env`. `.env.test` holds test-only values and is committed on purpose.
 
@@ -39,6 +41,8 @@ Rules for these values:
 - **Set all six media variables or none.** Locally, leave them empty and uploads go to `website/uploads/`. For a database that isn't local they're required, because Netlify's functions have no lasting disk.
 - **`MEDIA_PUBLIC_URL` must be an https address with no `?` or `#`.** The app refuses to start otherwise.
 - **Don't set `NODE_ENV`** in Netlify. It would make the install skip development dependencies, such as `tsx`, which the hardening step needs.
+- **SITE_URL is required on hosted sites.** A page that renders without it fails, so a deploy without it fails its build. The owner's scripts don't need it.
+- **Apply a pull request's migrations to staging before its preview builds.** From stage 3, the build renders pages from the database, so a preview whose migration isn't applied fails to build. Apply it, then retry the deploy.
 
 ## Run locally
 
@@ -131,6 +135,7 @@ Importing the site makes Netlify build `master` for production straight away. Fi
    | `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY` | Production key pair | Staging key pair |
    | `MEDIA_S3_BUCKET` | `media` | `media` |
    | `MEDIA_PUBLIC_URL` | Production bucket's public address | Staging bucket's public address |
+   | `SITE_URL` | The production address | The production address (previews are private and never indexed) |
 
    - Tick **Contains secret values** for `DATABASE_URL`, `DATABASE_MIGRATION_URL`, `PAYLOAD_SECRET` and `MEDIA_S3_SECRET_ACCESS_KEY`. Netlify then masks them, and fails a build that would expose them in the code or the build output.
    - Builds need these values as well as the running site, because `next build` loads the configuration. Netlify's free plan makes every variable available to both. On a plan with scopes, give `DATABASE_MIGRATION_URL` the **Builds** scope only.

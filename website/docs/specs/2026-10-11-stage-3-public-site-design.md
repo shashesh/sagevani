@@ -257,7 +257,8 @@ Written now as placeholders and approved or rewritten by the owner, alongside pa
 
 - the landing page's line when nothing is published;
 - the headings "Featured", "Latest", "Four questions", "Before you read", "Suggested prior reading", "Sources" and "More from [topic]";
-- the 404 and error page text.
+- the 404 and error page text;
+- the reader-facing strings that stage 3a added: "Share", "Copy link", "Link copied", "Copy failed", "Supports:", "accessed" and "Correction,", and the screen-reader-only " (done)", " (not done)" and " (opens in a new tab)".
 
 The interface never invents article content, translations or attributions. Every block's text comes from the article.
 

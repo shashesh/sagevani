@@ -36,9 +36,13 @@ This Markdown task list is a proposed maintenance method.
 - [x] Build website stage 1 (foundation): [pull request #1](https://github.com/shashesh/sagevani/pull/1), merged on 2026-10-06.
 - [ ] Owner: create the Supabase projects, their `media` buckets and S3 keys, and connect Netlify. See the [environments guide](../../website/docs/environments.md).
 - [x] Plan website stage 2 (content model and admin): [design](../../website/docs/specs/2026-10-08-stage-2-content-model-design.md), [plan](../../website/docs/plans/2026-10-08-stage-2-content-model.md).
-- [ ] Build website stage 2 (pull request open as a draft).
+- [x] Build website stage 2 (content model and admin): [pull request #13](https://github.com/shashesh/sagevani/pull/13), merged on 2026-10-12.
+- [x] Plan website stage 3 (the public site): [design](../../website/docs/specs/2026-10-11-stage-3-public-site-design.md), [3a plan](../../website/docs/plans/2026-10-11-stage-3a-reading-experience.md).
+- [ ] Build website stage 3a (the reading experience; pull request open as a draft).
+- [ ] Owner: set `SITE_URL` in Netlify for production and previews (environments guide) before stage 3a merges.
+- [ ] Plan and build website stage 3b (landing, archive, topic and fixed pages, link-preview images).
 - [x] Move JapaDhyan's domain logic and catalog into the website (part 1 of D-006), merged on 2026-10-08.
 - [ ] Owner: archive the old JapaDhyan repository once its pull request #26 is merged.
 - [ ] At launch: upgrade the production Supabase organization to Pro. Until then, back up production drafts by hand (see the environments guide).
 
-The website platform is decided (D-004). Stage 1 (foundation) is merged and awaits the owner's Supabase and Netlify setup. Nothing is deployed or published. No publishing schedule or series commitment has been made.
+The website platform is decided (D-004). Stages 1 and 2 are merged, and stage 3a is in review. The site awaits the owner's Supabase and Netlify setup. Nothing is deployed or published. No publishing schedule or series commitment has been made.

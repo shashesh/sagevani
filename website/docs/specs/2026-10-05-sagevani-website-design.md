@@ -2,7 +2,7 @@
 
 - Date: 2026-10-05
 - Status: Approved by the owner on 2026-10-05
-- Implementation plans: [stage 1 — foundation](../plans/2026-10-05-stage-1-foundation.md), [stage 2 — content model and admin](../plans/2026-10-08-stage-2-content-model.md)
+- Implementation plans: [stage 1 — foundation](../plans/2026-10-05-stage-1-foundation.md), [stage 2 — content model and admin](../plans/2026-10-08-stage-2-content-model.md), [stage 3a — the reading experience](../plans/2026-10-11-stage-3a-reading-experience.md)
 - Stage designs: [stage 2 — content model and admin](2026-10-08-stage-2-content-model-design.md), [stage 3 — the public site](2026-10-11-stage-3-public-site-design.md)
 - Decision record: [D-004](../../../docs/governance/decisions.md)
 - Scope: the public blog website and its admin, from first build to launch
@@ -88,6 +88,8 @@ Owner ───┘   ├ public site         └─ Google Analytics (after cons
     src/blocks/                 editor blocks (Verse, Tradition, Practice)
     src/components/             site components
     src/lib/                    utilities (slug, reading time, search text, rate limits)
+    src/lib/site/               the public data layer and its helpers
+    src/styles/                 design tokens, fonts and base styles
     tests/                      unit, integration, e2e
   ```
 
@@ -197,6 +199,8 @@ All collections use Payload access control. "Owner" means the owner role; "assis
 | `/subscribe/check-email`, `/subscribe/confirmed`, `/unsubscribe` | Subscription flow pages |
 | `/rss.xml`, `/sitemap.xml` | Feed and sitemap |
 | `/og/[slug]` | Generated link-preview image |
+| `/preview/articles/[id]`, `/preview/pages/[id]` | Live preview of the latest draft, for staff only; never cached ([stage 3 design](2026-10-11-stage-3-public-site-design.md), 4.4) |
+| `/local-media/[file]` | Uploads while storage is off, in development and CI only |
 | custom 404 and error pages | In the site's design |
 
 ### 6.2 Article page
@@ -318,7 +322,7 @@ The assistant role enforces decision D-003: the assistant may draft without aski
 - The editor sits in the centre and the article fields in a side panel.
 - The block menu inserts Verse, Tradition, Practice and image blocks.
 - Drafts save automatically. Version history lets you compare any two versions.
-- Preview shows the draft in the site's design before publishing. It is built in stage 3, with the article page.
+- Live preview shows the latest draft in the site's design beside the editor, refreshing on each autosave ([stage 3 design](2026-10-11-stage-3-public-site-design.md), 4.4).
 
 ### 8.3 Publishing and approval
 
@@ -419,6 +423,7 @@ This section describes the finished site. Stage 1 delivers the admin login, data
   - Article structured data (JSON-LD)
   - canonical URLs
   - sitemap, RSS, and link-preview images
+  - every page says noindex until SITE_INDEXING is on, at launch ([stage 3 design](2026-10-11-stage-3-public-site-design.md), 4.6)
 - **Accessibility:**
   - WCAG AA contrast in both themes (section 7.1)
   - full keyboard use with visible focus states
@@ -463,6 +468,7 @@ This section describes the finished site. Stage 1 delivers the admin login, data
   - Migrations connect through Supabase's session pooler (`DATABASE_MIGRATION_URL`). The running app uses the transaction pooler (`DATABASE_URL`).
   - Scripts that load Payload against a real database run with `NODE_ENV=production`, so that development-mode schema push is off.
 - **Domain:** buy it before launch and point it at Netlify, which issues HTTPS automatically.
+- **Site address:** SITE_URL gives canonical, link-preview and share links their address, and SITE_INDEXING=on lets search engines index the site at launch.
 - **Email:** verify the sending domain with Resend (SPF and DKIM) once the domain exists.
 
 ## 15. Running costs
