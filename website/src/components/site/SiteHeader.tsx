@@ -3,6 +3,7 @@ import Link from 'next/link'
 import type { NavigationLink } from '@/lib/site/types'
 
 import styles from './SiteHeader.module.css'
+import { NavMenu } from './NavMenu'
 import { ThemeToggle } from './ThemeToggle'
 
 /**
@@ -25,10 +26,10 @@ export function SiteHeader({ navigation }: { navigation: NavigationLink[] }) {
         {links.length > 0 && (
           <nav aria-label="Main" className={styles.nav}>
             <ul className={styles.row}>{links}</ul>
-            <details className={styles.menu}>
+            <NavMenu className={styles.menu}>
               <summary>Menu</summary>
               <ul>{links}</ul>
-            </details>
+            </NavMenu>
           </nav>
         )}
         <ThemeToggle />

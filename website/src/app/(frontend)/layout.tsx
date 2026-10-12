@@ -1,15 +1,16 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 
+// Global styles first, so the components' module styles override them.
+import '@/styles/tokens.css'
+import '@/styles/global.css'
+
 import { SiteFooter } from '@/components/site/SiteFooter'
 import { SiteHeader } from '@/components/site/SiteHeader'
 import { getSiteChrome } from '@/lib/site/cached'
 import { siteConfig } from '@/lib/site/config'
 import { THEME_SCRIPT } from '@/lib/site/theme'
 import { literata } from '@/styles/fonts'
-
-import '@/styles/tokens.css'
-import '@/styles/global.css'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { url, indexing } = siteConfig()
@@ -19,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: 'SageVani', template: '%s · SageVani' },
     description: tagline,
     // Hidden from search engines until launch (stage 3 design, 4.6).
-    robots: indexing ? undefined : { index: false, follow: false },
+    robots: indexing ? undefined : { index: false },
   }
 }
 
@@ -36,7 +37,9 @@ export default async function FrontendLayout({ children }: { children: ReactNode
           Skip to content
         </a>
         <SiteHeader navigation={chrome.navigation} />
-        <main id="content">{children}</main>
+        <main id="content" tabIndex={-1}>
+          {children}
+        </main>
         <SiteFooter chrome={chrome} />
       </body>
     </html>

@@ -37,3 +37,8 @@
 .links a {
   color: var(--footer-text);
 }
+
+/* The accent outline is too faint on the footer's ink. */
+.footer :focus-visible {
+  outline-color: var(--footer-text);
+}
