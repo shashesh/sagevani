@@ -233,3 +233,47 @@ describe('media storage variables', () => {
     )
   })
 })
+
+describe('site address and indexing', () => {
+  it('needs neither', () => {
+    const env = parseServerEnv(VALID)
+    expect(env.SITE_URL).toBeUndefined()
+    expect(env.SITE_INDEXING).toBeUndefined()
+  })
+
+  it('accepts an origin and drops trailing slashes', () => {
+    expect(parseServerEnv({ ...VALID, SITE_URL: 'https://sagevani.example//' }).SITE_URL).toBe(
+      'https://sagevani.example',
+    )
+    expect(parseServerEnv({ ...VALID, SITE_URL: 'http://localhost:3000' }).SITE_URL).toBe(
+      'http://localhost:3000',
+    )
+  })
+
+  it('refuses a path, a query, or a scheme other than http and https', () => {
+    for (const value of [
+      'https://sagevani.example/blog',
+      'https://sagevani.example?x=1',
+      'ftp://sagevani.example',
+      'sagevani.example',
+    ]) {
+      expect(() => parseServerEnv({ ...VALID, SITE_URL: value })).toThrowError(
+        /SITE_URL: must be an http:\/\/ or https:\/\/ address with no path/,
+      )
+    }
+  })
+
+  it('accepts on or off for indexing, and nothing else', () => {
+    expect(parseServerEnv({ ...VALID, SITE_INDEXING: 'on' }).SITE_INDEXING).toBe('on')
+    expect(parseServerEnv({ ...VALID, SITE_INDEXING: ' off ' }).SITE_INDEXING).toBe('off')
+    expect(() => parseServerEnv({ ...VALID, SITE_INDEXING: 'true' })).toThrowError(
+      /SITE_INDEXING: must be on or off/,
+    )
+  })
+
+  it('treats empty values as absent', () => {
+    const env = parseServerEnv({ ...VALID, SITE_URL: ' ', SITE_INDEXING: '' })
+    expect(env.SITE_URL).toBeUndefined()
+    expect(env.SITE_INDEXING).toBeUndefined()
+  })
+})
