@@ -10,7 +10,8 @@ export interface SiteConfig {
   indexing: boolean
 }
 
-type SiteEnv = Pick<ServerEnv, 'DATABASE_URL'> & Partial<Pick<ServerEnv, 'SITE_URL' | 'SITE_INDEXING'>>
+type SiteEnv = Pick<ServerEnv, 'DATABASE_URL'> &
+  Partial<Pick<ServerEnv, 'SITE_URL' | 'SITE_INDEXING'>>
 
 export function siteConfigFrom(env: SiteEnv): SiteConfig {
   if (!env.SITE_URL && !isLocalDatabase(env.DATABASE_URL)) {
