@@ -39,6 +39,12 @@ describe('groupSources', () => {
     })
   })
 
+  it('skips a source that has no work yet, as in a draft saved mid-edit', () => {
+    expect(groupSources([{ type: 'primary-text', work: null }])).toEqual([])
+    expect(groupSources([{ type: 'primary-text', work: '   ' }])).toEqual([])
+    expect(groupSources([{ work: 'No type yet' }])).toEqual([])
+  })
+
   it('gives nothing for no sources, and drops a source of an unknown type', () => {
     expect(groupSources(null)).toEqual([])
     expect(groupSources([{ type: 'rumour', work: 'Hearsay' }])).toEqual([])

@@ -58,6 +58,7 @@ export interface PriorReading {
 }
 
 export interface PublicCorrection {
+  /** Formatted for display ("3 October 2026"), not ISO. */
   date: string
   change: string
 }

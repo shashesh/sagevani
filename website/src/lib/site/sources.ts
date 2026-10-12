@@ -3,8 +3,8 @@ import { formatDate } from './format'
 import { safeHref } from './links'
 
 export interface SourceInput {
-  type: string
-  work: string
+  type?: string | null
+  work?: string | null
   author?: string | null
   edition?: string | null
   location?: string | null
@@ -19,6 +19,7 @@ export interface SourceEntry {
   edition: string | null
   location: string | null
   href: string | null
+  /** Formatted for display ("3 October 2026"), not ISO. */
   accessedOn: string | null
   claim: string | null
 }
@@ -31,15 +32,22 @@ export interface SourceGroup {
 
 const text = (value: string | null | undefined): string | null => value?.trim() || null
 
-const toEntry = (source: SourceInput): SourceEntry => ({
-  work: source.work.trim(),
-  author: text(source.author),
-  edition: text(source.edition),
-  location: text(source.location),
-  href: safeHref(source.url),
-  accessedOn: formatDate(source.accessedOn),
-  claim: text(source.claim),
-})
+/** A source with no work yet (a draft saved mid-edit) is skipped. */
+const toEntries = (source: SourceInput): SourceEntry[] => {
+  const work = text(source.work)
+  if (!work) return []
+  return [
+    {
+      work,
+      author: text(source.author),
+      edition: text(source.edition),
+      location: text(source.location),
+      href: safeHref(source.url),
+      accessedOn: formatDate(source.accessedOn),
+      claim: text(source.claim),
+    },
+  ]
+}
 
 /**
  * Sources grouped in the handbook's tier order (03 Editorial integrity), empty groups left out.
@@ -50,6 +58,6 @@ export function groupSources(sources: readonly SourceInput[] | null | undefined)
   return SOURCE_TYPES.map(({ label, value }) => ({
     type: value,
     label,
-    entries: list.filter((source) => source.type === value).map(toEntry),
+    entries: list.filter((source) => source.type === value).flatMap(toEntries),
   })).filter((group) => group.entries.length > 0)
 }
