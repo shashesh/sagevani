@@ -189,7 +189,7 @@ From top to bottom, following parent spec 6.2:
    - **Reflection** is ordinary body text: 19 px with a 1.7 line height.
 8. **Share:** copy link, WhatsApp, email and X. Only "Copy link" needs JavaScript; the others are plain links built from `SITE_URL`. The like button joins this row in stage 4.
 9. **Sources:** a `<details>` list, open by default, grouped in the handbook's tier order (primary text, commentary, academic, living tradition, general). Each entry shows the work in italic, the author or commentator, the edition or translator, the exact location, the link and its access date, and the claim it supports. This format is a proposal until Q-07 (the citation format readers see) is decided. Only the sources component would change.
-10. **Correction notes:** each correction marked "show a public note", newest first, with its date, what changed and a link to `/corrections`.
+10. **Correction notes:** each correction marked "show a public note", newest first, with its date, what changed and a link to `/corrections`. The link arrives in 3b with that page, so 3a never links to a missing page.
 11. **More from [topic]:** up to three other published articles from the article's first topic, newest first, as cards. Hidden when there are none or the article has no topic.
 12. **Footer.**
 
@@ -241,6 +241,7 @@ Comments (parent spec 6.2, item 9) arrive in stage 4, between the correction not
 - **Reserved page slugs** (3b): the `pages` slug check refuses the slugs in 4.1. No migration.
 - **`coverTerm`'s description** (3b) gains the Latin-script note. No migration.
 - **Live preview settings** (3a) on `articles` and `pages`. No migration.
+- **Slugs on edit** (3a): an edit that doesn't send `slug` keeps the stored one. Before, a REST edit that changed the title without the slug re-derived it, which would move a published URL. Found during 3a planning. No migration.
 
 ## 8. Errors
 
