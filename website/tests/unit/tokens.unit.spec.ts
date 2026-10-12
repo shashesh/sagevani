@@ -8,17 +8,25 @@ import { TEXT_PAIRS, THEMES } from '@/styles/tokens'
 const AA = 4.5
 const css = readFileSync(path.resolve('src/styles/tokens.css'), 'utf8')
 
-/** The colour declarations in the first rule whose selector is exactly `selector`. */
-function declarations(selector: string): Record<string, string> {
+/** The body of the first rule whose selector is exactly `selector`. */
+function ruleBody(selector: string): string {
   const start = css.indexOf(`${selector} {`)
   if (start === -1) throw new Error(`tokens.css has no rule for ${selector}`)
   const open = css.indexOf('{', start)
-  const body = css.slice(open + 1, css.indexOf('}', open))
+  return css.slice(open + 1, css.indexOf('}', open))
+}
+
+/** The `color-scheme` declared in the first rule whose selector is exactly `selector`. */
+function colourScheme(selector: string): string | undefined {
+  return /color-scheme:\s*(light|dark)\s*;/.exec(ruleBody(selector))?.[1]
+}
+
+/** The colour declarations in the first rule whose selector is exactly `selector`. */
+function declarations(selector: string): Record<string, string> {
   return Object.fromEntries(
-    [...body.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6})\s*;/gi)].map(([, name, value]) => [
-      name,
-      value.toLowerCase(),
-    ]),
+    [...ruleBody(selector).matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6})\s*;/gi)].map(
+      ([, name, value]) => [name, value.toLowerCase()],
+    ),
   )
 }
 
@@ -38,5 +46,14 @@ describe('colour tokens', () => {
   it('tokens.css declares the dark theme for the device setting and for the reader’s choice', () => {
     expect(declarations(":root:not([data-theme='light'])")).toEqual(THEMES.dark)
     expect(declarations(":root[data-theme='dark']")).toEqual(THEMES.dark)
+    expect(css).toMatch(
+      /@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme='light'\]\)\s*\{/,
+    )
+  })
+
+  it('tokens.css sets color-scheme to match each theme', () => {
+    expect(colourScheme(':root')).toBe('light')
+    expect(colourScheme(":root:not([data-theme='light'])")).toBe('dark')
+    expect(colourScheme(":root[data-theme='dark']")).toBe('dark')
   })
 })
