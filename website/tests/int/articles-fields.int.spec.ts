@@ -5,7 +5,14 @@ import { SLUG_REQUIRED_MESSAGE } from '@/collections/shared/slug'
 import config from '@/payload.config'
 import type { DifficultyLevel, User } from '@/payload-types'
 
-import { clearContent, createStaff, validationMessages } from '../helpers/content'
+import {
+  ASSISTANT_KEY,
+  PASSWORD,
+  clearContent,
+  createStaff,
+  rest,
+  validationMessages,
+} from '../helpers/content'
 import { paragraph, richText, verse } from '../helpers/lexical'
 
 let payload: Payload
@@ -78,6 +85,58 @@ describe('articles: fields the server fills in', () => {
       user: owner,
     })
     expect(published.slug).toBe('karma')
+  })
+
+  // Payload merges the stored document into the request's data before beforeValidate, and this test guards that behaviour, which deriveSlug relies on.
+  it('keeps the stored slug when an edit through the API leaves it out', async () => {
+    const live = await payload.create({
+      collection: 'articles',
+      data: { title: 'Karma', shape: 'vani-note', difficulty: level.id, _status: 'published' },
+      overrideAccess: false,
+      user: owner,
+    })
+    const { token } = await payload.login({
+      collection: 'users',
+      data: { email: owner.email, password: PASSWORD },
+    })
+
+    const published = await rest('PATCH', `articles/${live.id}`, {
+      token,
+      body: { title: 'Karma renamed', _status: 'published' },
+    })
+    expect(published.status).toBe(200)
+    const stored = await payload.findByID({
+      collection: 'articles',
+      id: live.id,
+      overrideAccess: true,
+    })
+    expect([stored.title, stored.slug]).toEqual(['Karma renamed', 'karma'])
+
+    const drafted = await rest('PATCH', `articles/${live.id}?draft=true`, {
+      key: ASSISTANT_KEY,
+      body: { title: 'Karma, a draft title' },
+    })
+    expect(drafted.status).toBe(200)
+    const draft = await payload.findByID({
+      collection: 'articles',
+      id: live.id,
+      draft: true,
+      overrideAccess: true,
+    })
+    expect([draft.title, draft.slug]).toEqual(['Karma, a draft title', 'karma'])
+  })
+
+  it('still makes a slug from the title when the slug is sent empty', async () => {
+    const created = await draft({ title: 'Karma' })
+    const updated = await payload.update({
+      collection: 'articles',
+      id: created.id,
+      data: { title: 'Dharma', slug: '' },
+      draft: true,
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(updated.slug).toBe('dharma')
   })
 
   it('lets a draft have no slug, but not a published article', async () => {
