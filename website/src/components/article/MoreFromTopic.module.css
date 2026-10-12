@@ -1,0 +1,16 @@
+.more {
+  margin-top: 16px;
+  padding: 36px 0 44px;
+  background: var(--paper-2);
+}
+
+.heading {
+  margin-bottom: 18px;
+  font-size: 22px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 24px;
+}

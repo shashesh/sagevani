@@ -1,0 +1,48 @@
+.sources {
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.summary {
+  padding: 6px 0;
+  cursor: pointer;
+}
+
+.heading {
+  display: inline;
+  font-size: 17px;
+}
+
+.group {
+  margin: 16px 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  font-size: var(--text-ui);
+  line-height: 1.6;
+}
+
+.entry + .entry {
+  margin-top: 8px;
+}
+
+.url {
+  overflow-wrap: anywhere;
+}
+
+.claim {
+  display: block;
+  font-size: 14px;
+  color: var(--muted);
+}

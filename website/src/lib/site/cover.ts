@@ -22,3 +22,11 @@ export function coverFor({ title, coverTerm, firstTopic, photo }: CoverInput): C
     photo,
   }
 }
+
+export type CoverTermSize = 'short' | 'medium' | 'long'
+
+/** How large to draw a cover's term: up to 12 letters, up to 24, or more. */
+export function coverTermSize(term: string): CoverTermSize {
+  const length = [...term.normalize('NFC')].length
+  return length <= 12 ? 'short' : length <= 24 ? 'medium' : 'long'
+}

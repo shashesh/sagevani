@@ -1,0 +1,31 @@
+.article {
+  padding-top: 44px;
+}
+
+.title {
+  margin: 14px 0 12px;
+  font-size: clamp(30px, 5vw, 40px);
+  line-height: 1.15;
+}
+
+.summary {
+  margin-bottom: 16px;
+  font-size: 20px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.byline {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.author {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.cover {
+  margin: 28px 0;
+}

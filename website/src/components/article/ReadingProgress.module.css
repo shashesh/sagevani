@@ -1,0 +1,14 @@
+/* Moves with transform only; no transition when reduced motion is set (global.css). */
+.progress {
+  position: fixed;
+  top: calc(var(--header-height) - 1px);
+  right: 0;
+  left: 0;
+  z-index: 11;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 80ms linear;
+  pointer-events: none;
+}

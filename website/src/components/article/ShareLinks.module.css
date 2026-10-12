@@ -1,0 +1,48 @@
+.share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin: 40px 0 28px;
+  padding: 14px 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  font-size: 14px;
+}
+
+.label {
+  color: var(--muted);
+}
+
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* At least 24px tall, for WCAG 2.2's target size. */
+.list a,
+.button {
+  display: inline-block;
+  padding-block: 4px;
+  color: var(--ink-soft);
+}
+
+.button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+
+.list a:hover,
+.button:hover {
+  color: var(--accent);
+}
