@@ -1,0 +1,73 @@
+/*
+ * The site's colours (website design 7.1). src/styles/tokens.ts holds the same values, and
+ * tests/unit/tokens.unit.spec.ts checks that both agree and that every text pair reaches 4.5:1.
+ * The light theme is the default; the dark one follows the device unless the reader chose light,
+ * or applies when the reader chose dark (data-theme on <html>, set before the first paint).
+ */
+:root {
+  color-scheme: light;
+  --paper: #f4efe4;
+  --paper-2: #ece5d6;
+  --surface: #f8f4ea;
+  --ink: #2b2621;
+  --ink-soft: #4a433b;
+  --muted: #675e53;
+  --rule: #d9cfbd;
+  --accent: #9a3b26;
+  --on-accent: #fbf7ef;
+  --footer: #2b2621;
+  --footer-text: #d6cdbc;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --paper: #1a1714;
+    --paper-2: #221e1a;
+    --surface: #201c18;
+    --ink: #ebe3d3;
+    --ink-soft: #c6bdad;
+    --muted: #a39a8b;
+    --rule: #352f28;
+    --accent: #e0896c;
+    --on-accent: #1a1714;
+    --footer: #2b2621;
+    --footer-text: #d6cdbc;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #1a1714;
+  --paper-2: #221e1a;
+  --surface: #201c18;
+  --ink: #ebe3d3;
+  --ink-soft: #c6bdad;
+  --muted: #a39a8b;
+  --rule: #352f28;
+  --accent: #e0896c;
+  --on-accent: #1a1714;
+  --footer: #2b2621;
+  --footer-text: #d6cdbc;
+}
+
+/* Sizes and type (website design 7.2 and 7.3). */
+:root {
+  --font-body: var(--font-literata), Georgia, 'Times New Roman', serif;
+  --page: 1120px;
+  --column: 680px;
+  --gutter: clamp(16px, 4vw, 28px);
+  --header-height: 64px;
+  --text-body: 19px;
+  --text-ui: 15px;
+  --text-small: 13px;
+  --text-label: 11px;
+  --leading-body: 1.7;
+}
+
+@media (max-width: 859px) {
+  :root {
+    --header-height: 56px;
+    --text-body: 18px;
+  }
+}
