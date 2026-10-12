@@ -1,6 +1,6 @@
 // Run by global-setup.ts before the browser tests. It empties the test database, then creates the
-// owner and the one difficulty level the tests use. It refuses any database whose name does not
-// end in "_test".
+// owner and the one difficulty level the tests use, and seeds the reading content
+// (seed-reading.ts). It refuses any database whose name does not end in "_test".
 import 'dotenv/config'
 import { getPayload } from 'payload'
 
@@ -22,7 +22,7 @@ await payload.delete({
   overrideAccess: true,
   context: allowOwnerChange(),
 })
-await payload.create({
+const owner = await payload.create({
   collection: 'users',
   data: { ...E2E_OWNER, role: 'owner' },
   overrideAccess: true,
@@ -33,6 +33,8 @@ await payload.create({
   data: { name: 'Advanced', order: 3, needsPriorReading: true },
   overrideAccess: true,
 })
+const { seedReading } = await import('./seed-reading')
+await seedReading(payload, owner)
 
 await payload.destroy()
 // Payload keeps background handles open after destroy(); exit explicitly so setup can continue.

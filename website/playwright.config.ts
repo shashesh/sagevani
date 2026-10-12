@@ -1,10 +1,10 @@
 import { defineConfig, devices } from '@playwright/test'
 
 import { E2E_DATABASE_URL } from './tests/e2e/database'
+import { E2E_BASE_URL, E2E_PORT } from './tests/e2e/server'
 
-// Its own port, so a dev server on 3000 with the dev database is never reused by mistake.
-const PORT = 3100
-const baseURL = `http://localhost:${PORT}`
+const PORT = E2E_PORT
+const baseURL = E2E_BASE_URL
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -13,6 +13,8 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? 'github' : 'list',
   timeout: 60_000,
+  // The dev server's admin answers slowly while it compiles, which a 5 s default does not allow.
+  expect: { timeout: 15_000 },
   // Playwright starts webServer first, then this. Both use the test database.
   globalSetup: './tests/e2e/global-setup.ts',
   use: {
