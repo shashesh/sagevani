@@ -12,9 +12,10 @@ import { SITE_TAG } from './refresh'
  * entry carries the site tag, which refreshSite expires, and its arguments are part of its key.
  * unstable_cache needs Next's request context, so these run only inside Next: the browser tests
  * cover them, and the functions they wrap have their own tests. React's cache around each one
- * shares a result between calls in the same request (generateMetadata and the page run together). The cache key holds this wrapper's source, not
- * the functions it calls, so after changing what they return, clear .next/cache locally: deploys
- * start with an empty cache, and the browser tests' global setup refreshes the site tag.
+ * shares a result between calls in the same request (generateMetadata and the page run together).
+ * The cache key holds this wrapper's source, not the functions it calls, so after changing what
+ * they return, clear .next/cache locally: deploys start with an empty cache, and the browser
+ * tests' global setup refreshes the site tag.
  */
 const CACHE = { tags: [SITE_TAG] }
 

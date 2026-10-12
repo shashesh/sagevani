@@ -5,7 +5,8 @@ import { type KeyboardEvent, type ReactNode, useEffect, useRef } from 'react'
 
 /**
  * The phone menu: a <details> element, so it works without JavaScript. The header stays mounted
- * across client navigations, so this closes the menu when the path changes, and on Escape,
+ * across client navigations, so this closes the menu when the path changes, on a click on any link
+ * (the current page included), and on Escape,
  * which returns focus to the summary.
  */
 export function NavMenu({ className, children }: { className?: string; children: ReactNode }) {
@@ -24,7 +25,14 @@ export function NavMenu({ className, children }: { className?: string; children:
   }
 
   return (
-    <details ref={ref} className={className} onKeyDown={onKeyDown}>
+    <details
+      ref={ref}
+      className={className}
+      onKeyDown={onKeyDown}
+      onClick={(event) => {
+        if ((event.target as Element).closest('a') && ref.current) ref.current.open = false
+      }}
+    >
       {children}
     </details>
   )

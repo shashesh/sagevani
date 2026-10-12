@@ -55,6 +55,11 @@ a:hover {
   outline-offset: 3px;
 }
 
+/* main takes focus only so the skip link lands there; it isn't interactive. */
+#content:focus {
+  outline: none;
+}
+
 /* The page container and the reading column (website design 7.3). */
 .page {
   max-width: var(--page);
