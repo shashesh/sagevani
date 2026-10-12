@@ -32,6 +32,7 @@ function BodyLink({
   return (
     <a href={href} target="_blank" rel="noopener noreferrer">
       {children}
+      {/* Placeholder copy for the owner to approve (spec 9). */}
       <span className="visually-hidden"> (opens in a new tab)</span>
     </a>
   )
@@ -52,7 +53,17 @@ const convertersFor =
     quote: defaultConverters.quote,
     horizontalrule: defaultConverters.horizontalrule,
     list: defaultConverters.list,
-    unknown: () => null,
+    unknown: ({ node }) => {
+      const fields: unknown = 'fields' in node ? node.fields : undefined
+      const blockType =
+        node.type === 'block' && fields && typeof fields === 'object' && 'blockType' in fields
+          ? ` (block "${String(fields.blockType)}")`
+          : ''
+      console.warn(
+        `[RichText] No converter for node type "${node.type}"${blockType}; it is not shown.`,
+      )
+      return null
+    },
     // The title is the page's h1, so a body "Heading 1" is an h2, and h5 and h6 are h4.
     heading: ({ node, nodesToJSX }) => {
       const children = nodesToJSX({ nodes: node.children })
@@ -60,19 +71,25 @@ const convertersFor =
       if (node.tag === 'h4' || node.tag === 'h5' || node.tag === 'h6') return <h4>{children}</h4>
       return <h2>{children}</h2>
     },
-    // Checklists get a plain item with a decorative marker; Payload's checkbox input is
-    // interactive inside a role="checkbox" item, which fails accessibility checks.
+    // Never Payload's own item for a check list: its role="checkbox" <li> fails accessibility
+    // checks. A plain item with a decorative marker instead; a nested list keeps no marker.
     listitem: (args) => {
       const { node, nodesToJSX, parent } = args
       const isCheck = 'listType' in parent && parent.listType === 'check'
-      const hasSubLists = node.children.some((child) => child.type === 'list')
-      const standard = defaultConverters.listitem
-      if (!isCheck || hasSubLists) return typeof standard === 'function' ? standard(args) : null
+      if (!isCheck) {
+        const standard = defaultConverters.listitem
+        return typeof standard === 'function' ? standard(args) : null
+      }
+      const children = nodesToJSX({ nodes: node.children })
+      if (node.children.some((child) => child.type === 'list')) {
+        return <li style={{ listStyleType: 'none' }}>{children}</li>
+      }
       return (
         <li value={node.value} style={{ listStyleType: 'none' }}>
           <span aria-hidden="true">{node.checked ? '☑' : '☐'} </span>
-          {nodesToJSX({ nodes: node.children })}
-          {node.checked && <span className="visually-hidden"> (done)</span>}
+          {children}
+          {/* Placeholder copy for the owner to approve (spec 9). */}
+          <span className="visually-hidden">{node.checked ? ' (done)' : ' (not done)'}</span>
         </li>
       )
     },
