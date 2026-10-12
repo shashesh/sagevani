@@ -38,16 +38,14 @@ export function Sources({ groups }: { groups: SourceGroup[] }) {
         <h2 className={styles.heading}>Sources ({count})</h2>
       </summary>
       {groups.map((group) => (
-        <section key={group.type} aria-labelledby={`sources-${group.type}`}>
-          <h3 id={`sources-${group.type}`} className={styles.group}>
-            {group.label}
-          </h3>
+        <div key={group.type}>
+          <h3 className={styles.group}>{group.label}</h3>
           <ul className={styles.list}>
             {group.entries.map((entry, index) => (
               <SourceLine key={index} entry={entry} />
             ))}
           </ul>
-        </section>
+        </div>
       ))}
     </details>
   )

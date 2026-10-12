@@ -28,12 +28,14 @@
 .list a,
 .button {
   display: inline-block;
+  min-width: 24px;
   padding-block: 4px;
+  text-align: center;
   color: var(--ink-soft);
 }
 
 .button {
-  padding: 0;
+  padding-inline: 0;
   border: 0;
   background: none;
   font: inherit;

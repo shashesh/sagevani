@@ -50,8 +50,8 @@ export function ArticleView({ article, related, shareUrl }: ArticleViewProps) {
               <span className={styles.author}>Sagevani</span>
               {details.map((detail, index) => (
                 <span key={index}>
-                  <span aria-hidden="true"> · </span>
-                  {detail}
+                  {' '}
+                  <span aria-hidden="true">·</span> {detail}
                 </span>
               ))}
             </p>
@@ -63,7 +63,7 @@ export function ArticleView({ article, related, shareUrl }: ArticleViewProps) {
           <div id="article-body">
             <RichText data={article.body} context={article.bodyContext} />
           </div>
-          <ShareLinks url={shareUrl} title={article.title} />
+          {article.slug && <ShareLinks url={shareUrl} title={article.title} />}
           <Sources groups={article.sources} />
           <CorrectionNotes corrections={article.corrections} />
         </div>

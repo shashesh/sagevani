@@ -16,6 +16,7 @@ export function ShareLinks({ url, title }: { url: string; title: string }) {
         <li>
           <a href={links.whatsapp} target="_blank" rel="noopener noreferrer">
             WhatsApp
+            <span className="visually-hidden"> (opens in a new tab)</span>
           </a>
         </li>
         <li>
@@ -23,7 +24,7 @@ export function ShareLinks({ url, title }: { url: string; title: string }) {
         </li>
         <li>
           <a href={links.x} target="_blank" rel="noopener noreferrer">
-            X
+            X<span className="visually-hidden"> (opens in a new tab)</span>
           </a>
         </li>
       </ul>

@@ -24,9 +24,13 @@ export function ReadingProgress({ targetId }: { targetId: string }) {
       if (frame === 0) frame = requestAnimationFrame(update)
     }
     update()
+    // The body also grows without scrolling: an image loads, or the live preview refreshes.
+    const observer = new ResizeObserver(schedule)
+    observer.observe(target)
     window.addEventListener('scroll', schedule, { passive: true })
     window.addEventListener('resize', schedule)
     return () => {
+      observer.disconnect()
       cancelAnimationFrame(frame)
       window.removeEventListener('scroll', schedule)
       window.removeEventListener('resize', schedule)

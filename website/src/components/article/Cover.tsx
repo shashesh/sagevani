@@ -14,16 +14,24 @@ interface CoverProps {
   variant?: 'full' | 'card'
   /** Load the photo first: the article page's cover is its largest image. */
   preload?: boolean
+  /** The photo adds nothing a surrounding link or heading doesn't already say. */
+  decorative?: boolean
 }
 
 /** Design A: the term centred, the title under it, the mark in the corner (stage 3 design, 5.5). */
-export function Cover({ cover, sizes, variant = 'full', preload = false }: CoverProps) {
+export function Cover({
+  cover,
+  sizes,
+  variant = 'full',
+  preload = false,
+  decorative = false,
+}: CoverProps) {
   if (cover.photo) {
     return (
       <div className={styles.cover}>
         <Image
           src={cover.photo.url}
-          alt={cover.photo.alt}
+          alt={decorative ? '' : cover.photo.alt}
           fill
           sizes={sizes}
           preload={preload}
@@ -35,16 +43,14 @@ export function Cover({ cover, sizes, variant = 'full', preload = false }: Cover
   const tint = { '--cover-bg': cover.background, '--cover-text': cover.text } as CSSProperties
   return (
     // Drawn from the title and topic, which the page already gives as text.
-    <div
-      className={`${styles.cover} ${styles.drawn} ${styles[coverTermSize(cover.term)]}`}
-      style={tint}
-      aria-hidden="true"
-    >
-      <span className={styles.term}>{cover.term}</span>
-      {variant === 'full' && cover.term !== cover.title && (
-        <span className={styles.title}>{cover.title}</span>
-      )}
-      <span className={styles.mark}>SageVani</span>
+    <div className={styles.cover} aria-hidden="true">
+      <div className={`${styles.drawn} ${styles[coverTermSize(cover.term)]}`} style={tint}>
+        <span className={styles.term}>{cover.term}</span>
+        {variant === 'full' && cover.term !== cover.title && (
+          <span className={styles.title}>{cover.title}</span>
+        )}
+        <span className={styles.mark}>SageVani</span>
+      </div>
     </div>
   )
 }

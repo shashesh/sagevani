@@ -14,9 +14,14 @@ export function ArticleCard({ article }: { article: Card }) {
     article.difficulty,
   ].filter(Boolean)
   return (
-    <article className={styles.card}>
+    <article>
       <Link href={articlePath(article.slug)} className={styles.link}>
-        <Cover cover={article.cover} sizes="(max-width: 859px) 100vw, 340px" variant="card" />
+        <Cover
+          cover={article.cover}
+          sizes="(max-width: 600px) 100vw, (max-width: 859px) 50vw, 340px"
+          variant="card"
+          decorative
+        />
         <h3 className={styles.title}>{article.title}</h3>
       </Link>
       {article.summary && <p className={styles.summary}>{article.summary}</p>}

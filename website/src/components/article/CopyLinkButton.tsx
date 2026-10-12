@@ -1,31 +1,46 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import styles from './ShareLinks.module.css'
 
-type Status = 'idle' | 'copied' | 'failed'
+type Outcome = 'copied' | 'failed' | null
 
-const LABELS: Record<Status, string> = {
-  idle: 'Copy link',
+const MESSAGES: Record<'copied' | 'failed', string> = {
   copied: 'Link copied',
   failed: 'Copy failed',
 }
 
-/** The one share option that needs JavaScript. The new label is announced. */
+const MESSAGE_MS = 3000
+
+/** The one share option that needs JavaScript. The label stays put; the outcome is announced. */
 export function CopyLinkButton({ url }: { url: string }) {
-  const [status, setStatus] = useState<Status>('idle')
+  const [outcome, setOutcome] = useState<Outcome>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  const show = (next: 'copied' | 'failed'): void => {
+    clearTimeout(timer.current)
+    setOutcome(next)
+    timer.current = setTimeout(() => setOutcome(null), MESSAGE_MS)
+  }
   const copy = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(url)
-      setStatus('copied')
+      show('copied')
     } catch {
-      setStatus('failed')
+      show('failed')
     }
   }
   return (
-    <button type="button" className={styles.button} onClick={copy} aria-live="polite">
-      {LABELS[status]}
-    </button>
+    <>
+      <button type="button" className={styles.button} onClick={copy}>
+        Copy link
+      </button>
+      <span role="status" className="visually-hidden">
+        {outcome ? MESSAGES[outcome] : ''}
+      </span>
+    </>
   )
 }

@@ -18,6 +18,7 @@ body {
   font-family: var(--font-body);
   font-size: var(--text-ui);
   line-height: 1.5;
+  overflow-wrap: break-word;
   font-optical-sizing: auto;
 }
 
