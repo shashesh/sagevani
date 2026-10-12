@@ -39,6 +39,9 @@ export const randomFileName: CollectionBeforeOperationHook = ({ args, operation,
 
 export const Media: CollectionConfig = {
   slug: 'media',
+  // A copied credit or licence record has no use, and Payload names a duplicated file
+  // "<uuid>-1.<ext>" (randomFileName never sees it), so every stored file keeps a plain random name.
+  disableDuplicate: true,
   admin: {
     useAsTitle: 'alt',
     defaultColumns: ['filename', 'alt', 'creator', 'licence'],
