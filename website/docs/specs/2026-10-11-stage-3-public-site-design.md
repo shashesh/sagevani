@@ -241,7 +241,9 @@ Comments (parent spec 6.2, item 9) arrive in stage 4, between the correction not
 - **Reserved page slugs** (3b): the `pages` slug check refuses the slugs in 4.1. No migration.
 - **`coverTerm`'s description** (3b) gains the Latin-script note. No migration.
 - **Live preview settings** (3a) on `articles` and `pages`. No migration.
-- **Slugs on edit** (3a): an edit that doesn't send `slug` keeps the stored one. Before, a REST edit that changed the title without the slug re-derived it, which would move a published URL. Found during 3a planning. No migration.
+- **Slug length** (3a): slugs are capped at 200 characters, the longest a route accepts. Payload checks it on publish, and on every save for topics. No migration: the column has no length.
+- **Media can't be duplicated** (3a): a duplicate would keep the original's file under a changed name. No migration.
+- **Slugs on edit** (3a): tests confirm that an edit that doesn't send `slug` keeps the stored one. No code change was needed.
 
 ## 8. Errors
 

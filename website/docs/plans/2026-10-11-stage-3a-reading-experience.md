@@ -35,7 +35,7 @@
 
      Without the draft check, every autosave (every 2 seconds) cleared the whole site's cache.
   5. **`next dev` caches `unstable_cache` results across requests**, in `.next/dev/cache/fetch-cache`, and a database change made outside Next is not seen. A browser hard reload (`Cache-Control: no-cache`) bypasses it; an ordinary reload doesn't. The browser tests therefore clear the cache through the running server after seeding (Task 15).
-  6. A REST `PATCH` that changes the title without sending `slug` re-derived the slug from the new title, moving the URL. Task 7 fixes this.
+  6. The spike reported that a REST `PATCH` changing the title without sending `slug` re-derived the slug from the new title. Task 7 could not reproduce it: Payload 3.90.2 merges the stored document into the data before `beforeValidate`, so the slug is kept. Task 7 adds regression tests instead of a fix (see "Changes during the build").
   7. `next/font/google` accepts `Literata({ subsets: ['latin', 'latin-ext'], style: ['normal', 'italic'], axes: ['opsz'], display: 'swap', variable: '--font-literata' })` and `Tiro_Devanagari_Sanskrit({ weight: '400', subsets: ['devanagari'], preload: false, display: 'swap' })`.
      - Tiro's `@font-face` rules go in a separate CSS chunk, absent from pages that don't import its module.
      - On a page with Devanagari, its files load, and `document.fonts` reports Tiro faces as `loaded`.
@@ -6027,7 +6027,7 @@ git commit -m "test: browser tests for reading, the theme, live preview and refr
 - Pages are cached and refresh when published content changes: a publish, an unpublish, a deletion, or an edit to topics, levels, site settings or an image. Saving a draft never refreshes anything.
 - Live preview shows the latest draft beside the editor and follows each autosave. The preview routes are staff-only and never cached.
 - Every page says `noindex` until `SITE_INDEXING=on` at launch. `SITE_URL` gives links their address and is required on hosted sites.
-- Fixed: an edit through the API that left out the slug re-derived it from the new title, which would have moved a published URL.
+- Slugs are capped at 200 characters, the longest a page address accepts, and media can no longer be duplicated, so every stored file keeps a plain random name. Tests confirm that an edit through the API that leaves out the slug keeps the published address.
 - The landing, archive, topic and fixed pages, and link-preview images, follow in stage 3b.
 ```
 
@@ -6087,7 +6087,7 @@ Expected: the migrations apply, and `next build` lists `/articles/[slug]` as `â—
 Run: `npm run test:e2e`
 Expected: PASS.
 
-- [ ] **Step 5: Code review.** Review the whole branch against the spec and this plan (`superpowers:requesting-code-review`). Fix what it finds, and add any change to "Changes after the final review" below.
+- [ ] **Step 5: Code review.** Review the whole branch against the spec and this plan (`superpowers:requesting-code-review`). Fix what it finds, and add any change to "Changes during the build" below.
 
 - [ ] **Step 6: Push and open a draft pull request**
 
@@ -6152,6 +6152,18 @@ Expected: a draft pull request URL. Don't request a Copilot review; the owner do
 | 10 Testing | every task; 15 for the browser |
 | 12 Documents | 16 |
 
-## Changes after the final review
+## Changes during the build
 
-None yet.
+Each task's reviews changed the following. Where a code block earlier in this plan differs, the code in the repository, not the block, is current.
+
+- **A. Task 4: the tokens test checks more.** It also checks that `@media (prefers-color-scheme: dark)` directly wraps the device-setting rule, and that each colour block sets the matching `color-scheme`.
+- **B. Task 5: `safeHref` resolves paths as a browser does.** Browsers drop tabs and newlines and read `\` as `/`, so `"/\t/evil.example"` would leave the site. A path is now resolved against a stand-in origin and kept only if the origin is unchanged.
+- **C. Task 5: sources without a work are skipped.** A draft autosaved mid-edit can hold a source with no work, which crashed the live preview. `SourceInput.type` and `work` are optional.
+- **D. Task 5: slugs are capped at 200 characters.** `slugify` doesn't truncate, so a long title could make a slug that `isSlug` refuses: the article would publish and then 404. `MAX_SLUG_LENGTH` moved to `src/lib/slug.ts`, and `slugField` has `maxLength`, checked on publish (and on every save for topics).
+- **E. Task 6: media can't be duplicated.** A duplicate kept the original's file under `<uuid>-1.<ext>`, which the local route refuses. `disableDuplicate: true` on `Media` keeps every stored name plain.
+- **F. Task 6: the local route is stricter.**
+  - It answers 404 only for a missing file or a folder, and rethrows any other read error.
+  - It sends `X-Content-Type-Options: nosniff`.
+  - Its tests pin the storage variables, including a storage-on case.
+  - `next.config.ts` gives a clear message for a malformed `MEDIA_PUBLIC_URL`.
+- **G. Task 7: no change to `deriveSlug`.** The failing test the task expected passed before any change: Payload 3.90.2 merges the stored document into the data before `beforeValidate`, so an edit that leaves out the slug keeps it. Both tests stay, as regression tests.
