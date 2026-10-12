@@ -22,17 +22,27 @@ export const markRestoreAsDraft: CollectionBeforeOperationHook = ({ args, operat
   return args
 }
 
-/** Request-context key: whether this create, update or restore saves a draft. */
+/**
+ * Request-context key: whether this create, update or restore saves a draft. The flag is per
+ * request and the last write wins, so a nested article or page create, update or restore inside
+ * a save, through the same req, would overwrite it. None exists today.
+ */
 export const DRAFT_SAVE = 'draftSave'
 
 /**
  * Records Payload's `draft` flag, which only beforeOperation hooks receive. An unpublish and a
  * draft save look the same to afterChange, so hooks that act only when the live document changes
  * read isDraftSave instead (stage 3a plan, before you start).
+ *
+ * Mirrors Payload's isSavingDraft: an update that sets `_status: 'published'` puts the document
+ * live even with the draft flag (the admin's bulk Publish sends exactly that). A create with the
+ * flag is always a draft, and a restore is decided by the flag alone.
  */
 export const markDraftSave: CollectionBeforeOperationHook = ({ args, operation, req }) => {
   if (operation === 'create' || operation === 'update' || operation === 'restoreVersion') {
-    req.context[DRAFT_SAVE] = (args as { draft?: unknown }).draft === true
+    const write = args as { draft?: unknown; data?: { _status?: unknown } }
+    req.context[DRAFT_SAVE] =
+      write.draft === true && !(operation === 'update' && write.data?._status === 'published')
   }
   return args
 }

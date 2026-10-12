@@ -17,9 +17,12 @@ export const refreshUnlessDraft: CollectionAfterChangeHook = ({ doc, req }) => {
   return doc
 }
 
-/** Articles and pages: deleting a published document takes it off the site. */
-export const refreshIfPublishedDeleted: CollectionAfterDeleteHook = ({ doc, req }) => {
-  if ((doc as { _status?: unknown } | undefined)?._status === 'published') {
+/**
+ * Articles and pages: deleting a published document takes it off the site. A delete with a
+ * `select` can leave out the status, so refresh unless the document is known to be a draft.
+ */
+export const refreshUnlessDraftDeleted: CollectionAfterDeleteHook = ({ doc, req }) => {
+  if ((doc as { _status?: unknown } | undefined)?._status !== 'draft') {
     refreshSite(req.payload.logger)
   }
   return doc

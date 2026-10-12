@@ -21,7 +21,7 @@ describe('refreshSite', () => {
   })
 
   it('does nothing outside Next, where there is no page to refresh', () => {
-    vi.stubEnv('NEXT_RUNTIME', '')
+    vi.stubEnv('NEXT_RUNTIME', undefined)
     refreshSite(logger)
     expect(revalidateTag).not.toHaveBeenCalled()
   })

@@ -4,7 +4,7 @@ import { ownerOnly, publishedOrStaff, staffOnly } from '../access/roles'
 import { contentEditor } from '../blocks/content-editor'
 import { bodyLinksOnlyTo } from './shared/body-links'
 import { markDraftSave, markRestoreAsDraft } from './shared/publishing'
-import { refreshIfPublishedDeleted, refreshUnlessDraft } from './shared/refresh'
+import { refreshUnlessDraftDeleted, refreshUnlessDraft } from './shared/refresh'
 import { checkSlug, deriveSlug, slugField } from './shared/slug'
 
 /**
@@ -28,7 +28,7 @@ export const Pages: CollectionConfig = {
     beforeValidate: [deriveSlug('title')],
     beforeChange: [bodyLinksOnlyTo(['articles', 'pages']), checkSlug],
     afterChange: [refreshUnlessDraft],
-    afterDelete: [refreshIfPublishedDeleted],
+    afterDelete: [refreshUnlessDraftDeleted],
   },
   fields: [
     { name: 'title', type: 'text', required: true },

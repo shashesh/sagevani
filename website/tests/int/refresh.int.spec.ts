@@ -279,6 +279,145 @@ describe('refreshing the public pages', () => {
     ).toBe(1)
   })
 
+  it('refreshes when an update carries the draft flag but publishes', async () => {
+    const draftArticle = await payload.create({
+      collection: 'articles',
+      data: { title: 'Soon live', shape: 'vani-note', difficulty: level.id },
+      draft: true,
+      overrideAccess: true,
+    })
+    expect(
+      await refreshesDuring(() =>
+        payload.update({
+          collection: 'articles',
+          id: draftArticle.id,
+          data: { _status: 'published' },
+          draft: true,
+          overrideAccess: false,
+          user: owner,
+        }),
+      ),
+    ).toBe(1)
+    const draftPage = await payload.create({
+      collection: 'pages',
+      data: { title: 'Soon live page' },
+      draft: true,
+      overrideAccess: true,
+    })
+    expect(
+      await refreshesDuring(() =>
+        payload.update({
+          collection: 'pages',
+          id: draftPage.id,
+          data: { _status: 'published' },
+          draft: true,
+          overrideAccess: false,
+          user: owner,
+        }),
+      ),
+    ).toBe(1)
+  })
+
+  it('refreshes when pages are published in bulk through REST', async () => {
+    const [first, second] = await Promise.all(
+      ['One', 'Two'].map((title) =>
+        payload.create({
+          collection: 'pages',
+          data: { title },
+          draft: true,
+          overrideAccess: true,
+        }),
+      ),
+    )
+    const token = await ownerToken()
+    let status = 0
+    const count = await refreshesDuring(async () => {
+      status = (
+        await rest(
+          'PATCH',
+          `pages?where[id][in][0]=${first.id}&where[id][in][1]=${second.id}&draft=true`,
+          { token, body: { _status: 'published' } },
+        )
+      ).status
+    })
+    expect(status).toBe(200)
+    expect(count).toBeGreaterThanOrEqual(1)
+    for (const { id } of [first, second]) {
+      const page = await payload.findByID({ collection: 'pages', id, overrideAccess: true })
+      expect(page._status).toBe('published')
+    }
+  })
+
+  it('refreshes when a page is unpublished or a published page is deleted', async () => {
+    const make = (title: string) =>
+      payload.create({
+        collection: 'pages',
+        data: { title, _status: 'published' },
+        overrideAccess: true,
+      })
+    const page = await make('A page')
+    expect(
+      await refreshesDuring(() =>
+        payload.update({
+          collection: 'pages',
+          id: page.id,
+          data: { _status: 'draft' },
+          overrideAccess: false,
+          user: owner,
+        }),
+      ),
+    ).toBe(1)
+    const live = await make('Another page')
+    expect(
+      await refreshesDuring(() =>
+        payload.delete({ collection: 'pages', id: live.id, overrideAccess: false, user: owner }),
+      ),
+    ).toBe(1)
+  })
+
+  it('refreshes when a published article is deleted with a select that leaves out its status', async () => {
+    const live = await publish('Live')
+    expect(
+      await refreshesDuring(() =>
+        payload.delete({
+          collection: 'articles',
+          id: live.id,
+          select: { title: true },
+          overrideAccess: false,
+          user: owner,
+        }),
+      ),
+    ).toBe(1)
+  })
+
+  it('refreshes when a topic or a difficulty level is deleted', async () => {
+    const topic = await payload.create({
+      collection: 'topics',
+      data: {
+        name: 'A test topic',
+        question: 'A test question?',
+        order: 9,
+        coverTint: { background: '#e3cfa8', text: '#3d2f1c' },
+      },
+      overrideAccess: true,
+    })
+    expect(
+      await refreshesDuring(() =>
+        payload.delete({ collection: 'topics', id: topic.id, overrideAccess: false, user: owner }),
+      ),
+    ).toBe(1)
+    expect(
+      await refreshesDuring(() =>
+        payload.delete({
+          collection: 'difficultyLevels',
+          id: level.id,
+          overrideAccess: false,
+          user: owner,
+        }),
+      ),
+    ).toBe(1)
+  })
+
   it('never refreshes outside Next, even for a publish', async () => {
     vi.mocked(revalidateTag).mockClear()
     await publish('Live')

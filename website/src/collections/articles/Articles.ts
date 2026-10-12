@@ -4,7 +4,7 @@ import { nobody, ownerOnly, publishedOrStaff, staffOnly, staffOnlyField } from '
 import { contentEditor } from '../../blocks/content-editor'
 import { bodyLinksOnlyTo } from '../shared/body-links'
 import { markDraftSave, markRestoreAsDraft } from '../shared/publishing'
-import { refreshIfPublishedDeleted, refreshUnlessDraft } from '../shared/refresh'
+import { refreshUnlessDraftDeleted, refreshUnlessDraft } from '../shared/refresh'
 import { checkSlug, deriveSlug, slugField } from '../shared/slug'
 import {
   autosaveOnlyForDrafts,
@@ -69,7 +69,7 @@ export const Articles: CollectionConfig = {
     ],
     // After the approval is recorded: if that fails, the save rolls back and nothing refreshes.
     afterChange: [recordApprovedVersion, refreshUnlessDraft],
-    afterDelete: [refreshIfPublishedDeleted],
+    afterDelete: [refreshUnlessDraftDeleted],
   },
   fields: [
     { name: 'title', type: 'text', required: true },
