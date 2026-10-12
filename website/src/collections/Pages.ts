@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
+import { PREVIEW_BREAKPOINTS, previewPath } from '../lib/site/preview-path'
 import { ownerOnly, publishedOrStaff, staffOnly } from '../access/roles'
 import { contentEditor } from '../blocks/content-editor'
 import { bodyLinksOnlyTo } from './shared/body-links'
@@ -13,7 +14,15 @@ import { checkSlug, deriveSlug, slugField } from './shared/slug'
  */
 export const Pages: CollectionConfig = {
   slug: 'pages',
-  admin: { useAsTitle: 'title', defaultColumns: ['title', 'slug', '_status', 'updatedAt'] },
+  admin: {
+    useAsTitle: 'title',
+    defaultColumns: ['title', 'slug', '_status', 'updatedAt'],
+    livePreview: {
+      url: ({ data }) => previewPath('pages', data?.id),
+      breakpoints: PREVIEW_BREAKPOINTS,
+    },
+    preview: (doc) => previewPath('pages', doc.id),
+  },
   versions: { drafts: { autosave: { interval: 2000 } }, maxPerDoc: 0 },
   // Owner-only writes, so pages need none of the articles' publishing guards; copy them if anyone else ever writes pages.
   access: {

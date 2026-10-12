@@ -1,6 +1,7 @@
 import type { CollectionConfig, Where } from 'payload'
 
 import { nobody, ownerOnly, publishedOrStaff, staffOnly, staffOnlyField } from '../../access/roles'
+import { PREVIEW_BREAKPOINTS, previewPath } from '../../lib/site/preview-path'
 import { contentEditor } from '../../blocks/content-editor'
 import { bodyLinksOnlyTo } from '../shared/body-links'
 import { markDraftSave, markRestoreAsDraft } from '../shared/publishing'
@@ -37,6 +38,12 @@ export const Articles: CollectionConfig = {
   admin: {
     useAsTitle: 'title',
     defaultColumns: ['title', 'shape', '_status', 'updatedAt'],
+    // The latest draft in the site's design, beside the editor (stage 3 design, 4.4).
+    livePreview: {
+      url: ({ data }) => previewPath('articles', data?.id),
+      breakpoints: PREVIEW_BREAKPOINTS,
+    },
+    preview: (doc) => previewPath('articles', doc.id),
   },
   versions: {
     drafts: { autosave: { interval: 2000 } },
