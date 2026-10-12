@@ -3,7 +3,8 @@ import type { CollectionConfig, Where } from 'payload'
 import { nobody, ownerOnly, publishedOrStaff, staffOnly, staffOnlyField } from '../../access/roles'
 import { contentEditor } from '../../blocks/content-editor'
 import { bodyLinksOnlyTo } from '../shared/body-links'
-import { markRestoreAsDraft } from '../shared/publishing'
+import { markDraftSave, markRestoreAsDraft } from '../shared/publishing'
+import { refreshIfPublishedDeleted, refreshUnlessDraft } from '../shared/refresh'
 import { checkSlug, deriveSlug, slugField } from '../shared/slug'
 import {
   autosaveOnlyForDrafts,
@@ -55,6 +56,7 @@ export const Articles: CollectionConfig = {
       refuseBulkPublish,
       autosaveOnlyForDrafts,
       markRestoreAsDraft,
+      markDraftSave,
     ],
     beforeValidate: [deriveSlug('title')],
     beforeChange: [
@@ -65,7 +67,9 @@ export const Articles: CollectionConfig = {
       enforcePublishRules,
       recordApproval,
     ],
-    afterChange: [recordApprovedVersion],
+    // After the approval is recorded: if that fails, the save rolls back and nothing refreshes.
+    afterChange: [recordApprovedVersion, refreshUnlessDraft],
+    afterDelete: [refreshIfPublishedDeleted],
   },
   fields: [
     { name: 'title', type: 'text', required: true },

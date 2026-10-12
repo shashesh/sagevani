@@ -4,6 +4,7 @@ import type { CollectionBeforeOperationHook, CollectionConfig } from 'payload'
 import { fileURLToPath } from 'url'
 
 import { ownerOnly, staffOnly } from '../access/roles'
+import { refreshAfterDelete, refreshAfterMediaEdit } from './shared/refresh'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -56,6 +57,8 @@ export const Media: CollectionConfig = {
   },
   hooks: {
     beforeOperation: [randomFileName],
+    afterChange: [refreshAfterMediaEdit],
+    afterDelete: [refreshAfterDelete],
   },
   upload: {
     staticDir: LOCAL_MEDIA_DIR,

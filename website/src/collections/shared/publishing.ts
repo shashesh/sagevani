@@ -21,3 +21,21 @@ export const markRestoreAsDraft: CollectionBeforeOperationHook = ({ args, operat
   req.context[RESTORING_AS_DRAFT] = (args as { draft?: unknown }).draft === true
   return args
 }
+
+/** Request-context key: whether this create, update or restore saves a draft. */
+export const DRAFT_SAVE = 'draftSave'
+
+/**
+ * Records Payload's `draft` flag, which only beforeOperation hooks receive. An unpublish and a
+ * draft save look the same to afterChange, so hooks that act only when the live document changes
+ * read isDraftSave instead (stage 3a plan, before you start).
+ */
+export const markDraftSave: CollectionBeforeOperationHook = ({ args, operation, req }) => {
+  if (operation === 'create' || operation === 'update' || operation === 'restoreVersion') {
+    req.context[DRAFT_SAVE] = (args as { draft?: unknown }).draft === true
+  }
+  return args
+}
+
+/** Whether this request's save is a draft save: the live document doesn't change. */
+export const isDraftSave = (req: PayloadRequest): boolean => req.context?.[DRAFT_SAVE] === true

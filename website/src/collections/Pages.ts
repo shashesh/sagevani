@@ -3,7 +3,8 @@ import type { CollectionConfig } from 'payload'
 import { ownerOnly, publishedOrStaff, staffOnly } from '../access/roles'
 import { contentEditor } from '../blocks/content-editor'
 import { bodyLinksOnlyTo } from './shared/body-links'
-import { markRestoreAsDraft } from './shared/publishing'
+import { markDraftSave, markRestoreAsDraft } from './shared/publishing'
+import { refreshIfPublishedDeleted, refreshUnlessDraft } from './shared/refresh'
 import { checkSlug, deriveSlug, slugField } from './shared/slug'
 
 /**
@@ -23,9 +24,11 @@ export const Pages: CollectionConfig = {
     delete: ownerOnly,
   },
   hooks: {
-    beforeOperation: [markRestoreAsDraft],
+    beforeOperation: [markRestoreAsDraft, markDraftSave],
     beforeValidate: [deriveSlug('title')],
     beforeChange: [bodyLinksOnlyTo(['articles', 'pages']), checkSlug],
+    afterChange: [refreshUnlessDraft],
+    afterDelete: [refreshIfPublishedDeleted],
   },
   fields: [
     { name: 'title', type: 'text', required: true },

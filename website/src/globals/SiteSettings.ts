@@ -1,6 +1,7 @@
 import type { GlobalConfig, TextFieldSingleValidation, Validate, Where } from 'payload'
 
 import { anyone, ownerOnly } from '../access/roles'
+import { refreshAfterGlobalChange } from '../collections/shared/refresh'
 import { isDatabaseId } from '../lib/ids'
 
 export const DEFAULT_TAGLINE = 'Where silence learns to speak.'
@@ -66,6 +67,7 @@ export const SiteSettings: GlobalConfig = {
   slug: 'siteSettings',
   label: 'Site settings',
   access: { read: anyone, update: ownerOnly },
+  hooks: { afterChange: [refreshAfterGlobalChange] },
   fields: [
     { name: 'tagline', type: 'text', required: true, defaultValue: DEFAULT_TAGLINE },
     {
