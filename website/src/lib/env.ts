@@ -52,6 +52,17 @@ const SITE_ORIGIN = z
     /^https?:\/\/[^\s/?#]+$/,
     'must be an http:// or https:// address with no path, such as https://example.org',
   )
+  .refine(
+    (value) => {
+      try {
+        const url = new URL(value)
+        return url.username === '' && url.password === '' && url.pathname === '/'
+      } catch {
+        return false
+      }
+    },
+    'must be an http:// or https:// address with a valid host and port and no credentials',
+  )
 
 const serverEnvSchema = z
   .object({
