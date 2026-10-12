@@ -6196,3 +6196,13 @@ Each task's reviews changed the following. Where a code block earlier in this pl
   - **Stylesheet order:** the global stylesheets are imported before the components, so CSS Modules override them, and `:focus-visible` no longer sets a radius.
   - **Cached reads:** they are also wrapped in React's `cache`, so one request reads each only once.
   - **Robots:** the page says `noindex`, not `noindex, nofollow`.
+- **L. Task 12: the body renderer, hardened.**
+  - **Spacing:** the rhythm rule targets text elements only, so blocks keep their own margins whatever the stylesheet order. `.body` wraps long URLs and words.
+  - **Headings:** body headings render h2 to h4. A stored h1 becomes h2, and h5 or h6 becomes h4.
+  - **Converters:** an allow-list of Payload's default converters replaces the spread. Tables are left out. An unknown node renders nothing and logs a warning on the server.
+  - **Check lists:** they render as plain list items with an `aria-hidden` marker and visually hidden " (done)" / " (not done)", never Payload's checkbox markup, which fails axe.
+  - **The verse:** it is `figure > blockquote + figcaption`.
+  - **Drafts:** every block view takes partial fields, so a half-filled block renders in the live preview instead of crashing it.
+  - **New-tab links** say so, to screen readers.
+  - **Copy to approve:** " (done)", " (not done)" and " (opens in a new tab)" are placeholder copy for the owner (spec 9).
+  - **Editor features:** whether the editor should offer only h2 to h4, and whether to keep check lists, are the owner's decisions, so `content-editor.ts` is unchanged.
