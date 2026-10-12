@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const PORT = 3000
+import { E2E_DATABASE_URL } from './tests/e2e/database'
+
+// Its own port, so a dev server on 3000 with the dev database is never reused by mistake.
+const PORT = 3100
 const baseURL = `http://localhost:${PORT}`
 
 export default defineConfig({
@@ -10,6 +13,8 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? 'github' : 'list',
   timeout: 60_000,
+  // Playwright starts webServer first, then this. Both use the test database.
+  globalSetup: './tests/e2e/global-setup.ts',
   use: {
     baseURL,
     trace: 'on-first-retry',
@@ -17,9 +22,12 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'npm run dev',
+    command: `npm run dev -- --port ${PORT}`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse a server already on this port: it may use another database, and these tests write to it.
+    reuseExistingServer: false,
     timeout: 120_000,
+    // Merged over process.env. Next doesn't override a variable that is already set with .env.
+    env: { DATABASE_URL: E2E_DATABASE_URL },
   },
 })

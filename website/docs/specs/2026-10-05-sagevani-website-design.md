@@ -2,7 +2,8 @@
 
 - Date: 2026-10-05
 - Status: Approved by the owner on 2026-10-05
-- Implementation plans: [stage 1 — foundation](../plans/2026-10-05-stage-1-foundation.md)
+- Implementation plans: [stage 1 — foundation](../plans/2026-10-05-stage-1-foundation.md), [stage 2 — content model and admin](../plans/2026-10-08-stage-2-content-model.md)
+- Stage designs: [stage 2 — content model and admin](2026-10-08-stage-2-content-model-design.md)
 - Decision record: [D-004](../../../docs/governance/decisions.md)
 - Scope: the public blog website and its admin, from first build to launch
 
@@ -107,7 +108,7 @@ All collections use Payload access control. "Owner" means the owner role; "assis
 | summary | One-sentence summary shown under the title and in lists |
 | shape | Required: Vani Note, Inquiry Essay, Text / Story Study, Practice Journal |
 | topics | Relationship to topics, zero or more (a piece may pass through several doors) |
-| difficulty | Required. Options are configurable; ships with the proposed Beginner / Intermediate / Advanced until Q-01 is decided |
+| difficulty | Required. A relationship to an owner-edited `difficultyLevels` list (name, description, order, "needs prior reading"); ships with the proposed Beginner / Intermediate / Advanced until Q-01 is decided ([stage 2 design](2026-10-08-stage-2-content-model-design.md)) |
 | background | "Helpful background" text for the Before-you-read box |
 | readFirst | Array of suggested prior readings: an internal article or an external item (title, author, URL), plus why it helps |
 | body | Lexical rich text with the Verse, Tradition and Practice blocks and image blocks |
@@ -127,7 +128,7 @@ All collections use Payload access control. "Owner" means the owner role; "assis
 **Publish validation** (runs only when the status becomes published):
 
 - `difficulty` is set.
-- Advanced articles have at least one `readFirst` item.
+- Articles whose difficulty level needs prior reading (Advanced, as shipped) have at least one `readFirst` item.
 - Text / Story Studies have at least one source.
 - Every image in the body has alt text.
 
@@ -140,7 +141,7 @@ All collections use Payload access control. "Owner" means the owner role; "assis
 
 **topics** — the four doors: name, slug, question, intro, display order, cover tint.
 
-**pages** — title, slug, Lexical body. Covers About, How SageVani writes, Start here (an introduction; the reading list itself is in site settings) and Privacy.
+**pages** — title, slug, Lexical body; drafts on, so a half-written page never goes live. Covers About, How SageVani writes, Start here (an introduction; the reading list itself is in site settings) and Privacy.
 
 **media** — upload with required fields for alt text, creator, source, and license or permission, plus notes. This matches the provenance rule in `assets/README.md`.
 
@@ -317,7 +318,7 @@ The assistant role enforces decision D-003: the assistant may draft without aski
 - The editor sits in the centre and the article fields in a side panel.
 - The block menu inserts Verse, Tradition, Practice and image blocks.
 - Drafts save automatically. Version history lets you compare any two versions.
-- Preview shows the draft in the site's design before publishing.
+- Preview shows the draft in the site's design before publishing. It is built in stage 3, with the article page.
 
 ### 8.3 Publishing and approval
 
@@ -487,16 +488,18 @@ Each stage ends in something that can be reviewed. Implementation plans may be w
    - Supabase connection through the `payload` schema.
    - Users and roles.
    - CI, environments, and checks for required environment variables.
-2. **Content model and admin**
-   - All collections and the editor blocks.
+2. **Content model and admin** ([design](2026-10-08-stage-2-content-model-design.md))
+   - The content collections and the editor blocks. The reader collections arrive with their endpoints in stage 4.
    - Publish validation and the approval record.
    - Media storage.
 3. **Public site**
+   - Draft preview for staff, and refreshing pages when content changes.
    - Design tokens and the Literata and Tiro fonts.
    - Layout, header and footer, light and dark themes.
    - Landing, article, topic, archive and fixed pages.
    - Generated covers and link-preview images.
 4. **Reader interactions**
+   - The reader collections (section 5.2) and their endpoints.
    - Likes, comments and moderation.
    - Views and full reads, and the statistics dashboard.
    - Subscribe and the new-article email.

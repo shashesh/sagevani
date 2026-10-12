@@ -9,6 +9,20 @@ const VALID = {
 
 const CA = '-----BEGIN CERTIFICATE-----\nMIIBfake\n-----END CERTIFICATE-----'
 
+const MEDIA = {
+  MEDIA_S3_ENDPOINT: 'https://abcd.storage.supabase.co/storage/v1/s3',
+  MEDIA_S3_REGION: 'us-east-2',
+  MEDIA_S3_ACCESS_KEY_ID: 'access-key-id',
+  MEDIA_S3_SECRET_ACCESS_KEY: 'secret-access-key',
+  MEDIA_S3_BUCKET: 'media',
+  MEDIA_PUBLIC_URL: 'https://abcd.supabase.co/storage/v1/object/public/media',
+}
+
+const REMOTE = {
+  DATABASE_URL: 'postgres://u:p@aws-0-ap-south-1.pooler.supabase.com:6543/postgres',
+  DATABASE_CA_CERT: CA,
+}
+
 describe('parseServerEnv', () => {
   it('returns the variables when all are valid', () => {
     expect(parseServerEnv(VALID)).toEqual(VALID)
@@ -19,6 +33,7 @@ describe('parseServerEnv', () => {
       ...VALID,
       DATABASE_URL: 'postgresql://u:p@db.example.com:6543/postgres',
       DATABASE_CA_CERT: CA,
+      ...MEDIA,
     }
     expect(parseServerEnv(env).DATABASE_URL).toBe(env.DATABASE_URL)
   })
@@ -82,6 +97,7 @@ describe('parseServerEnv', () => {
       ...VALID,
       DATABASE_URL: 'postgres://u:p@aws-0-ap-south-1.pooler.supabase.com:6543/postgres',
       DATABASE_CA_CERT: `  ${CA}\n`,
+      ...MEDIA,
     })
     expect(env.DATABASE_CA_CERT).toBe(CA)
   })
@@ -93,6 +109,7 @@ describe('parseServerEnv', () => {
       ...VALID,
       DATABASE_URL: 'postgres://u:p@aws-0-ap-south-1.pooler.supabase.com:6543/postgres',
       DATABASE_CA_CERT: escaped,
+      ...MEDIA,
     })
 
     expect(escaped).not.toContain('\n')
@@ -142,5 +159,77 @@ describe('parseServerEnv', () => {
     expect(() =>
       parseServerEnv({ ...VALID, DATABASE_URL: `${VALID.DATABASE_URL}?sslmode=require` }),
     ).toThrowError(/DATABASE_URL: must not set sslmode/)
+  })
+})
+
+describe('media storage variables', () => {
+  it('needs none of them for a local database', () => {
+    expect(parseServerEnv(VALID).MEDIA_S3_BUCKET).toBeUndefined()
+  })
+
+  it('requires all of them for a database that is not local', () => {
+    expect(() => parseServerEnv({ ...VALID, ...REMOTE })).toThrowError(
+      /MEDIA_S3_ENDPOINT: is required for a database that is not local[\s\S]*MEDIA_PUBLIC_URL: is required for a database that is not local/,
+    )
+  })
+
+  it('accepts a remote database with all of them', () => {
+    const env = parseServerEnv({ ...VALID, ...REMOTE, ...MEDIA })
+    expect(env.MEDIA_S3_BUCKET).toBe('media')
+    expect(env.MEDIA_PUBLIC_URL).toBe(MEDIA.MEDIA_PUBLIC_URL)
+  })
+
+  it('refuses some without the others, even for a local database', () => {
+    expect(() => parseServerEnv({ ...VALID, MEDIA_S3_BUCKET: 'media' })).toThrowError(
+      /MEDIA_S3_ENDPOINT: must be set with the other media storage variables/,
+    )
+  })
+
+  it('treats empty values as absent', () => {
+    const blanks = Object.fromEntries(Object.keys(MEDIA).map((name) => [name, '  ']))
+    expect(() => parseServerEnv({ ...VALID, ...blanks })).not.toThrow()
+  })
+
+  it('requires https:// URLs for the endpoint and the public URL', () => {
+    expect(() =>
+      parseServerEnv({ ...VALID, ...MEDIA, MEDIA_S3_ENDPOINT: 'http://abcd.supabase.co/s3' }),
+    ).toThrowError(/MEDIA_S3_ENDPOINT: must be an https:\/\/ URL/)
+    expect(() =>
+      parseServerEnv({ ...VALID, ...MEDIA, MEDIA_PUBLIC_URL: 'abcd.supabase.co/media' }),
+    ).toThrowError(/MEDIA_PUBLIC_URL: must be an https:\/\/ URL/)
+  })
+
+  it('refuses a query string or fragment on the public URL, because file names are appended', () => {
+    for (const suffix of ['?x=1', '#top']) {
+      expect(() =>
+        parseServerEnv({
+          ...VALID,
+          ...MEDIA,
+          MEDIA_PUBLIC_URL: `${MEDIA.MEDIA_PUBLIC_URL}${suffix}`,
+        }),
+      ).toThrowError(/MEDIA_PUBLIC_URL: must be an https:\/\/ URL with no \? or #/)
+    }
+  })
+
+  it('drops trailing slashes from the public URL', () => {
+    const env = parseServerEnv({
+      ...VALID,
+      ...MEDIA,
+      MEDIA_PUBLIC_URL: `${MEDIA.MEDIA_PUBLIC_URL}//`,
+    })
+    expect(env.MEDIA_PUBLIC_URL).toBe(MEDIA.MEDIA_PUBLIC_URL)
+  })
+
+  it('never echoes the secret access key', () => {
+    expect(() =>
+      parseServerEnv({
+        ...VALID,
+        ...MEDIA,
+        MEDIA_S3_ENDPOINT: 'not-a-url',
+        MEDIA_S3_SECRET_ACCESS_KEY: 'hunter2-storage-secret',
+      }),
+    ).toThrowError(
+      expect.objectContaining({ message: expect.not.stringMatching(/hunter2-storage-secret/) }),
+    )
   })
 })

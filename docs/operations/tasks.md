@@ -34,8 +34,11 @@ This Markdown task list is a proposed maintenance method.
 
 - [x] Plan the first website build stage: [stage 1 plan](../../website/docs/plans/2026-10-05-stage-1-foundation.md).
 - [x] Build website stage 1 (foundation): [pull request #1](https://github.com/shashesh/sagevani/pull/1), merged on 2026-10-06.
-- [ ] Owner: create the Supabase projects and connect Netlify. See the [environments guide](../../website/docs/environments.md).
-- [ ] Plan website stage 2 (content model and admin).
+- [ ] Owner: create the Supabase projects, their `media` buckets and S3 keys, and connect Netlify. See the [environments guide](../../website/docs/environments.md).
+- [x] Plan website stage 2 (content model and admin): [design](../../website/docs/specs/2026-10-08-stage-2-content-model-design.md), [plan](../../website/docs/plans/2026-10-08-stage-2-content-model.md).
+- [ ] Build website stage 2 (pull request open as a draft).
+- [x] Move JapaDhyan's domain logic and catalog into the website (part 1 of D-006), merged on 2026-10-08.
+- [ ] Owner: archive the old JapaDhyan repository once its pull request #26 is merged.
 - [ ] At launch: upgrade the production Supabase organization to Pro. Until then, back up production drafts by hand (see the environments guide).
 
 The website platform is decided (D-004). Stage 1 (foundation) is merged and awaits the owner's Supabase and Netlify setup. Nothing is deployed or published. No publishing schedule or series commitment has been made.

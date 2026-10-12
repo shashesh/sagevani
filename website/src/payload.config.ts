@@ -7,10 +7,19 @@ import { buildConfig } from 'payload'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
+import { s3Storage } from '@payloadcms/storage-s3'
+
+import { Articles } from './collections/articles/Articles'
+import { Pages } from './collections/Pages'
+import { DifficultyLevels } from './collections/DifficultyLevels'
+import { MAX_UPLOAD_BYTES, Media } from './collections/Media'
+import { Topics } from './collections/Topics'
 import { Users } from './collections/Users'
+import { SiteSettings } from './globals/SiteSettings'
 import { databasePoolConfig } from './lib/database-pool'
 import { DB_SCHEMA } from './lib/db-schema'
 import { parseServerEnv } from './lib/env'
+import { mediaStoragePlugin, mediaStorageSettings } from './lib/media-storage'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -24,8 +33,10 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users],
+  collections: [Users, Articles, Pages, Topics, DifficultyLevels, Media],
+  globals: [SiteSettings],
   editor: lexicalEditor(),
+  upload: { limits: { fileSize: MAX_UPLOAD_BYTES } },
   // The site only uses the REST and Local APIs; GraphQL would add query-depth, introspection and
   // playground surface for no benefit.
   graphQL: { disable: true },
@@ -53,5 +64,5 @@ export default buildConfig({
     ],
   }),
   sharp,
-  plugins: [],
+  plugins: [s3Storage(mediaStoragePlugin(mediaStorageSettings(env)))],
 })

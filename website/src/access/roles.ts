@@ -20,9 +20,28 @@ const isStaffUser = (user: RequestUser): user is StaffUser =>
 
 export const isOwner = (user: RequestUser): boolean => isStaffUser(user) && user.role === 'owner'
 
+/** The owner or the assistant. */
+export const isStaff = (user: RequestUser): boolean => isStaffUser(user)
+
 export const ownerOnly: Access = ({ req }) => isOwner(req.user)
 
 export const ownerOnlyField: FieldAccess = ({ req }) => isOwner(req.user)
+
+export const staffOnly: Access = ({ req }) => isStaff(req.user)
+
+export const staffOnlyField: FieldAccess = ({ req }) => isStaff(req.user)
+
+/** For fields only the server sets, in hooks: no API request may write them, the owner's included. */
+export const nobody: FieldAccess = () => false
+
+export const anyone: Access = () => true
+
+/**
+ * Collections with drafts: staff see every document, everyone else only published ones.
+ * Never reuse on a collection without drafts: it filters on `_status`.
+ */
+export const publishedOrStaff: Access = ({ req }) =>
+  isStaff(req.user) ? true : { _status: { equals: 'published' } }
 
 /**
  * Users collection only: the owner gets every account, any other staff user only their own.

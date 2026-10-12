@@ -16,6 +16,11 @@ Previews only build. Migrations run with database-owner credentials, so unreview
 | `PAYLOAD_SECRET` | The app, and every command | At least 32 random characters, different for each environment: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `DATABASE_CA_CERT` | The app, and every command that connects to Supabase | Supabase's certificate authority, from the project's **Database → SSL Configuration** settings (**Download certificate**). Not needed for the local database |
 | `DATABASE_MIGRATION_URL` | Netlify **production** builds only | The production Supabase **session pooler** URL (port 5432), used only to migrate |
+| `MEDIA_S3_ENDPOINT` | The app | The project's Storage S3 endpoint, from **Storage → S3 Configuration**, e.g. `https://<ref>.storage.supabase.co/storage/v1/s3`. Not set locally |
+| `MEDIA_S3_REGION` | The app | The region shown next to the endpoint, e.g. `us-east-2` |
+| `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY` | The app | An S3 access key pair created on the same page |
+| `MEDIA_S3_BUCKET` | The app | `media` |
+| `MEDIA_PUBLIC_URL` | The app | `https://<ref>.supabase.co/storage/v1/object/public/media` |
 
 Never commit `.env`. `.env.test` holds test-only values and is committed on purpose.
 
@@ -31,6 +36,8 @@ Rules for these values:
   If the value isn't a PEM certificate, the app refuses to start and says so.
 - **Use only letters and digits in the Supabase database password.** Other characters must be URL-encoded inside the connection strings, which is easy to get wrong.
 - **Use the pooler URLs, not the direct connection.** Supabase's direct database host may not be reachable over IPv4.
+- **Set all six media variables or none.** Locally, leave them empty and uploads go to `website/uploads/`. For a database that isn't local they're required, because Netlify's functions have no lasting disk.
+- **`MEDIA_PUBLIC_URL` must be an https address with no `?` or `#`.** The app refuses to start otherwise.
 - **Don't set `NODE_ENV`** in Netlify. It would make the install skip development dependencies, such as `tsx`, which the hardening step needs.
 
 ## Run locally
@@ -38,7 +45,7 @@ Rules for these values:
 1. Start Docker Desktop.
 2. In `website/`: `npm install`, then `cp .env.example .env` and set `PAYLOAD_SECRET`.
 3. `npm run db:up`, then `npm run dev`, and open <http://localhost:3000/admin>. The first account you create locally becomes the owner. Sign-up like this works only in development.
-4. Run the tests with `npm test`, coverage with `npm run test:coverage`, and the browser tests with `npm run test:e2e`.
+4. Run the tests with `npm test`, coverage with `npm run test:coverage`, and the browser tests with `npm run test:e2e`. The browser tests always start their own server on port 3100 against the test database and empty it first, so they never touch your dev database.
 5. `npm run db:reset` wipes both local databases.
 6. The dev server builds the local database by "pushing" the schema directly. If you later run `payload migrate` against that same database, Payload asks before it risks data loss. Answer no, and test migrations on a fresh database instead (`db:reset`, or a scratch database).
 
@@ -55,6 +62,10 @@ Do these steps in order. The owner account must exist before the site is reachab
 - Choose the **East US (Ohio)** region for both. Netlify runs the site's server code in US East (Ohio) by default, and every page render queries the database. Readers anywhere in the world are served through Netlify's global network.
 - For each project, from the project's **Connect** panel, copy the **transaction pooler** URL (port 6543) and the **session pooler** URL (port 5432).
 - Download the CA certificate from **Database → SSL Configuration**.
+- For each project, create the media bucket:
+  - **Storage → New bucket**, named `media`, with **Public bucket** on. Images load straight from it.
+  - Leave the bucket's policies empty. Anonymous visitors can then fetch a file by its address but can't list the bucket, so an image used only in a draft stays out of sight.
+  - **Storage → S3 Configuration**: note the endpoint and region, and create an access key pair. Keep the secret like a password.
 
 ### 2. Close Supabase's web API to Payload's tables
 
@@ -116,8 +127,12 @@ Importing the site makes Netlify build `master` for production straight away. Fi
    | `PAYLOAD_SECRET` | Production secret | Staging secret |
    | `DATABASE_CA_CERT` | The certificate | The certificate |
    | `DATABASE_MIGRATION_URL` | Production session pooler URL | Not set |
+   | `MEDIA_S3_ENDPOINT`, `MEDIA_S3_REGION` | Production project's values | Staging project's values |
+   | `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY` | Production key pair | Staging key pair |
+   | `MEDIA_S3_BUCKET` | `media` | `media` |
+   | `MEDIA_PUBLIC_URL` | Production bucket's public address | Staging bucket's public address |
 
-   - Tick **Contains secret values** for `DATABASE_URL`, `DATABASE_MIGRATION_URL` and `PAYLOAD_SECRET`. Netlify then masks them, and fails a build that would expose them in the code or the build output.
+   - Tick **Contains secret values** for `DATABASE_URL`, `DATABASE_MIGRATION_URL`, `PAYLOAD_SECRET` and `MEDIA_S3_SECRET_ACCESS_KEY`. Netlify then masks them, and fails a build that would expose them in the code or the build output.
    - Builds need these values as well as the running site, because `next build` loads the configuration. Netlify's free plan makes every variable available to both. On a plan with scopes, give `DATABASE_MIGRATION_URL` the **Builds** scope only.
    - A production deploy without `DATABASE_MIGRATION_URL` stops with `Set DATABASE_MIGRATION_URL to the Supabase session-pooler URL`.
 3. As soon as the site exists, set:
