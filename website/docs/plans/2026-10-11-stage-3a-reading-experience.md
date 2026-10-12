@@ -6124,12 +6124,14 @@ Expected: a draft pull request URL. Don't request a Copilot review; the owner do
 
 - **Corrections link.** `CorrectionNotes` gets its "All corrections" link to `/corrections` once that page exists.
 - **Links to pages.** In 3a, a body link to a published page already points at `/<slug>`, which 404s until 3b builds `/[slug]`. Merge 3b before launch.
+- **404 for unmatched URLs.** The app has two root layouts, `(frontend)` and `(payload)`, and no top-level not-found. A URL that matches no route therefore gets Next's built-in 404, with system fonts and no header or footer. `notFound()` inside a `(frontend)` route renders within the layout. 3b's 404 needs `global-not-found` (or an equivalent) for unmatched URLs.
+- **Errors in the root layout.** If the site-settings read fails on an uncached page, the throw happens in the root layout, which only a `global-error.tsx` can catch. Build one in 3b, with its own `<html>` and `<body>` in the site's design, or let the chrome read fall back to defaults.
 - **Pages.** `/[slug]` and `/start-here` reuse `PageView` and `toPageView`; add a `findPublishedPage(payload, slug)` beside them in `src/lib/site/pages.ts`, and a cached wrapper in `cached.ts`.
 - **Link previews.** `/og/[slug]` makes `articleMetadata` offer an image for every article: add it where `images` is undefined today.
 - **When the refresh takes effect.**
   - `revalidateTag` only queues the tag. Next 16.3.8 applies it after the route handler returns, which is after Payload commits, so the refresh never runs before the save is stored.
   - On Netlify, `waitUntil` can send the response before the tag update finishes. A reload within a fraction of a second of the admin's toast may still show the old page. Check this on a deploy preview.
-- **Fonts.** Literata's italic files are preloaded on every page, though few pages show italic above the fold (before you start, fact 7). Measure in stage 6's performance pass before changing it.
+- **Fonts.** `next/font` preloads Literata's four files on every page (latin and latin-ext, normal and italic): about 400 KB, though few pages need latin-ext or italic above the fold. Measure LCP on a throttled phone profile in stage 6's performance pass. If it misses spec 12's target, `preload: false` (letting `unicode-range` decide) is the lever.
 
 ## Self-review against the spec
 
@@ -6183,3 +6185,14 @@ Each task's reviews changed the following. Where a code block earlier in this pl
   - A topic listed twice on an article shows once.
   - `text()` moved to `format.ts`.
   - The tests now prove that "More from" filters by topic and leaves out the current article, that a link to a draft page stays plain text, and that an anonymous raw row has exactly the selected fields.
+- **J. Task 10: paths in one place.**
+  - `src/lib/site/paths.ts` holds `articlePath` and `pagePath`. `metadata.ts` re-exports `articlePath`, so later imports from it still work.
+  - Tests pin the metadata fallbacks. An article with no summary and no SEO description has no description of its own.
+  - `cached.ts` notes that its keys cover only the wrapper's source. After changing what the wrapped functions return, clear `.next/cache` locally.
+- **K. Task 11: accessibility and CSS order.**
+  - **Skip link:** `scroll-padding-top` keeps anchors and the skip link clear of the sticky header, and `<main>` takes focus.
+  - **Footer focus:** focus rings in the footer use `footer-text`, because the accent is too faint on the footer's ink.
+  - **Phone menu:** `NavMenu`, a small client component, closes it on navigation and on Escape, keeping `<details>` as the no-JavaScript baseline.
+  - **Stylesheet order:** the global stylesheets are imported before the components, so CSS Modules override them, and `:focus-visible` no longer sets a radius.
+  - **Cached reads:** they are also wrapped in React's `cache`, so one request reads each only once.
+  - **Robots:** the page says `noindex`, not `noindex, nofollow`.
