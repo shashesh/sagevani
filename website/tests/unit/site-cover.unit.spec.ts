@@ -35,15 +35,33 @@ describe('coverFor', () => {
 })
 
 describe('coverTermSize', () => {
-  it('draws short terms largest, and longer ones smaller', () => {
+  it('draws a term of up to nine letters largest, on one line', () => {
     expect(coverTermSize('dharma')).toBe('short')
-    expect(coverTermSize('Twelve chars')).toBe('short')
-    expect(coverTermSize('Thirteen char')).toBe('medium')
+    expect(coverTermSize('svādhyāya')).toBe('short')
+    expect(coverTermSize('ṛtaṃ sat')).toBe('short')
+  })
+
+  it('draws a term of ten to twenty-four letters, with no word over fourteen, in the middle size', () => {
+    expect(coverTermSize('karma yoga')).toBe('medium')
+    expect(coverTermSize('brahmacharya')).toBe('medium')
+    expect(coverTermSize('Twelve chars')).toBe('medium')
+    expect(coverTermSize('Satya and ahimsa in life')).toBe('medium')
+  })
+
+  it('draws a term longer than twenty-four letters smallest', () => {
     expect(coverTermSize('Karma and the right to act')).toBe('long')
   })
 
-  it('counts letters with diacritics once', () => {
-    expect(coverTermSize('ṛtaṃ satyaṃ ś')).toBe('medium')
-    expect(coverTermSize('ṛtaṃ satyaṃ')).toBe('short')
+  it('draws a term with a word over fourteen letters smallest, whatever its length', () => {
+    expect(coverTermSize('abcdefghijklmn')).toBe('medium')
+    expect(coverTermSize('abcdefghijklmno')).toBe('long')
+    expect(coverTermSize('pratītyasamutpāda')).toBe('long')
+    expect(coverTermSize('Mūlamadhyamakakārikā')).toBe('long')
+  })
+
+  it('counts letters with diacritics once, however they are encoded', () => {
+    expect(coverTermSize('ṛtaṃ sat')).toBe('short')
+    expect(coverTermSize('ṛtaṃ satyaṃ')).toBe('medium')
+    expect(coverTermSize('ṛ'.normalize('NFD').repeat(9))).toBe('short')
   })
 })

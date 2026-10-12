@@ -48,3 +48,10 @@
 .button:hover {
   color: var(--accent);
 }
+
+/* Beside the button, for sighted readers; it is also what a screen reader announces. */
+.status {
+  margin-left: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}

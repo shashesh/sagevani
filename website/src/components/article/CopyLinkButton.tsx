@@ -18,12 +18,25 @@ export function CopyLinkButton({ url }: { url: string }) {
   const [outcome, setOutcome] = useState<Outcome>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  useEffect(() => () => clearTimeout(timer.current), [])
+  const frame = useRef(0)
 
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current)
+      cancelAnimationFrame(frame.current)
+    },
+    [],
+  )
+
+  // Clearing first, then setting on the next frame, makes a repeat click announce again.
   const show = (next: 'copied' | 'failed'): void => {
     clearTimeout(timer.current)
-    setOutcome(next)
-    timer.current = setTimeout(() => setOutcome(null), MESSAGE_MS)
+    cancelAnimationFrame(frame.current)
+    setOutcome(null)
+    frame.current = requestAnimationFrame(() => {
+      setOutcome(next)
+      timer.current = setTimeout(() => setOutcome(null), MESSAGE_MS)
+    })
   }
   const copy = async (): Promise<void> => {
     try {
@@ -38,7 +51,7 @@ export function CopyLinkButton({ url }: { url: string }) {
       <button type="button" className={styles.button} onClick={copy}>
         Copy link
       </button>
-      <span role="status" className="visually-hidden">
+      <span role="status" className={styles.status}>
         {outcome ? MESSAGES[outcome] : ''}
       </span>
     </>
