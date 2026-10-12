@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 
+import { articlePath } from './paths'
 import type { ArticleView } from './types'
 
-export const articlePath = (slug: string): string => `/articles/${slug}`
+export { articlePath } from './paths'
 
 /**
  * An article's title, description, canonical address and link preview (stage 3 design, 6.1).

@@ -1,6 +1,7 @@
 import { idOf, isDatabaseId } from '../ids'
 import { findLinkedDocuments, findUploadIds } from '../rich-text'
 import { safeHref } from './links'
+import { articlePath, pagePath } from './paths'
 import type { PublicImage } from './types'
 
 /** The key of a link target in BodyContext.links. */
@@ -51,13 +52,10 @@ export function linkTargets(
 ): Record<string, string> {
   return {
     ...Object.fromEntries(
-      Object.entries(articles).map(([id, { slug }]) => [
-        docKey('articles', id),
-        `/articles/${slug}`,
-      ]),
+      Object.entries(articles).map(([id, { slug }]) => [docKey('articles', id), articlePath(slug)]),
     ),
     ...Object.fromEntries(
-      Object.entries(pages).map(([id, slug]) => [docKey('pages', id), `/${slug}`]),
+      Object.entries(pages).map(([id, slug]) => [docKey('pages', id), pagePath(slug)]),
     ),
   }
 }

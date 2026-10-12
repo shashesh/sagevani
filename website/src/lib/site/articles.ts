@@ -6,6 +6,7 @@ import { bodyReferences, linkTargets, uniqueIds } from './body'
 import { coverFor } from './cover'
 import { formatDate, shapeLabel, text } from './format'
 import { safeHref } from './links'
+import { articlePath } from './paths'
 import {
   allTopics,
   levelNames,
@@ -113,7 +114,7 @@ function priorReadings(
     if (item.kind === 'internal') {
       const target = articles[String(idOf(item.article))]
       return target
-        ? [{ title: target.title, href: `/articles/${target.slug}`, author: null, reason }]
+        ? [{ title: target.title, href: articlePath(target.slug), author: null, reason }]
         : []
     }
     const title = text(item.title)

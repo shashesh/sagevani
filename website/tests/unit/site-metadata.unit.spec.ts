@@ -29,6 +29,26 @@ describe('articleMetadata', () => {
     expect([metadata.title, metadata.description]).toEqual(['An SEO title', 'An SEO description.'])
   })
 
+  it('falls back to the summary when only the SEO title is set', () => {
+    const metadata = articleMetadata(
+      articleView({ seo: { title: 'An SEO title', description: null } }),
+    )
+    expect([metadata.title, metadata.description]).toEqual(['An SEO title', 'A test summary.'])
+  })
+
+  it('has no description or published time of its own when none exist', () => {
+    const metadata = articleMetadata(
+      articleView({
+        seo: { title: 'An SEO title', description: null },
+        summary: null,
+        publishedAt: null,
+      }),
+    )
+    expect(metadata.title).toBe('An SEO title')
+    expect(metadata.description).toBeUndefined()
+    expect(metadata.openGraph).toMatchObject({ description: undefined, publishedTime: undefined })
+  })
+
   it('offers the cover photo as the link preview when there is one', () => {
     const photo = { url: '/local-media/x.png', alt: 'A lamp', width: 1200, height: 630 }
     const metadata = articleMetadata(articleView({ cover: { ...articleView().cover, photo } }))
