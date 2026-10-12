@@ -1,0 +1,50 @@
+/* Reflection: ordinary body text, 19px with a 1.7 line height (website design 7.2). */
+.body {
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+.body > * + * {
+  margin-top: 1.1em;
+}
+
+.body h2 {
+  margin-top: 1.8em;
+  font-size: 1.45em;
+}
+
+.body h3 {
+  margin-top: 1.6em;
+  font-size: 1.2em;
+}
+
+.body blockquote {
+  margin: 1.4em 0;
+  padding-left: 1.2em;
+  border-left: 2px solid var(--rule);
+  color: var(--ink-soft);
+}
+
+.body ul,
+.body ol {
+  padding-left: 1.3em;
+}
+
+.body li + li {
+  margin-top: 0.4em;
+}
+
+.body hr {
+  width: 40%;
+  margin: 2.2em auto;
+  border: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.figure {
+  margin: 2em 0;
+}
+
+.figure img {
+  border-radius: 3px;
+}
