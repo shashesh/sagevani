@@ -2,7 +2,7 @@ import config from '@payload-config'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
-import { getPayload } from 'payload'
+import { executeAuthStrategies, getPayload } from 'payload'
 
 import { ArticleView } from '@/components/article/ArticleView'
 import { LivePreviewRefresh } from '@/components/preview/LivePreviewRefresh'
@@ -20,7 +20,7 @@ export const metadata: Metadata = { title: 'Preview', robots: { index: false, fo
 export default async function ArticlePreviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers: await headers() })
+  const { user } = await executeAuthStrategies({ headers: await headers(), payload })
   const article = await findArticlePreview(payload, id, user)
   if (!article) notFound()
   const topic = article.topics[0]

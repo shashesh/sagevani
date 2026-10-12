@@ -1,8 +1,8 @@
 import type { CollectionConfig, Where } from 'payload'
 
 import { nobody, ownerOnly, publishedOrStaff, staffOnly, staffOnlyField } from '../../access/roles'
-import { PREVIEW_BREAKPOINTS, previewPath } from '../../lib/site/preview-path'
 import { contentEditor } from '../../blocks/content-editor'
+import { PREVIEW_BREAKPOINTS, previewPath } from '../../lib/site/preview-path'
 import { bodyLinksOnlyTo } from '../shared/body-links'
 import { markDraftSave, markRestoreAsDraft } from '../shared/publishing'
 import { refreshUnlessDraftDeleted, refreshUnlessDraft } from '../shared/refresh'

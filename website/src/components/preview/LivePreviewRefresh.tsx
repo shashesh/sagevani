@@ -2,7 +2,7 @@
 
 import { RefreshRouteOnSave } from '@payloadcms/live-preview-react'
 import { useRouter } from 'next/navigation'
-import { useSyncExternalStore } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 
 const subscribeToNothing = () => () => {}
 
@@ -17,6 +17,7 @@ export function LivePreviewRefresh() {
     () => window.location.origin,
     () => null,
   )
+  const refresh = useCallback(() => router.refresh(), [router])
   if (!origin) return null
-  return <RefreshRouteOnSave refresh={() => router.refresh()} serverURL={origin} />
+  return <RefreshRouteOnSave refresh={refresh} serverURL={origin} />
 }

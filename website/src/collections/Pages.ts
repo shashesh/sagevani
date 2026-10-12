@@ -1,8 +1,8 @@
 import type { CollectionConfig } from 'payload'
 
-import { PREVIEW_BREAKPOINTS, previewPath } from '../lib/site/preview-path'
 import { ownerOnly, publishedOrStaff, staffOnly } from '../access/roles'
 import { contentEditor } from '../blocks/content-editor'
+import { PREVIEW_BREAKPOINTS, previewPath } from '../lib/site/preview-path'
 import { bodyLinksOnlyTo } from './shared/body-links'
 import { markDraftSave, markRestoreAsDraft } from './shared/publishing'
 import { refreshUnlessDraftDeleted, refreshUnlessDraft } from './shared/refresh'
