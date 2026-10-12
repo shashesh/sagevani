@@ -6,6 +6,10 @@
   text-align: center;
 }
 
+.text {
+  margin: 0;
+}
+
 .devanagari {
   margin-bottom: 0.35em;
   font-size: 1.16em;

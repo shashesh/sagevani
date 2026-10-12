@@ -9,19 +9,21 @@ import styles from './VerseBlock.module.css'
  */
 export function VerseBlockView({ fields }: { fields: VerseBlock }) {
   const devanagariText = fields.devanagari?.trim()
+  const transliteration = fields.transliteration.trim()
+  const translation = fields.translation.trim()
   return (
     <figure className={styles.verse}>
-      <div className={styles.text}>
+      <blockquote className={styles.text}>
         {devanagariText && (
           <p lang="sa-Deva" className={`${styles.devanagari} ${devanagari.className}`}>
             {devanagariText}
           </p>
         )}
         <p lang="sa-Latn" className={styles.transliteration}>
-          {fields.transliteration}
+          {transliteration}
         </p>
-        <p className={styles.translation}>{fields.translation}</p>
-      </div>
+        <p className={styles.translation}>{translation}</p>
+      </blockquote>
       <figcaption className={styles.citation}>
         {fields.textName} {fields.location} · {fields.translator}
       </figcaption>

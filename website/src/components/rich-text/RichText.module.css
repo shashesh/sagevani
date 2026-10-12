@@ -2,10 +2,16 @@
 .body {
   font-size: var(--text-body);
   line-height: var(--leading-body);
+  overflow-wrap: break-word;
 }
 
-.body > * + * {
+/* Text sets the rhythm; blocks and figures set their own margins. */
+.body > * + :is(p, h2, h3, h4, ul, ol, blockquote) {
   margin-top: 1.1em;
+}
+
+.body > :first-child {
+  margin-top: 0;
 }
 
 .body h2 {
@@ -18,7 +24,12 @@
   font-size: 1.2em;
 }
 
-.body blockquote {
+.body h4 {
+  margin-top: 1.4em;
+  font-size: 1.05em;
+}
+
+.body > blockquote {
   margin: 1.4em 0;
   padding-left: 1.2em;
   border-left: 2px solid var(--rule);
