@@ -54,6 +54,7 @@ describe('isSlug', () => {
   it('accepts the slugs the site makes', () => {
     expect(isSlug('maya-and-the-rope')).toBe(true)
     expect(isSlug('gita-2-47')).toBe(true)
+    expect(isSlug('x'.repeat(200))).toBe(true)
   })
 
   it('refuses anything else', () => {

@@ -1,5 +1,6 @@
-/** The longest slug a route accepts. Slugs are made from titles, so real ones are far shorter. */
-export const MAX_SLUG_LENGTH = 200
+import { MAX_SLUG_LENGTH } from '../slug'
+
+export { MAX_SLUG_LENGTH }
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 

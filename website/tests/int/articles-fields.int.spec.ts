@@ -91,6 +91,26 @@ describe('articles: fields the server fills in', () => {
     expect(await validationMessages(publish)).toEqual([SLUG_REQUIRED_MESSAGE])
   })
 
+  it('caps a slug at 200 characters on publish, but lets a draft keep it', async () => {
+    const slug = 'x'.repeat(201)
+    expect((await draft({ title: 'Long', slug })).slug).toBe(slug)
+    const publish = payload.create({
+      collection: 'articles',
+      data: {
+        title: 'Long',
+        slug: 'y'.repeat(201),
+        shape: 'vani-note',
+        difficulty: level.id,
+        _status: 'published',
+      },
+      overrideAccess: false,
+      user: owner,
+    })
+    const messages = await validationMessages(publish)
+    expect(messages).toHaveLength(1)
+    expect(messages[0]).toMatch(/200/)
+  })
+
   it('counts reading time from the body, block text included', async () => {
     const words = (count: number) => Array.from({ length: count }, () => 'word').join(' ')
     const article = await draft({

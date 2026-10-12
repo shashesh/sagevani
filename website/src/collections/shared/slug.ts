@@ -6,7 +6,7 @@ import {
   type TextField,
 } from 'payload'
 
-import { slugify } from '../../lib/slug'
+import { MAX_SLUG_LENGTH, slugify } from '../../lib/slug'
 import { isPublishing } from './publishing'
 
 export const SLUG_REQUIRED_MESSAGE =
@@ -17,6 +17,7 @@ export const slugField = (description: string): TextField => ({
   name: 'slug',
   type: 'text',
   unique: true,
+  maxLength: MAX_SLUG_LENGTH,
   admin: { position: 'sidebar', description },
 })
 

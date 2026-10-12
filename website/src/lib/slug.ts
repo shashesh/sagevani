@@ -21,3 +21,6 @@ export function slugify(text: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
 }
+
+/** The longest slug a route accepts. Slugs are made from titles, so real ones are far shorter. */
+export const MAX_SLUG_LENGTH = 200
