@@ -1,0 +1,61 @@
+/* Every cover has the link-preview shape, 1200 × 630, and scales with its width. */
+.cover {
+  position: relative;
+  aspect-ratio: 1200 / 630;
+  overflow: hidden;
+  border-radius: 4px;
+  container-type: inline-size;
+}
+
+/* The padding is on this inner element: a container's own cqw would resolve against the page. */
+.drawn {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6cqw;
+  background: var(--cover-bg);
+  color: var(--cover-text);
+  text-align: center;
+}
+
+.term {
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.short .term {
+  font-size: 16cqw;
+}
+
+.medium .term {
+  font-size: 10cqw;
+}
+
+.long .term {
+  font-size: 6.5cqw;
+}
+
+.title {
+  max-width: 75%;
+  margin-top: 3cqw;
+  font-size: 3.6cqw;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.mark {
+  position: absolute;
+  right: 4cqw;
+  bottom: 3.5cqw;
+  font-size: 2.8cqw;
+  font-style: italic;
+}
+
+.photo {
+  object-fit: cover;
+}

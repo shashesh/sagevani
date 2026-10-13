@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { anyone, ownerOnly } from '../access/roles'
+import { refreshAfterChange, refreshAfterDelete } from './shared/refresh'
 
 /**
  * Owner-edited, so the labels can follow Q-01 without a code change. The publish rule reads
@@ -12,6 +13,10 @@ export const DifficultyLevels: CollectionConfig = {
   admin: { useAsTitle: 'name', defaultColumns: ['name', 'order', 'needsPriorReading'] },
   defaultSort: 'order',
   access: { read: anyone, create: ownerOnly, update: ownerOnly, delete: ownerOnly },
+  hooks: {
+    afterChange: [refreshAfterChange],
+    afterDelete: [refreshAfterDelete],
+  },
   fields: [
     { name: 'name', type: 'text', required: true, unique: true },
     { name: 'description', type: 'textarea' },

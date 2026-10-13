@@ -1,0 +1,44 @@
+.footer {
+  margin-top: 72px;
+  padding: 40px 0;
+  background: var(--footer);
+  color: var(--footer-text);
+}
+
+.inner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.wordmark {
+  margin-bottom: 6px;
+  font-size: 21px;
+  font-style: italic;
+  font-weight: 500;
+}
+
+.motto {
+  margin-top: 10px;
+  font-style: italic;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.links a {
+  color: var(--footer-text);
+}
+
+/* The accent outline is too faint on the footer's ink. */
+.footer :focus-visible {
+  outline-color: var(--footer-text);
+}

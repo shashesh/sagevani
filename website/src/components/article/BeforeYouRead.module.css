@@ -1,0 +1,43 @@
+.box {
+  margin: 0 0 32px;
+  padding: 20px 24px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.heading {
+  margin-bottom: 10px;
+  font-size: 16px;
+}
+
+.text,
+.list {
+  font-size: var(--text-ui);
+  line-height: 1.6;
+}
+
+.text + .text {
+  margin-top: 8px;
+}
+
+.subheading {
+  margin: 16px 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.list li + li {
+  margin-top: 6px;
+}
+
+.reason {
+  color: var(--ink-soft);
+}

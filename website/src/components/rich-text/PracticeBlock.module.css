@@ -1,0 +1,24 @@
+.practice {
+  max-width: 34em;
+  margin: 2.2em auto;
+  padding: 0 1em;
+  text-align: center;
+}
+
+.label {
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: 0.4em;
+  margin-right: -0.4em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.invitation {
+  margin-top: 0.5em;
+  font-style: italic;
+}
+
+.invitation + .invitation {
+  margin-top: 0.8em;
+}

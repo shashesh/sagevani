@@ -1,5 +1,17 @@
 # Change log
 
+## 2026-10-12 — Website stage 3a: the reading experience
+
+- Published articles have a public page at `/articles/[slug]`, in the "Manuscript" design: Literata, warm paper and a lamp-lit dark theme that follows the device, with a toggle that remembers the choice and never flashes the wrong theme.
+- The article page shows the topic and shape, the byline, a generated cover (or the cover photo), the Before you read box, the body with the Verse, Tradition and Practice blocks in the gloss style, share links, sources grouped by tier, public correction notes, and up to three more articles from the topic. The sources format is a proposal until Q-07 is decided.
+- Public pages read only published content, as an anonymous visitor, and never staff-only fields. Links to anything unpublished show as plain text, and only http, https, mailto and on-site addresses become links.
+- Pages are cached and refresh when published content changes: a publish, an unpublish, a deletion, or an edit to topics, levels, site settings or an image. Saving a draft never refreshes anything.
+- Live preview shows the latest draft of an article or a page beside the editor and follows each autosave. The preview routes show a 404 to anyone not signed in as staff, and are never cached.
+- Every page says `noindex` until `SITE_INDEXING=on` at launch. `SITE_URL` gives links their address and is required on hosted sites.
+- Slugs are capped at 200 characters, the longest a page address accepts, and media can no longer be duplicated, so every stored file keeps a plain random name. Tests confirm that an edit through the API that leaves out the slug keeps the published address.
+- The reader-facing wording that is new here is placeholder copy until the owner approves it (stage 3 design, section 9).
+- The landing, archive, topic and fixed pages, and link-preview images, follow in stage 3b.
+
 ## 2026-10-08 — Website stage 2: content model and admin
 
 - Added the content collections: articles, pages, topics, difficulty levels and media, plus site settings. The editor has Verse, Tradition and Practice blocks and images.

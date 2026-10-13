@@ -1,9 +1,17 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Response } from '@playwright/test'
 import sharp from 'sharp'
 
 import { E2E_OWNER } from './owner'
 
 const ADVANCED_NEEDS_READING = 'This difficulty level needs at least one suggested prior reading.'
+
+// They change seeded data, so a retry can't start clean.
+test.describe.configure({ retries: 0 })
+
+const publishOf = (id: string) => (response: Response) =>
+  response.request().method() === 'PATCH' &&
+  response.url().includes(`/api/articles/${id}?`) &&
+  !response.url().includes('autosave=true')
 
 test('the owner writes an article, the publish rules stop it, and it publishes once fixed', async ({
   page,
@@ -24,6 +32,8 @@ test('the owner writes an article, the publish rules stop it, and it publishes o
   // With autosave on, opening "create" saves a draft at once and moves to its edit page.
   await page.goto('/admin/collections/articles/create')
   await expect(page).toHaveURL(/\/admin\/collections\/articles\/\d+$/)
+  const id = /\/articles\/(\d+)$/.exec(page.url())?.[1]
+  if (!id) throw new Error('No article id in the URL')
 
   await page.getByRole('textbox', { name: 'Title *' }).fill('Karma and the right to act')
   await page.locator('#field-shape').click()
@@ -58,13 +68,19 @@ test('the owner writes an article, the publish rules stop it, and it publishes o
   await drawer.getByRole('button', { name: 'Save' }).click()
   await expect(editor.getByRole('button', { name: 'Edit Media' })).toBeVisible()
 
+  // Assert the server's answers: an inline error can be wiped by a late form-state response.
+  const refused = page.waitForResponse(publishOf(id))
   await page.getByRole('button', { name: 'Publish changes' }).click()
-  await expect(page.getByText(ADVANCED_NEEDS_READING).first()).toBeVisible()
+  const refusal = await refused
+  expect(refusal.status()).toBe(400)
+  expect(await refusal.text()).toContain(ADVANCED_NEEDS_READING)
   await expect(page.getByText(/Status:\s*Draft/).first()).toBeVisible()
 
   await page.getByRole('button', { name: 'Add Prior reading' }).click()
   await page.locator('input[name="readFirst.0.title"]').fill('Bhagavad Gītā, chapter 2')
+  const accepted = page.waitForResponse(publishOf(id))
   await page.getByRole('button', { name: 'Publish changes' }).click()
+  expect((await accepted).status()).toBe(200)
   await expect(page.getByText(/Status:\s*Published/).first()).toBeVisible()
   await expect(page.locator('#field-approval__versionId')).not.toHaveValue('')
 })

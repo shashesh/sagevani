@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
-const isLocalDatabase = (databaseUrl: string): boolean => {
+export const isLocalDatabase = (databaseUrl: string): boolean => {
   try {
     return LOCAL_HOSTS.has(new URL(databaseUrl).hostname)
   } catch {
@@ -45,6 +45,22 @@ const PUBLIC_URL = z
   .string()
   .regex(/^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/, 'must be an https:// URL with no ? or #')
 
+// The site's own address (stage 3 design, 4.6): an origin, because paths are appended to it.
+const SITE_ORIGIN = z
+  .string()
+  .regex(
+    /^https?:\/\/[^\s/?#]+$/,
+    'must be an http:// or https:// address with no path, such as https://example.org',
+  )
+  .refine((value) => {
+    try {
+      const url = new URL(value)
+      return url.username === '' && url.password === '' && url.pathname === '/'
+    } catch {
+      return false
+    }
+  }, 'must be an http:// or https:// address with a valid host and port and no credentials')
+
 const serverEnvSchema = z
   .object({
     DATABASE_URL: z
@@ -69,6 +85,14 @@ const serverEnvSchema = z
     MEDIA_S3_SECRET_ACCESS_KEY: z.preprocess(optionalText, z.string().optional()),
     MEDIA_S3_BUCKET: z.preprocess(optionalText, z.string().optional()),
     MEDIA_PUBLIC_URL: z.preprocess(withoutTrailingSlashes, PUBLIC_URL.optional()),
+    // Required on hosted sites, checked when a page renders (src/lib/site/config.ts), so the
+    // owner's scripts against staging and production don't need it.
+    SITE_URL: z.preprocess(withoutTrailingSlashes, SITE_ORIGIN.optional()),
+    // Search engines may index the site only once this is "on", at launch.
+    SITE_INDEXING: z.preprocess(
+      optionalText,
+      z.enum(['on', 'off'], { error: 'must be on or off' }).optional(),
+    ),
   })
   .superRefine((env, ctx) => {
     if (typeof env.DATABASE_URL !== 'string') return

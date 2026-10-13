@@ -5,7 +5,14 @@ import { SLUG_REQUIRED_MESSAGE } from '@/collections/shared/slug'
 import config from '@/payload.config'
 import type { DifficultyLevel, User } from '@/payload-types'
 
-import { clearContent, createStaff, validationMessages } from '../helpers/content'
+import {
+  ASSISTANT_KEY,
+  PASSWORD,
+  clearContent,
+  createStaff,
+  rest,
+  validationMessages,
+} from '../helpers/content'
 import { paragraph, richText, verse } from '../helpers/lexical'
 
 let payload: Payload
@@ -80,6 +87,58 @@ describe('articles: fields the server fills in', () => {
     expect(published.slug).toBe('karma')
   })
 
+  // Payload merges the stored document into the request's data before beforeValidate, and this test guards that behaviour, which deriveSlug relies on.
+  it('keeps the stored slug when an edit through the API leaves it out', async () => {
+    const live = await payload.create({
+      collection: 'articles',
+      data: { title: 'Karma', shape: 'vani-note', difficulty: level.id, _status: 'published' },
+      overrideAccess: false,
+      user: owner,
+    })
+    const { token } = await payload.login({
+      collection: 'users',
+      data: { email: owner.email, password: PASSWORD },
+    })
+
+    const published = await rest('PATCH', `articles/${live.id}`, {
+      token,
+      body: { title: 'Karma renamed', _status: 'published' },
+    })
+    expect(published.status).toBe(200)
+    const stored = await payload.findByID({
+      collection: 'articles',
+      id: live.id,
+      overrideAccess: true,
+    })
+    expect([stored.title, stored.slug]).toEqual(['Karma renamed', 'karma'])
+
+    const drafted = await rest('PATCH', `articles/${live.id}?draft=true`, {
+      key: ASSISTANT_KEY,
+      body: { title: 'Karma, a draft title' },
+    })
+    expect(drafted.status).toBe(200)
+    const draft = await payload.findByID({
+      collection: 'articles',
+      id: live.id,
+      draft: true,
+      overrideAccess: true,
+    })
+    expect([draft.title, draft.slug]).toEqual(['Karma, a draft title', 'karma'])
+  })
+
+  it('still makes a slug from the title when the slug is sent empty', async () => {
+    const created = await draft({ title: 'Karma' })
+    const updated = await payload.update({
+      collection: 'articles',
+      id: created.id,
+      data: { title: 'Dharma', slug: '' },
+      draft: true,
+      overrideAccess: false,
+      user: owner,
+    })
+    expect(updated.slug).toBe('dharma')
+  })
+
   it('lets a draft have no slug, but not a published article', async () => {
     expect((await draft({ title: 'कर्म' })).slug ?? null).toBeNull()
     const publish = payload.create({
@@ -89,6 +148,26 @@ describe('articles: fields the server fills in', () => {
       user: owner,
     })
     expect(await validationMessages(publish)).toEqual([SLUG_REQUIRED_MESSAGE])
+  })
+
+  it('caps a slug at 200 characters on publish, but lets a draft keep it', async () => {
+    const slug = 'x'.repeat(201)
+    expect((await draft({ title: 'Long', slug })).slug).toBe(slug)
+    const publish = payload.create({
+      collection: 'articles',
+      data: {
+        title: 'Long',
+        slug: 'y'.repeat(201),
+        shape: 'vani-note',
+        difficulty: level.id,
+        _status: 'published',
+      },
+      overrideAccess: false,
+      user: owner,
+    })
+    const messages = await validationMessages(publish)
+    expect(messages).toHaveLength(1)
+    expect(messages[0]).toMatch(/200/)
   })
 
   it('counts reading time from the body, block text included', async () => {

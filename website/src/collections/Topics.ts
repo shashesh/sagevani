@@ -1,6 +1,7 @@
 import type { CollectionConfig, TextFieldSingleValidation } from 'payload'
 
 import { anyone, ownerOnly } from '../access/roles'
+import { refreshAfterChange, refreshAfterDelete } from './shared/refresh'
 import { checkSlug, deriveSlug, slugField } from './shared/slug'
 
 const hexColour: TextFieldSingleValidation = (value) =>
@@ -17,6 +18,8 @@ export const Topics: CollectionConfig = {
   hooks: {
     beforeValidate: [deriveSlug('name')],
     beforeChange: [checkSlug],
+    afterChange: [refreshAfterChange],
+    afterDelete: [refreshAfterDelete],
   },
   fields: [
     { name: 'name', type: 'text', required: true },

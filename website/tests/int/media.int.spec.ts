@@ -53,6 +53,19 @@ describe('media', () => {
     expect(media.mimeType).toBe('image/jpeg')
   })
 
+  it('refuses to duplicate a media document, so every stored file keeps a plain random name', async () => {
+    const media = await upload(await photo(640, 400), 'a.jpg', 'image/jpeg')
+    await expect(
+      payload.create({
+        collection: 'media',
+        data: DETAILS,
+        duplicateFromID: media.id,
+        overrideAccess: false,
+        user: owner,
+      }),
+    ).rejects.toThrow(/cannot be duplicated/)
+  })
+
   it('refuses SVG content declared as a JPEG', async () => {
     const svg = Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',

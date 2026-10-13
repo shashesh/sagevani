@@ -56,6 +56,10 @@ jobs:
       - name: Migrate a fresh database and build, as a production deploy does
         env:
           DATABASE_MIGRATION_URL: postgres://postgres:postgres@localhost:5432/sagevani_deploy
+          # deploy:build only overrides DATABASE_URL while it migrates. Without this the build
+          # would read sagevani_test, whose tables come from the tests' schema push, and a field
+          # without a migration would pass here and fail the Netlify build.
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/sagevani_deploy
         run: |
           psql postgres://postgres:postgres@localhost:5432/postgres -c "CREATE DATABASE sagevani_deploy"
           npm run deploy:build
@@ -67,6 +71,15 @@ jobs:
         if: github.event_name == 'pull_request'
         run: npx playwright install --with-deps chromium
 
-      - name: Browser smoke tests
+      - name: Browser tests
         if: github.event_name == 'pull_request'
         run: npm run test:e2e
+
+      - name: Keep the browser tests' screenshots
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-test-results
+          path: website/test-results/
+          retention-days: 14
+          if-no-files-found: ignore

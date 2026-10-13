@@ -1,0 +1,19 @@
+.tradition {
+  margin: 1.8em 0;
+}
+
+.attribution {
+  margin-bottom: 0.5em;
+  font-size: var(--text-small);
+  font-style: italic;
+  color: var(--muted);
+}
+
+.reading {
+  padding-left: 1.2em;
+  border-left: 1px dotted var(--muted);
+}
+
+.reading p + p {
+  margin-top: 0.8em;
+}

@@ -2,8 +2,10 @@ import type { CollectionConfig, Where } from 'payload'
 
 import { nobody, ownerOnly, publishedOrStaff, staffOnly, staffOnlyField } from '../../access/roles'
 import { contentEditor } from '../../blocks/content-editor'
+import { PREVIEW_BREAKPOINTS, previewPath } from '../../lib/site/preview-path'
 import { bodyLinksOnlyTo } from '../shared/body-links'
-import { markRestoreAsDraft } from '../shared/publishing'
+import { markDraftSave, markRestoreAsDraft } from '../shared/publishing'
+import { refreshUnlessDraftDeleted, refreshUnlessDraft } from '../shared/refresh'
 import { checkSlug, deriveSlug, slugField } from '../shared/slug'
 import {
   autosaveOnlyForDrafts,
@@ -16,21 +18,7 @@ import { deriveArticleText } from './derived-text'
 import { draftsOnlyForAssistant } from './drafts-only'
 import { editorialChecklist } from './editorial-checklist'
 import { enforcePublishRules } from './publish-rules'
-
-export const ARTICLE_SHAPES = [
-  { label: 'Vani Note', value: 'vani-note' },
-  { label: 'Inquiry Essay', value: 'inquiry-essay' },
-  { label: 'Text / Story Study', value: 'text-story-study' },
-  { label: 'Practice Journal', value: 'practice-journal' },
-]
-
-export const SOURCE_TYPES = [
-  { label: 'Primary text', value: 'primary-text' },
-  { label: 'Commentary', value: 'commentary' },
-  { label: 'Academic', value: 'academic' },
-  { label: 'Living tradition', value: 'living-tradition' },
-  { label: 'General', value: 'general' },
-]
+import { ARTICLE_SHAPES, SOURCE_TYPES } from './options'
 
 /** Fields only the server writes, in hooks: no API request can set them, the owner's included. */
 const SERVER_ONLY = { create: nobody, update: nobody }
@@ -50,6 +38,12 @@ export const Articles: CollectionConfig = {
   admin: {
     useAsTitle: 'title',
     defaultColumns: ['title', 'shape', '_status', 'updatedAt'],
+    // The latest draft in the site's design, beside the editor (stage 3 design, 4.4).
+    livePreview: {
+      url: ({ data }) => previewPath('articles', data?.id),
+      breakpoints: PREVIEW_BREAKPOINTS,
+    },
+    preview: (doc) => previewPath('articles', doc.id),
   },
   versions: {
     drafts: { autosave: { interval: 2000 } },
@@ -69,6 +63,7 @@ export const Articles: CollectionConfig = {
       refuseBulkPublish,
       autosaveOnlyForDrafts,
       markRestoreAsDraft,
+      markDraftSave,
     ],
     beforeValidate: [deriveSlug('title')],
     beforeChange: [
@@ -79,7 +74,9 @@ export const Articles: CollectionConfig = {
       enforcePublishRules,
       recordApproval,
     ],
-    afterChange: [recordApprovedVersion],
+    // After the approval is recorded: if that fails, the save rolls back and nothing refreshes.
+    afterChange: [recordApprovedVersion, refreshUnlessDraft],
+    afterDelete: [refreshUnlessDraftDeleted],
   },
   fields: [
     { name: 'title', type: 'text', required: true },

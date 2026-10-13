@@ -1,0 +1,9 @@
+.page {
+  padding-top: 44px;
+}
+
+.title {
+  margin-bottom: 24px;
+  font-size: clamp(30px, 5vw, 40px);
+  line-height: 1.15;
+}
