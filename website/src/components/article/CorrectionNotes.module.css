@@ -17,3 +17,8 @@
 .lead {
   font-weight: 500;
 }
+
+.allLink {
+  margin-top: 10px;
+  font-size: var(--text-ui);
+}

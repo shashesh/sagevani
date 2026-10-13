@@ -15,17 +15,6 @@
   color: var(--ink-soft);
 }
 
-.byline {
-  font-size: 14px;
-  color: var(--muted);
-}
-
-.author {
-  font-style: italic;
-  font-weight: 500;
-  color: var(--ink);
-}
-
 .cover {
   margin: 28px 0;
 }

@@ -178,7 +178,7 @@ All collections use Payload access control. "Owner" means the owner role; "assis
 
 ### 5.3 Site
 
-**siteSettings** (global) — the featured article, up to three featured picks, the Start-here reading list (ordered articles), navigation, the footer motto, and the tagline ("Where silence learns to speak.").
+**siteSettings** (global) — the featured article, up to three featured picks, the Start-here reading list (ordered articles), navigation, the footer motto, the tagline ("Where silence learns to speak."), and `aboutText`, the text of the landing page's About SageVani box. The box shows the tagline while `aboutText` is empty ([stage 3 design](2026-10-11-stage-3-public-site-design.md), 2 and 7).
 
 **users** — email, name, role (owner or assistant). Login is locked after repeated failures. Only assistant accounts can hold an API key; the owner signs in with a password only.
 
@@ -194,7 +194,7 @@ All collections use Payload access control. "Owner" means the owner role; "assis
 | `/topics/[slug]` | Topic question, intro, and its articles |
 | `/search?q=` | Search results (6.4) |
 | `/start-here` | Introduction plus the curated reading list |
-| `/about`, `/how-sagevani-writes`, `/privacy` | Pages from the admin |
+| `/[slug]` | Pages from the admin, such as About, How SageVani writes and Privacy. The page editor refuses the reserved slugs, which fixed routes always win over: `admin`, `api`, `articles`, `topics`, `search`, `corrections`, `subscribe`, `unsubscribe`, `og`, `preview`, `local-media` and `japa`. `start-here` is allowed, because `/start-here` serves that page ([stage 3 design](2026-10-11-stage-3-public-site-design.md), 4.1 and 6.3) |
 | `/corrections` | Every public correction across the site, newest first, linked to its article |
 | `/subscribe/check-email`, `/subscribe/confirmed`, `/unsubscribe` | Subscription flow pages |
 | `/rss.xml`, `/sitemap.xml` | Feed and sitemap |
@@ -251,7 +251,8 @@ From top to bottom:
 
 - On the site, covers are drawn in HTML and CSS: topic tint, cover term in large italic Literata, title, and a small SageVani mark. They stay sharp at any size and cost no image requests.
 - For link previews, `/og/[slug]` renders the same design as a 1200×630 image with Next.js `ImageResponse`, embedding the Literata font files.
-- When an article has a cover photo, the photo replaces the generated cover in both places.
+- **Cover terms must be Latin script with IAST.** The link-preview renderer can't shape Devanagari, so the `coverTerm` field's description says so ([stage 3 design](2026-10-11-stage-3-public-site-design.md), 6.5).
+- On the site, a cover photo replaces the generated cover. For link previews, `/og/[slug]` always renders at exactly 1200×630: design A when there's no photo, otherwise the photo cropped to that size and re-encoded as JPEG — never the raw photo file, which isn't the right shape and isn't accepted by every platform.
 
 ## 7. Visual design
 

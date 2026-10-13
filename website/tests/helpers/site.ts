@@ -1,7 +1,7 @@
-import type { ArticleView } from '@/lib/site/types'
+import type { ArticleCard, ArticleView } from '@/lib/site/types'
 
-/** A published article's view, for tests that only render or describe one. */
-export function articleView(overrides: Partial<ArticleView> = {}): ArticleView {
+/** A published article's card, for tests that only need its list summary. */
+export function articleCard(overrides: Partial<ArticleCard> = {}): ArticleCard {
   return {
     id: 1,
     slug: 'maya-and-the-rope',
@@ -19,6 +19,14 @@ export function articleView(overrides: Partial<ArticleView> = {}): ArticleView {
       text: '#2b2621',
       photo: null,
     },
+    ...overrides,
+  }
+}
+
+/** A published article's view, for tests that only render or describe one. */
+export function articleView(overrides: Partial<ArticleView> = {}): ArticleView {
+  return {
+    ...articleCard(),
     background: null,
     readFirst: [],
     body: null,

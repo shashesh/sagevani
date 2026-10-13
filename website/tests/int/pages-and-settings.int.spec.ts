@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { BODY_LINKS_MESSAGE } from '@/collections/shared/body-links'
 import { DEFAULT_TAGLINE } from '@/globals/SiteSettings'
+import { RESERVED_PAGE_SLUGS } from '@/lib/site/paths'
 import config from '@/payload.config'
 import type { DifficultyLevel, User } from '@/payload-types'
 
@@ -275,6 +276,73 @@ describe('pages and site settings', () => {
       expect(stored.title).toBe('Second')
       expect(stored._status).toBe('published')
     })
+
+    it.each([...RESERVED_PAGE_SLUGS])(
+      'refuses the reserved slug %s, even as a draft',
+      async (slug) => {
+        expect(
+          await validationMessages(
+            payload.create({
+              collection: 'pages',
+              data: { title: `Page for ${slug}`, slug },
+              draft: true,
+              overrideAccess: false,
+              user: owner,
+            }),
+          ),
+        ).toEqual([`The slug "${slug}" is reserved. Choose another.`])
+      },
+    )
+
+    it('refuses a reserved slug the title alone derives, with no slug typed', async () => {
+      expect(
+        await validationMessages(
+          payload.create({
+            collection: 'pages',
+            data: { title: 'Corrections' },
+            draft: true,
+            overrideAccess: false,
+            user: owner,
+          }),
+        ),
+      ).toEqual(['The slug "corrections" is reserved. Choose another.'])
+    })
+
+    it('refuses a reserved slug on an autosave, not only on publish', async () => {
+      const page = await payload.create({
+        collection: 'pages',
+        data: { title: 'About' },
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect(
+        await validationMessages(
+          payload.update({
+            collection: 'pages',
+            id: page.id,
+            data: { slug: 'subscribe' },
+            draft: true,
+            autosave: true,
+            overrideAccess: false,
+            user: owner,
+          }),
+        ),
+      ).toEqual(['The slug "subscribe" is reserved. Choose another.'])
+    })
+
+    it('refuses a reserved slug when publishing', async () => {
+      expect(
+        await validationMessages(
+          payload.create({
+            collection: 'pages',
+            data: { title: 'API', slug: 'api', _status: 'published' },
+            overrideAccess: false,
+            user: owner,
+          }),
+        ),
+      ).toEqual(['The slug "api" is reserved. Choose another.'])
+    })
   })
 
   describe('site settings', () => {
@@ -290,6 +358,34 @@ describe('pages and site settings', () => {
         body: { footerMotto: 'x' },
       })
       expect(response.status).toBe(403)
+    })
+
+    describe('aboutText', () => {
+      it('is readable by the public', async () => {
+        await saveSettings({ aboutText: 'What SageVani is for.' })
+        const settings = await (await rest('GET', 'globals/siteSettings')).json()
+        expect(settings.aboutText).toBe('What SageVani is for.')
+      })
+
+      it('refuses a change from the assistant’s API key', async () => {
+        const response = await rest('POST', 'globals/siteSettings', {
+          key: ASSISTANT_KEY,
+          body: { aboutText: 'Written by the assistant' },
+        })
+        expect(response.status).toBe(403)
+      })
+
+      it('refuses a change from an anonymous request', async () => {
+        const response = await rest('POST', 'globals/siteSettings', {
+          body: { aboutText: 'Written anonymously' },
+        })
+        expect(response.status).toBe(403)
+      })
+
+      it('lets the owner change it', async () => {
+        const settings = await saveSettings({ aboutText: 'What SageVani is for.' })
+        expect(settings.aboutText).toBe('What SageVani is for.')
+      })
     })
 
     it('feature published articles only', async () => {

@@ -2,11 +2,12 @@ import type { CollectionConfig } from 'payload'
 
 import { ownerOnly, publishedOrStaff, staffOnly } from '../access/roles'
 import { contentEditor } from '../blocks/content-editor'
+import { isReservedPageSlug } from '../lib/site/paths'
 import { PREVIEW_BREAKPOINTS, previewPath } from '../lib/site/preview-path'
 import { bodyLinksOnlyTo } from './shared/body-links'
 import { markDraftSave, markRestoreAsDraft } from './shared/publishing'
 import { refreshUnlessDraftDeleted, refreshUnlessDraft } from './shared/refresh'
-import { checkSlug, deriveSlug, slugField } from './shared/slug'
+import { checkSlug, deriveSlug, refuseSlugs, slugField } from './shared/slug'
 
 /**
  * About, How SageVani writes, Start here and Privacy. Drafts are on, so a half-written page
@@ -35,7 +36,11 @@ export const Pages: CollectionConfig = {
   hooks: {
     beforeOperation: [markRestoreAsDraft, markDraftSave],
     beforeValidate: [deriveSlug('title')],
-    beforeChange: [bodyLinksOnlyTo(['articles', 'pages']), checkSlug],
+    beforeChange: [
+      bodyLinksOnlyTo(['articles', 'pages']),
+      refuseSlugs(isReservedPageSlug),
+      checkSlug,
+    ],
     afterChange: [refreshUnlessDraft],
     afterDelete: [refreshUnlessDraftDeleted],
   },

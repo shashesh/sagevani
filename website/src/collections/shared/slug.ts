@@ -76,3 +76,20 @@ export const checkSlug: CollectionBeforeChangeHook = async ({
   }
   return data
 }
+
+/**
+ * Refuses a slug `isReserved` flags, on every save that carries one: draft, autosave or publish
+ * alike. Runs after `deriveSlug`, so a title that derives one is caught too.
+ */
+export const refuseSlugs =
+  (isReserved: (slug: string) => boolean): CollectionBeforeChangeHook =>
+  ({ collection, data }) => {
+    const slug: unknown = data.slug
+    if (typeof slug === 'string' && isReserved(slug)) {
+      throw new ValidationError({
+        collection: collection.slug,
+        errors: [{ path: 'slug', message: `The slug "${slug}" is reserved. Choose another.` }],
+      })
+    }
+    return data
+  }

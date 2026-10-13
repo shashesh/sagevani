@@ -24,6 +24,21 @@ export function shapeLabel(value: string | null | undefined): string | null {
   return ARTICLE_SHAPES.find((shape) => shape.value === value)?.label ?? null
 }
 
+/**
+ * The label row's text: the article's topics, in their own order, then its shape (stage 3
+ * design, 6.1). Null when there is neither, so a caller can hide the row.
+ */
+export function labelText({
+  topics,
+  shapeLabel,
+}: {
+  topics: { name: string }[]
+  shapeLabel: string | null
+}): string | null {
+  const label = [...topics.map((topic) => topic.name), shapeLabel].filter(Boolean).join(' · ')
+  return label || null
+}
+
 /** Text from a plain textarea, split into paragraphs at blank lines. */
 export function paragraphsOf(text: string | null | undefined): string[] {
   return (text ?? '')

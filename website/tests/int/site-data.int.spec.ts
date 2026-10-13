@@ -10,6 +10,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { DEFAULT_TAGLINE } from '@/globals/SiteSettings'
 import { ARTICLE_SELECT, findPublishedArticle, findRelatedArticles } from '@/lib/site/articles'
 import { findSiteChrome } from '@/lib/site/chrome'
+import { findPublicCorrections } from '@/lib/site/corrections'
+import { findLanding } from '@/lib/site/landing'
+import { findPublishedPage, findStartHere } from '@/lib/site/pages'
 import { findArticlePreview, findPagePreview } from '@/lib/site/preview'
 import config from '@/payload.config'
 import type { Article, DifficultyLevel, Media, Page, Topic, User } from '@/payload-types'
@@ -266,6 +269,102 @@ describe('the public data layer', () => {
     })
   })
 
+  describe('findPublishedPage', () => {
+    it('returns the view of a published page', async () => {
+      const view = await findPublishedPage(payload, 'live-page')
+      expect(view).toMatchObject({ id: livePage.id, slug: 'live-page', title: 'Live page' })
+    })
+
+    it('gives null for a draft-only page and an unknown slug', async () => {
+      expect(await findPublishedPage(payload, 'draft-page')).toBeNull()
+      expect(await findPublishedPage(payload, 'no-such-page')).toBeNull()
+    })
+
+    it('shows the published version while a newer draft waits', async () => {
+      await payload.update({
+        collection: 'pages',
+        id: livePage.id,
+        data: { title: 'A newer draft title' },
+        draft: true,
+        overrideAccess: false,
+        user: owner,
+      })
+      expect((await findPublishedPage(payload, 'live-page'))?.title).toBe('Live page')
+    })
+  })
+
+  describe('findStartHere', () => {
+    it('keeps the Start-here list in its given order', async () => {
+      const [a, b] = await Promise.all([
+        publish({ title: 'Start A', slug: 'start-a' }),
+        publish({ title: 'Start B', slug: 'start-b' }),
+      ])
+      await payload.updateGlobal({
+        slug: 'siteSettings',
+        data: { startHere: [b.id, a.id] },
+        overrideAccess: true,
+      })
+      const { articles } = await findStartHere(payload)
+      expect(articles.map((article) => article.slug)).toEqual(['start-b', 'start-a'])
+    })
+
+    it('drops an entry unpublished after it was added to the list', async () => {
+      const [a, b] = await Promise.all([
+        publish({ title: 'Start A', slug: 'start-a' }),
+        publish({ title: 'Start B', slug: 'start-b' }),
+      ])
+      // Both are published when added: an entry already listed stays valid once it is later
+      // unpublished (the validator only checks newly added entries), which is exactly the case
+      // this test covers.
+      await payload.updateGlobal({
+        slug: 'siteSettings',
+        data: { startHere: [a.id, b.id] },
+        overrideAccess: true,
+      })
+      await payload.update({
+        collection: 'articles',
+        id: b.id,
+        data: { _status: 'draft' },
+        overrideAccess: false,
+        user: owner,
+      })
+      const { articles } = await findStartHere(payload)
+      expect(articles.map((article) => article.slug)).toEqual(['start-a'])
+    })
+
+    it('gives the page alone when the Start-here list is empty', async () => {
+      await payload.create({
+        collection: 'pages',
+        data: {
+          title: 'Start here',
+          slug: 'start-here',
+          body: richText(paragraph('Begin reading here.')),
+          _status: 'published',
+        },
+        overrideAccess: true,
+      })
+      const result = await findStartHere(payload)
+      expect(result.page).toMatchObject({ slug: 'start-here', title: 'Start here' })
+      expect(result.articles).toEqual([])
+    })
+
+    it('gives the list alone when there is no published Start-here page', async () => {
+      const a = await publish({ title: 'Start A', slug: 'start-a' })
+      await payload.updateGlobal({
+        slug: 'siteSettings',
+        data: { startHere: [a.id] },
+        overrideAccess: true,
+      })
+      const result = await findStartHere(payload)
+      expect(result.page).toBeNull()
+      expect(result.articles.map((article) => article.slug)).toEqual(['start-a'])
+    })
+
+    it('gives neither a page nor articles with no Start-here page and an empty list', async () => {
+      expect(await findStartHere(payload)).toEqual({ page: null, articles: [] })
+    })
+  })
+
   describe('findPublishedArticle with a topic listed twice', () => {
     it('shows the topic once', async () => {
       // Payload keeps both copies of the relationship, so the view has to drop one.
@@ -327,6 +426,157 @@ describe('the public data layer', () => {
         difficulty: 'Beginner',
         topics: [{ name: 'Dharma' }],
       })
+    })
+  })
+
+  describe('findPublicCorrections', () => {
+    it('lists only public corrections from published articles, newest first', async () => {
+      const unpublishedWithCorrection = await publish({
+        title: 'Not actually public',
+        slug: 'draft-with-correction',
+        corrections: [
+          { date: '2026-10-11', change: 'Should never show.', showPublicNote: true },
+        ],
+      })
+      await payload.update({
+        collection: 'articles',
+        id: unpublishedWithCorrection.id,
+        data: { _status: 'draft' },
+        overrideAccess: false,
+        user: owner,
+      })
+
+      const corrections = await findPublicCorrections(payload)
+      expect(corrections).toEqual([
+        {
+          at: '2026-10-09T00:00:00.000Z',
+          date: '9 October 2026',
+          change: 'A newer public note.',
+          article: { title: 'The main article', path: '/articles/main', publishedAt: expect.any(String) },
+        },
+        {
+          at: '2026-10-01T00:00:00.000Z',
+          date: '1 October 2026',
+          change: 'An older public note.',
+          article: { title: 'The main article', path: '/articles/main', publishedAt: expect.any(String) },
+        },
+      ])
+    })
+
+    it('breaks a same-date tie by the article publish date, newest first', async () => {
+      // Published after "main" in beforeEach, so its publishedAt is the later of the two.
+      await publish({
+        title: 'A more recently published article',
+        slug: 'newer-with-correction',
+        corrections: [
+          { date: '2026-10-09', change: 'Shares a date with the main article.', showPublicNote: true },
+        ],
+      })
+      const corrections = await findPublicCorrections(payload)
+      const sameDate = corrections.filter((correction) => correction.at === '2026-10-09T00:00:00.000Z')
+      expect(sameDate.map((correction) => correction.article.title)).toEqual([
+        'A more recently published article',
+        'The main article',
+      ])
+    })
+  })
+
+  describe('findLanding', () => {
+    it('falls back to the newest published article when the chosen featured one is unpublished', async () => {
+      // Published when added to settings (the validator requires it), then unpublished: the
+      // same two-step pattern findStartHere's own "drops an entry unpublished after it was added"
+      // test uses, since an already-listed entry stays valid once it is later unpublished.
+      const toUnpublish = await publish({ title: 'Will be unpublished', slug: 'will-be-unpublished' })
+      await payload.updateGlobal({
+        slug: 'siteSettings',
+        data: { featuredArticle: toUnpublish.id },
+        overrideAccess: true,
+      })
+      await payload.update({
+        collection: 'articles',
+        id: toUnpublish.id,
+        data: { _status: 'draft' },
+        overrideAccess: false,
+        user: owner,
+      })
+      // `main`, published last in beforeEach, is now the newest published article.
+      const landing = await findLanding(payload)
+      expect(landing.featured?.slug).toBe('main')
+    })
+
+    it('drops an unpublished pick and an unpublished Start-here entry', async () => {
+      // `linked` is published when added (the validator requires it), then unpublished after.
+      await payload.updateGlobal({
+        slug: 'siteSettings',
+        data: {
+          featuredArticle: main.id,
+          featuredPicks: [linked.id],
+          startHere: [linked.id],
+        },
+        overrideAccess: true,
+      })
+      await payload.update({
+        collection: 'articles',
+        id: linked.id,
+        data: { _status: 'draft' },
+        overrideAccess: false,
+        user: owner,
+      })
+      const landing = await findLanding(payload)
+      expect(landing.picks).toEqual([])
+      expect(landing.sidebar.startHere).toEqual([])
+    })
+
+    it('falls back aboutText to the tagline when empty', async () => {
+      await payload.updateGlobal({
+        slug: 'siteSettings',
+        data: { aboutText: '   ' },
+        overrideAccess: true,
+      })
+      const landing = await findLanding(payload)
+      expect(landing.sidebar.about.text).toBe(DEFAULT_TAGLINE)
+    })
+
+    it('uses aboutText over the tagline when it is set', async () => {
+      await payload.updateGlobal({
+        slug: 'siteSettings',
+        data: { aboutText: 'A custom About text.' },
+        overrideAccess: true,
+      })
+      const landing = await findLanding(payload)
+      expect(landing.sidebar.about.text).toBe('A custom About text.')
+    })
+
+    it('gives no About link while the About page is unpublished', async () => {
+      await payload.create({
+        collection: 'pages',
+        data: { title: 'About', slug: 'about' },
+        draft: true,
+        overrideAccess: true,
+      })
+      const landing = await findLanding(payload)
+      expect(landing.sidebar.about.path).toBeNull()
+    })
+
+    it('links to the About page once it is published', async () => {
+      await payload.create({
+        collection: 'pages',
+        data: {
+          title: 'About',
+          slug: 'about',
+          body: richText(paragraph('About SageVani.')),
+          _status: 'published',
+        },
+        overrideAccess: true,
+      })
+      const landing = await findLanding(payload)
+      expect(landing.sidebar.about.path).toBe('/about')
+    })
+
+    it('gives every topic with its published article count, even with zero', async () => {
+      const landing = await findLanding(payload)
+      const dharma = landing.sidebar.topics.find((entry) => entry.slug === 'dharma')
+      expect(dharma?.articleCount).toBeGreaterThan(0)
     })
   })
 

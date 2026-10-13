@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { articleMetadata } from '@/lib/site/metadata'
+import { articleMetadata, pageMetadata } from '@/lib/site/metadata'
 import { articlePath } from '@/lib/site/paths'
 
 import { articleView } from '../helpers/site'
@@ -18,8 +18,11 @@ describe('articleMetadata', () => {
         description: 'A test summary.',
         url: '/articles/maya-and-the-rope',
         publishedTime: '2026-10-11T09:30:00.000Z',
-        images: undefined,
+        images: [
+          { url: '/og/maya-and-the-rope', width: 1200, height: 630, alt: 'Māyā and the rope' },
+        ],
       },
+      twitter: { card: 'summary_large_image' },
     })
   })
 
@@ -50,13 +53,45 @@ describe('articleMetadata', () => {
     expect(metadata.openGraph).toMatchObject({ description: undefined, publishedTime: undefined })
   })
 
-  it('offers the cover photo as the link preview when there is one', () => {
+  it('always points the link preview at /og/[slug], with or without a cover photo', () => {
     const photo = { url: '/local-media/x.png', alt: 'A lamp', width: 1200, height: 630 }
-    const metadata = articleMetadata(articleView({ cover: { ...articleView().cover, photo } }))
-    expect(metadata.openGraph?.images).toEqual([photo])
+    const withPhoto = articleMetadata(articleView({ cover: { ...articleView().cover, photo } }))
+    const withoutPhoto = articleMetadata(articleView())
+    expect(withPhoto.openGraph?.images).toEqual([
+      { url: '/og/maya-and-the-rope', width: 1200, height: 630, alt: 'Māyā and the rope' },
+    ])
+    expect(withoutPhoto.openGraph?.images).toEqual([
+      { url: '/og/maya-and-the-rope', width: 1200, height: 630, alt: 'Māyā and the rope' },
+    ])
   })
 
   it('builds article paths', () => {
     expect(articlePath('maya')).toBe('/articles/maya')
+  })
+})
+
+describe('pageMetadata', () => {
+  it('uses the title and the canonical path', () => {
+    expect(pageMetadata({ title: 'About', path: '/about' })).toEqual({
+      title: 'About',
+      description: undefined,
+      alternates: { canonical: '/about' },
+    })
+  })
+
+  it('carries a description when given one', () => {
+    expect(
+      pageMetadata({ title: 'About', description: 'Who writes SageVani.', path: '/about' }),
+    ).toEqual({
+      title: 'About',
+      description: 'Who writes SageVani.',
+      alternates: { canonical: '/about' },
+    })
+  })
+
+  it('treats a missing description the same as none', () => {
+    expect(
+      pageMetadata({ title: 'About', description: null, path: '/about' }).description,
+    ).toBeUndefined()
   })
 })

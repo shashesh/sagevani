@@ -219,7 +219,7 @@ export interface Article {
       }[]
     | null;
   /**
-   * Drawn on the generated cover; the title is used when empty.
+   * Drawn on the generated cover; the title is used when empty. Latin script with IAST only: the link-preview image renderer can’t shape Devanagari.
    */
   coverTerm?: string | null;
   /**
@@ -713,6 +713,10 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
 export interface SiteSetting {
   id: number;
   tagline: string;
+  /**
+   * Shown in the landing page’s About SageVani box. Falls back to the tagline when empty.
+   */
+  aboutText?: string | null;
   featuredArticle?: (number | null) | Article;
   featuredPicks?: (number | Article)[] | null;
   /**
@@ -736,6 +740,7 @@ export interface SiteSetting {
  */
 export interface SiteSettingsSelect<T extends boolean = true> {
   tagline?: T;
+  aboutText?: T;
   featuredArticle?: T;
   featuredPicks?: T;
   startHere?: T;

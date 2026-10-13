@@ -1,0 +1,10 @@
+.byline {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.author {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--ink);
+}

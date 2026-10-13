@@ -23,6 +23,22 @@ export function coverFor({ title, coverTerm, firstTopic, photo }: CoverInput): C
   }
 }
 
+/**
+ * The cqw percentages design A's cover draws at (Cover.module.css), so the real CSS and the
+ * link-preview renderer (6.5) share one source of truth. A unit test parses Cover.module.css
+ * and asserts it matches these values, so the two can never silently drift apart.
+ */
+export const COVER_SCALE = {
+  /** `.drawn`'s padding. */
+  padding: 6,
+  /** `.term`'s font-size, by coverTermSize. */
+  term: { short: 16, medium: 10, long: 6.5 },
+  /** `.title`'s margin-top and font-size. */
+  title: { marginTop: 3, fontSize: 3.6 },
+  /** `.mark`'s right, bottom and font-size. */
+  mark: { right: 4, bottom: 3.5, fontSize: 2.8 },
+} as const
+
 export type CoverTermSize = 'short' | 'medium' | 'long'
 
 /** Letters, counting a letter with diacritics once. */

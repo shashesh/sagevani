@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatDate, paragraphsOf, readingTimeLabel, shapeLabel, text } from '@/lib/site/format'
+import {
+  formatDate,
+  labelText,
+  paragraphsOf,
+  readingTimeLabel,
+  shapeLabel,
+  text,
+} from '@/lib/site/format'
 import { isSlug } from '@/lib/site/params'
 import { PREVIEW_BREAKPOINTS, previewPath } from '@/lib/site/preview-path'
 import { readingProgress } from '@/lib/site/progress'
@@ -32,6 +39,37 @@ describe('labels', () => {
     expect(shapeLabel('text-story-study')).toBe('Text / Story Study')
     expect(shapeLabel('poem')).toBeNull()
     expect(shapeLabel(null)).toBeNull()
+  })
+})
+
+describe('labelText', () => {
+  it('gives null with no topics and no shape', () => {
+    expect(labelText({ topics: [], shapeLabel: null })).toBeNull()
+  })
+
+  it('joins one topic and the shape with a middle dot', () => {
+    expect(labelText({ topics: [{ name: 'Dharma' }], shapeLabel: 'Inquiry Essay' })).toBe(
+      'Dharma · Inquiry Essay',
+    )
+  })
+
+  it('joins many topics, in their own order, before the shape', () => {
+    expect(
+      labelText({
+        topics: [{ name: 'Dharma' }, { name: 'Māyā' }, { name: 'Bhakti' }],
+        shapeLabel: 'Vani Note',
+      }),
+    ).toBe('Dharma · Māyā · Bhakti · Vani Note')
+  })
+
+  it('drops the shape when there is none, keeping the topics', () => {
+    expect(labelText({ topics: [{ name: 'Dharma' }], shapeLabel: null })).toBe('Dharma')
+  })
+
+  it('shows only the shape when the article has no topic', () => {
+    for (const shape of ['Vani Note', 'Inquiry Essay', 'Text / Story Study', 'Practice Journal']) {
+      expect(labelText({ topics: [], shapeLabel: shape })).toBe(shape)
+    }
   })
 })
 

@@ -1,11 +1,11 @@
+import Link from 'next/link'
+
+import { CORRECTIONS_PATH } from '@/lib/site/paths'
 import type { PublicCorrection } from '@/lib/site/types'
 
 import styles from './CorrectionNotes.module.css'
 
-/**
- * Public correction notes, newest first. Stage 3b adds the link to /corrections once that page
- * exists, so no link points at a missing page in the meantime.
- */
+/** Public correction notes, newest first, with a link to every correction across the site. */
 export function CorrectionNotes({ corrections }: { corrections: PublicCorrection[] }) {
   if (corrections.length === 0) return null
   return (
@@ -16,6 +16,9 @@ export function CorrectionNotes({ corrections }: { corrections: PublicCorrection
           {correction.change}
         </p>
       ))}
+      <p className={styles.allLink}>
+        <Link href={CORRECTIONS_PATH}>All corrections</Link>
+      </p>
     </section>
   )
 }

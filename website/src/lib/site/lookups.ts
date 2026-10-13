@@ -2,8 +2,12 @@ import type { Payload } from 'payload'
 
 import { parseServerEnv } from '../env'
 import { mediaStorageSettings } from '../media-storage'
+import { slugify } from '../slug'
 import { imageSrcFor } from './local-media'
 import type { PublicImage, TopicRef } from './types'
+
+/** A difficulty level's name folded into a URL slug, the way the archive's filter reads it (stage 3 design, 6.3). */
+export const levelSlug = (name: string): string => slugify(name)
 
 // Every read here but publicImages is anonymous: overrideAccess false and no user, so the
 // collections' access rules decide what comes back (stage 3 design, 4.2).
@@ -37,6 +41,21 @@ export async function levelNames(payload: Payload): Promise<Record<string, strin
     select: { name: true },
   })
   return Object.fromEntries(docs.map((level) => [String(level.id), level.name]))
+}
+
+/** Every difficulty level, in display order, with its name folded into the archive filter's slug. */
+export async function allLevels(
+  payload: Payload,
+): Promise<{ id: number; name: string; slug: string }[]> {
+  const { docs } = await payload.find({
+    collection: 'difficultyLevels',
+    overrideAccess: false,
+    depth: 0,
+    sort: 'order',
+    pagination: false,
+    select: { name: true },
+  })
+  return docs.map((level) => ({ id: level.id, name: level.name, slug: levelSlug(level.name) }))
 }
 
 /**

@@ -71,6 +71,15 @@ export const SiteSettings: GlobalConfig = {
   fields: [
     { name: 'tagline', type: 'text', required: true, defaultValue: DEFAULT_TAGLINE },
     {
+      name: 'aboutText',
+      label: 'About SageVani',
+      type: 'textarea',
+      admin: {
+        description:
+          'Shown in the landing page’s About SageVani box. Falls back to the tagline when empty.',
+      },
+    },
+    {
       name: 'featuredArticle',
       type: 'relationship',
       relationTo: 'articles',

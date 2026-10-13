@@ -1,6 +1,8 @@
+import { readFileSync } from 'fs'
+import path from 'path'
 import { describe, expect, it } from 'vitest'
 
-import { coverFor, coverTermSize, NO_TOPIC_TINT } from '@/lib/site/cover'
+import { COVER_SCALE, coverFor, coverTermSize, NO_TOPIC_TINT } from '@/lib/site/cover'
 
 const DHARMA = { tint: { background: '#e3cfa8', text: '#3d2f1c' } }
 
@@ -63,5 +65,36 @@ describe('coverTermSize', () => {
     expect(coverTermSize('ṛtaṃ sat')).toBe('short')
     expect(coverTermSize('ṛtaṃ satyaṃ')).toBe('medium')
     expect(coverTermSize('ṛ'.normalize('NFD').repeat(9))).toBe('short')
+  })
+})
+
+describe('COVER_SCALE', () => {
+  const css = readFileSync(path.resolve('src/components/article/Cover.module.css'), 'utf8')
+
+  /** The body of the first rule whose selector is exactly `selector`. */
+  function ruleBody(selector: string): string {
+    const start = css.indexOf(`${selector} {`)
+    if (start === -1) throw new Error(`Cover.module.css has no rule for ${selector}`)
+    const open = css.indexOf('{', start)
+    return css.slice(open + 1, css.indexOf('}', open))
+  }
+
+  /** The cqw number of a declaration such as `font-size: 16cqw;` in a rule's body. */
+  function cqw(selector: string, property: string): number {
+    const match = new RegExp(`${property}:\\s*([\\d.]+)cqw`).exec(ruleBody(selector))
+    if (!match) throw new Error(`${selector} has no ${property} in cqw`)
+    return Number(match[1])
+  }
+
+  it('matches the padding, term, title and mark cqw values in Cover.module.css', () => {
+    expect(cqw('.drawn', 'padding')).toBe(COVER_SCALE.padding)
+    expect(cqw('.short .term', 'font-size')).toBe(COVER_SCALE.term.short)
+    expect(cqw('.medium .term', 'font-size')).toBe(COVER_SCALE.term.medium)
+    expect(cqw('.long .term', 'font-size')).toBe(COVER_SCALE.term.long)
+    expect(cqw('.title', 'margin-top')).toBe(COVER_SCALE.title.marginTop)
+    expect(cqw('.title', 'font-size')).toBe(COVER_SCALE.title.fontSize)
+    expect(cqw('.mark', 'right')).toBe(COVER_SCALE.mark.right)
+    expect(cqw('.mark', 'bottom')).toBe(COVER_SCALE.mark.bottom)
+    expect(cqw('.mark', 'font-size')).toBe(COVER_SCALE.mark.fontSize)
   })
 })
