@@ -18,11 +18,13 @@ interface RawPublicCorrection extends PublicCorrection {
  * A draft's half-filled ones (no date, or no finished change) are skipped.
  */
 function rawPublicCorrections(items: CorrectionRow[] | null | undefined): RawPublicCorrection[] {
-  return (items ?? []).filter((item) => item.showPublicNote === true).flatMap((item) => {
-    const date = formatDate(item.date)
-    const change = text(item.change)
-    return item.date && date && change ? [{ at: item.date, date, change }] : []
-  })
+  return (items ?? [])
+    .filter((item) => item.showPublicNote === true)
+    .flatMap((item) => {
+      const date = formatDate(item.date)
+      const change = text(item.change)
+      return item.date && date && change ? [{ at: item.date, date, change }] : []
+    })
 }
 
 /** Corrections marked to show a public note, newest first, for a single article's own page. */

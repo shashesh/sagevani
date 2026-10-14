@@ -35,10 +35,7 @@ async function lookupSlugs() {
 }
 
 async function resolveQuery(searchParamsPromise: Promise<ArchiveSearchParams>) {
-  const [searchParams, { topics, levels }] = await Promise.all([
-    searchParamsPromise,
-    lookupSlugs(),
-  ])
+  const [searchParams, { topics, levels }] = await Promise.all([searchParamsPromise, lookupSlugs()])
   const parsed = parseArchiveQuery(searchParams, {
     topics: topics.map((topic) => topic.slug),
     levels: levels.map((level) => level.slug),

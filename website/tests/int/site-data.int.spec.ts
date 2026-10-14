@@ -434,9 +434,7 @@ describe('the public data layer', () => {
       const unpublishedWithCorrection = await publish({
         title: 'Not actually public',
         slug: 'draft-with-correction',
-        corrections: [
-          { date: '2026-10-11', change: 'Should never show.', showPublicNote: true },
-        ],
+        corrections: [{ date: '2026-10-11', change: 'Should never show.', showPublicNote: true }],
       })
       await payload.update({
         collection: 'articles',
@@ -452,13 +450,21 @@ describe('the public data layer', () => {
           at: '2026-10-09T00:00:00.000Z',
           date: '9 October 2026',
           change: 'A newer public note.',
-          article: { title: 'The main article', path: '/articles/main', publishedAt: expect.any(String) },
+          article: {
+            title: 'The main article',
+            path: '/articles/main',
+            publishedAt: expect.any(String),
+          },
         },
         {
           at: '2026-10-01T00:00:00.000Z',
           date: '1 October 2026',
           change: 'An older public note.',
-          article: { title: 'The main article', path: '/articles/main', publishedAt: expect.any(String) },
+          article: {
+            title: 'The main article',
+            path: '/articles/main',
+            publishedAt: expect.any(String),
+          },
         },
       ])
     })
@@ -469,11 +475,17 @@ describe('the public data layer', () => {
         title: 'A more recently published article',
         slug: 'newer-with-correction',
         corrections: [
-          { date: '2026-10-09', change: 'Shares a date with the main article.', showPublicNote: true },
+          {
+            date: '2026-10-09',
+            change: 'Shares a date with the main article.',
+            showPublicNote: true,
+          },
         ],
       })
       const corrections = await findPublicCorrections(payload)
-      const sameDate = corrections.filter((correction) => correction.at === '2026-10-09T00:00:00.000Z')
+      const sameDate = corrections.filter(
+        (correction) => correction.at === '2026-10-09T00:00:00.000Z',
+      )
       expect(sameDate.map((correction) => correction.article.title)).toEqual([
         'A more recently published article',
         'The main article',
@@ -486,7 +498,10 @@ describe('the public data layer', () => {
       // Published when added to settings (the validator requires it), then unpublished: the
       // same two-step pattern findStartHere's own "drops an entry unpublished after it was added"
       // test uses, since an already-listed entry stays valid once it is later unpublished.
-      const toUnpublish = await publish({ title: 'Will be unpublished', slug: 'will-be-unpublished' })
+      const toUnpublish = await publish({
+        title: 'Will be unpublished',
+        slug: 'will-be-unpublished',
+      })
       await payload.updateGlobal({
         slug: 'siteSettings',
         data: { featuredArticle: toUnpublish.id },

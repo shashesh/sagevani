@@ -13,7 +13,7 @@ test.describe('not found', () => {
   test('shows the designed 404 for a genuinely unmatched single-segment URL', async ({ page }) => {
     const response = await page.goto('/totally-unknown-xyz')
     expect(response?.status()).toBe(404)
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText("This page can’t be found")
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('This page can’t be found')
     await expect(page.getByRole('link', { name: 'Go home' })).toHaveAttribute('href', '/')
     await expect(page.getByRole('link', { name: 'Browse the archive' })).toHaveAttribute(
       'href',
@@ -25,7 +25,7 @@ test.describe('not found', () => {
   test('shows the designed 404 for a genuinely unmatched multi-segment URL', async ({ page }) => {
     const response = await page.goto('/foo/bar/baz')
     expect(response?.status()).toBe(404)
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText("This page can’t be found")
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('This page can’t be found')
     await expect(page.getByRole('link', { name: 'Go home' })).toHaveAttribute('href', '/')
     await expect(page.getByRole('link', { name: 'Browse the archive' })).toHaveAttribute(
       'href',
@@ -39,7 +39,7 @@ test.describe('not found', () => {
   }) => {
     const response = await page.goto('/articles/e2e-draft-only')
     expect(response?.status()).toBe(404)
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText("This page can’t be found")
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('This page can’t be found')
     await expect(page.getByRole('link', { name: 'Go home' })).toHaveAttribute('href', '/')
     await expect(page.getByRole('link', { name: 'Browse the archive' })).toHaveAttribute(
       'href',

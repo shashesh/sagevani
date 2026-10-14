@@ -15,12 +15,21 @@ function card(id: number): ArticleCard {
     difficulty: null,
     readingTime: null,
     publishedAt: null,
-    cover: { term: `Article ${id}`, title: `Article ${id}`, background: '#000', text: '#fff', photo: null },
+    cover: {
+      term: `Article ${id}`,
+      title: `Article ${id}`,
+      background: '#000',
+      text: '#fff',
+      photo: null,
+    },
   }
 }
 
 /** `newest` in newest-first order, and a lookup of every card it (and ids beyond it) might need. */
-function withCards(ids: number[]): { newest: ArticleCard[]; publishedById: Map<number, ArticleCard> } {
+function withCards(ids: number[]): {
+  newest: ArticleCard[]
+  publishedById: Map<number, ArticleCard>
+} {
   const cards = ids.map(card)
   return { newest: cards, publishedById: new Map(cards.map((c) => [c.id, c])) }
 }

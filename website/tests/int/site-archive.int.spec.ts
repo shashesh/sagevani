@@ -201,7 +201,11 @@ describe('the archive read', () => {
   // second beforeAll in a later describe in this file would hand back the first describe's
   // already-destroyed instance and hang every query against it.
   it('counts only published articles, not drafts or a pending-draft edit of a published one', async () => {
-    await publish({ title: 'Published in Dharma', slug: 'published-in-dharma', topics: [dharma.id] })
+    await publish({
+      title: 'Published in Dharma',
+      slug: 'published-in-dharma',
+      topics: [dharma.id],
+    })
     await publish({
       title: 'Published in Adhyatma',
       slug: 'published-in-adhyatma',

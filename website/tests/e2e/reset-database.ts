@@ -37,8 +37,13 @@ const owner = await payload.create({
   context: allowOwnerChange(),
 })
 
-const { createAllTopics, createArchiveArticles, createOtherTopics, createSixScenario, createStandardPages } =
-  await import('./seed-site')
+const {
+  createAllTopics,
+  createArchiveArticles,
+  createOtherTopics,
+  createSixScenario,
+  createStandardPages,
+} = await import('./seed-site')
 
 if (scenario === 'standard') {
   const advanced = await payload.create({

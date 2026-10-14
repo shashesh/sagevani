@@ -69,7 +69,9 @@ export const getPage = cache(
   unstable_cache(async (slug: string) => findPublishedPage(await payload(), slug), ['page'], CACHE),
 )
 
-export const getLevels = cache(unstable_cache(async () => allLevels(await payload()), ['levels'], CACHE))
+export const getLevels = cache(
+  unstable_cache(async () => allLevels(await payload()), ['levels'], CACHE),
+)
 
 export const getStartHere = cache(
   unstable_cache(async () => findStartHere(await payload()), ['start-here'], CACHE),
@@ -92,7 +94,8 @@ export const getArchiveCount = cache(
 
 export const getArchivePage = cache(
   unstable_cache(
-    async (filters: ArchiveFilters, page: number) => findArchivePage(await payload(), filters, page),
+    async (filters: ArchiveFilters, page: number) =>
+      findArchivePage(await payload(), filters, page),
     ['archive-page'],
     CACHE,
   ),

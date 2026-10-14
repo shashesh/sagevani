@@ -85,61 +85,59 @@ function drawnImage(
 ): ImageResponse {
   const showTitle = cover.term !== cover.title
   return new ImageResponse(
-    (
+    <div
+      style={{
+        ...flexColumn,
+        width: '100%',
+        height: '100%',
+        padding: layout.padding,
+        background: cover.background,
+        color: cover.text,
+        textAlign: 'center',
+      }}
+    >
       <div
         style={{
-          ...flexColumn,
-          width: '100%',
-          height: '100%',
-          padding: layout.padding,
-          background: cover.background,
-          color: cover.text,
-          textAlign: 'center',
+          display: 'flex',
+          fontFamily: 'Literata',
+          fontStyle: 'italic',
+          fontWeight: 400,
+          fontSize: layout.term.fontSize,
+          lineHeight: 1.05,
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            fontFamily: 'Literata',
-            fontStyle: 'italic',
-            fontWeight: 400,
-            fontSize: layout.term.fontSize,
-            lineHeight: 1.05,
-          }}
-        >
-          {cover.term}
-        </div>
-        {showTitle ? (
-          <div
-            style={{
-              display: 'flex',
-              fontFamily: 'Literata',
-              fontWeight: 500,
-              fontSize: layout.title.fontSize,
-              marginTop: layout.title.marginTop,
-              lineHeight: 1.25,
-              maxWidth: '75%',
-            }}
-          >
-            {cover.title}
-          </div>
-        ) : null}
-        <div
-          style={{
-            display: 'flex',
-            position: 'absolute',
-            right: layout.mark.right,
-            bottom: layout.mark.bottom,
-            fontFamily: 'Literata',
-            fontStyle: 'italic',
-            fontWeight: 400,
-            fontSize: layout.mark.fontSize,
-          }}
-        >
-          SageVani
-        </div>
+        {cover.term}
       </div>
-    ),
+      {showTitle ? (
+        <div
+          style={{
+            display: 'flex',
+            fontFamily: 'Literata',
+            fontWeight: 500,
+            fontSize: layout.title.fontSize,
+            marginTop: layout.title.marginTop,
+            lineHeight: 1.25,
+            maxWidth: '75%',
+          }}
+        >
+          {cover.title}
+        </div>
+      ) : null}
+      <div
+        style={{
+          display: 'flex',
+          position: 'absolute',
+          right: layout.mark.right,
+          bottom: layout.mark.bottom,
+          fontFamily: 'Literata',
+          fontStyle: 'italic',
+          fontWeight: 400,
+          fontSize: layout.mark.fontSize,
+        }}
+      >
+        SageVani
+      </div>
+    </div>,
     { width: OG_WIDTH, height: OG_HEIGHT, fonts },
   )
 }

@@ -49,9 +49,7 @@ export async function createOtherTopics(payload: Payload): Promise<OtherTopics> 
 }
 
 /** All four topics, for a scenario that seeds no reading content of its own (empty, six). */
-export async function createAllTopics(
-  payload: Payload,
-): Promise<OtherTopics & { dharma: Topic }> {
+export async function createAllTopics(payload: Payload): Promise<OtherTopics & { dharma: Topic }> {
   const dharma = await createTopic(payload, DHARMA_TOPIC)
   const others = await createOtherTopics(payload)
   return { dharma, ...others }

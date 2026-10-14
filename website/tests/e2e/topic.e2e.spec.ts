@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test'
  * (archive.e2e.spec.ts) already cover a second page and its "Newer"/"Older" links exhaustively.
  */
 
-test('shows the topic\'s name, question, intro and its published articles', async ({ page }) => {
+test("shows the topic's name, question, intro and its published articles", async ({ page }) => {
   const response = await page.goto('/topics/adhyatma')
   expect(response?.status()).toBe(200)
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Adhyātma')
@@ -39,7 +39,7 @@ test('a topic with no intro shows its name, question and articles without one', 
 test('answers 404 for an unknown topic slug', async ({ page }) => {
   const response = await page.goto('/topics/this-does-not-exist')
   expect(response?.status()).toBe(404)
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText("This page can’t be found")
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('This page can’t be found')
 })
 
 test('answers 404 for a page number past the last page', async ({ page }) => {

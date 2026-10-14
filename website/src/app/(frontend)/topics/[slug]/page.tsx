@@ -50,7 +50,10 @@ function parsePage(searchParams: ArchiveSearchParams): ParsedArchiveQuery {
   return parseArchiveQuery(searchParams, { topics: [], levels: [] })
 }
 
-export async function generateMetadata({ params, searchParams }: TopicPageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: TopicPageProps): Promise<Metadata> {
   const { slug } = await params
   const topicView = await loadTopic(slug)
   // No robots field, same as the article and other pages' generateMetadata, when the default

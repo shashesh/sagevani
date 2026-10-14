@@ -16,7 +16,7 @@ test.describe('a fixed page', () => {
   test('answers 404 for a draft page', async ({ page }) => {
     const response = await page.goto('/e2e-draft-page')
     expect(response?.status()).toBe(404)
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText("This page can’t be found")
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('This page can’t be found')
   })
 
   test('answers 404 for an unknown slug', async ({ page }) => {

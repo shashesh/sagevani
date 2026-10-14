@@ -105,11 +105,7 @@ export function parseArchiveQuery(
  * inverse of parseArchiveQuery. The parameter order (topic, shape, difficulty, page) is fixed and
  * used everywhere a link is built, including Pagination and the filter form's own GET submission.
  */
-export function archiveHref(
-  base: string,
-  filters: Partial<ArchiveFilters>,
-  page: number,
-): string {
+export function archiveHref(base: string, filters: Partial<ArchiveFilters>, page: number): string {
   const params = new URLSearchParams()
   if (filters.topicSlug) params.set('topic', filters.topicSlug)
   if (filters.shape) params.set('shape', filters.shape)
@@ -125,7 +121,10 @@ export function pageCount(total: number): number {
 }
 
 /** A topic's id for its slug, or null for an unknown slug or no slug. Pure, so a slug collision is testable without a database. */
-export function resolveTopicId(topics: readonly Pick<TopicRef, 'id' | 'slug'>[], slug: string | null): number | null {
+export function resolveTopicId(
+  topics: readonly Pick<TopicRef, 'id' | 'slug'>[],
+  slug: string | null,
+): number | null {
   if (slug === null) return null
   return topics.find((topic) => topic.slug === slug)?.id ?? null
 }

@@ -34,9 +34,7 @@ test.describe('scenario seeding', () => {
 
     const articles = await (await request.get('/api/articles?limit=1')).json()
     expect(articles.totalDocs).toBe(6)
-    const about = await (
-      await request.get('/api/pages?where[slug][equals]=about&depth=0')
-    ).json()
+    const about = await (await request.get('/api/pages?where[slug][equals]=about&depth=0')).json()
     expect(about.docs).toHaveLength(1)
     const settings = await (await request.get('/api/globals/siteSettings?depth=0')).json()
     expect(settings.featuredArticle).toBeTruthy()
@@ -52,9 +50,7 @@ test.describe('scenario seeding', () => {
     expect(articles.totalDocs).toBeGreaterThanOrEqual(13)
 
     const pages = await (
-      await request.get(
-        '/api/pages?where[slug][in]=about,how-sagevani-writes,start-here&depth=0',
-      )
+      await request.get('/api/pages?where[slug][in]=about,how-sagevani-writes,start-here&depth=0')
     ).json()
     expect(pages.docs).toHaveLength(3)
     // The draft page never shows up in a public read; only the three published ones do.
