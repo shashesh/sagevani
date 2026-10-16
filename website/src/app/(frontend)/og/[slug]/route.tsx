@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { ImageResponse } from 'next/og'
 import path from 'path'
@@ -24,6 +25,23 @@ export function generateStaticParams(): { slug: string }[] {
 }
 
 const notFound = (): Response => new Response('Not found', { status: 404 })
+
+/**
+ * This address is slug-based, not content-addressed: the owner can replace a cover photo or
+ * unpublish an article without its /og/[slug] URL changing. An `immutable, max-age=31536000`
+ * response would let a browser, CDN or social-platform crawler keep serving the old image for a
+ * year with no way for the site's own tag-based cache invalidation (refreshSite) to reach it, so
+ * every response instead must be revalidated on each use. A strong ETag (a fingerprint of exactly
+ * what the image would draw) makes that revalidation cheap: a client sends it back as
+ * `If-None-Match`, and an unchanged cover answers 304 with no image bytes or re-rendering at all.
+ */
+const OG_CACHE_CONTROL = 'public, no-cache'
+
+/** A strong ETag for a cover: changes exactly when the image this route draws would look different. */
+function coverETag(cover: CoverData): string {
+  const fingerprint = createHash('sha256').update(JSON.stringify(cover)).digest('base64url')
+  return `"${fingerprint}"`
+}
 
 /**
  * A public image's bytes, or null if it can't be read. The local-media route serves uploads
@@ -67,12 +85,7 @@ async function photoResponse(photo: NonNullable<CoverData['photo']>): Promise<Re
     .resize(OG_WIDTH, OG_HEIGHT, { fit: 'cover' })
     .jpeg({ quality: 82 })
     .toBuffer()
-  return new Response(new Uint8Array(jpeg), {
-    headers: {
-      'Content-Type': 'image/jpeg',
-      'Cache-Control': 'public, max-age=31536000, immutable',
-    },
-  })
+  return new Response(new Uint8Array(jpeg), { headers: { 'Content-Type': 'image/jpeg' } })
 }
 
 /** A multi-child <div>: Satori requires an explicit display on any element with more than one child node. */
@@ -149,14 +162,28 @@ function drawnImage(
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ slug: string }> },
 ): Promise<Response> {
   const { slug } = await params
   if (!isSlug(slug)) return notFound()
   const article = await getArticleCard(slug)
   if (!article) return notFound()
-  if (article.cover.photo) return photoResponse(article.cover.photo)
-  const fonts = await loadOgFonts()
-  return drawnImage(article.cover, ogLayout(article.cover), fonts)
+
+  const etag = coverETag(article.cover)
+  if (request.headers.get('if-none-match') === etag) {
+    return new Response(null, {
+      status: 304,
+      headers: { ETag: etag, 'Cache-Control': OG_CACHE_CONTROL },
+    })
+  }
+
+  const response = article.cover.photo
+    ? await photoResponse(article.cover.photo)
+    : drawnImage(article.cover, ogLayout(article.cover), await loadOgFonts())
+  if (response.status === 200) {
+    response.headers.set('ETag', etag)
+    response.headers.set('Cache-Control', OG_CACHE_CONTROL)
+  }
+  return response
 }

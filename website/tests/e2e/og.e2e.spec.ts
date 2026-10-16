@@ -35,6 +35,22 @@ test.describe('link-preview images', () => {
     expect(bytes.length).toBeGreaterThan(1000)
   })
 
+  test('revalidates by ETag instead of caching for a year', async ({ request }) => {
+    const first = await request.get('/og/e2e-reading')
+    expect(first.status()).toBe(200)
+    expect(first.headers()['cache-control']).toBe('public, no-cache')
+    const etag = first.headers()['etag']
+    expect(etag).toBeTruthy()
+
+    const revalidated = await request.get('/og/e2e-reading', {
+      headers: { 'If-None-Match': etag! },
+    })
+    expect(revalidated.status()).toBe(304)
+    expect(revalidated.headers()['etag']).toBe(etag)
+    const body = await revalidated.body()
+    expect(body.length).toBe(0)
+  })
+
   test('the article page always points its link preview at /og/[slug]', async ({ page }) => {
     await page.goto('/articles/e2e-reading')
     await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
