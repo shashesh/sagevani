@@ -13,7 +13,7 @@ import styles from './LandingSidebar.module.css'
  */
 export function LandingSidebar({ sidebar }: { sidebar: Sidebar }) {
   return (
-    <aside>
+    <aside className={styles.sidebar}>
       <section className={styles.about} aria-labelledby="landing-about">
         <h2 id="landing-about" className={styles.heading}>
           About SageVani

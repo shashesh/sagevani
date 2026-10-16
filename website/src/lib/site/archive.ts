@@ -127,6 +127,27 @@ export function canonicalArchivePage(
   return parsed.needsRedirect ? 1 : parsed.page
 }
 
+/** Whether a parsed, in-range page is 1 (which always renders, even with zero results) or within the filtered count's pages. */
+function pageInBounds(parsed: Pick<ParsedArchiveQuery, 'page'>, totalPages: number): boolean {
+  return parsed.page === 1 || parsed.page <= totalPages
+}
+
+/**
+ * Whether a parsed query's page should carry page metadata (a canonical link, robots) at all:
+ * never for an invalid page, and never for one past the last page of the filtered count either,
+ * so `generateMetadata` and the page's own `resolveArchivePage` call never disagree about whether
+ * a page renders — the duplicate-robots-tag bug this PR's other pages avoid (stage 3 design, 4.6).
+ */
+export async function archivePageIsRenderable(
+  filters: ArchiveFilters,
+  parsed: ParsedArchiveQuery,
+  getCount: (filters: ArchiveFilters) => Promise<number>,
+): Promise<boolean> {
+  if (parsed.invalidPage) return false
+  if (parsed.needsRedirect) return true
+  return pageInBounds(parsed, pageCount(await getCount(filters)))
+}
+
 /**
  * What the archive route (or a topic page reusing it) should do for a parsed query: redirect to
  * the canonical address, 404, or render a page of articles. Shared by both routes so the
@@ -148,7 +169,7 @@ export async function resolveArchivePage(
   if (parsed.invalidPage) return { kind: 'invalid' }
   if (parsed.needsRedirect) return { kind: 'redirect', href: archiveHref(base, linkFilters, 1) }
   const totalPages = pageCount(await getCount(dataFilters))
-  if (parsed.page !== 1 && parsed.page > totalPages) return { kind: 'invalid' }
+  if (!pageInBounds(parsed, totalPages)) return { kind: 'invalid' }
   const articles = await getPage(dataFilters, parsed.page)
   return { kind: 'page', data: { articles, page: parsed.page, totalPages } }
 }

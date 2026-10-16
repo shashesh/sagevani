@@ -9,7 +9,7 @@ import { findArticleCard, findPublishedArticle, findRelatedArticles } from './ar
 import { findSiteChrome } from './chrome'
 import { findPublicCorrections } from './corrections'
 import { findLanding } from './landing'
-import { allLevels } from './lookups'
+import { allLevels, allTopics } from './lookups'
 import { findPublishedPage, findStartHere } from './pages'
 import { SITE_TAG } from './refresh'
 import { findTopicViews } from './topics'
@@ -71,6 +71,11 @@ export const getPage = cache(
 
 export const getLevels = cache(
   unstable_cache(async () => allLevels(await payload()), ['levels'], CACHE),
+)
+
+/** Every topic's id, name, slug, question and tint, for the archive's filter options and the topic page's lookup. */
+export const getTopics = cache(
+  unstable_cache(async () => allTopics(await payload()), ['topics'], CACHE),
 )
 
 export const getStartHere = cache(

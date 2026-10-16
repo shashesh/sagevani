@@ -8,7 +8,7 @@ The link-preview renderer uses Next's `ImageResponse` (Satori 0.25, bundled with
 
 ## Literata
 
-- **Creator:** The Literata Project Authors — designed by Clayton Leung and Scott Zhang at Google Fonts, with the Google Fonts team.
+- **Creator:** The Literata Project Authors — Latin design by Veronika Burian and José Scaglione at Type Together, commissioned by Google Play Books and released through Google Fonts.
 - **Source:** https://github.com/googlefonts/literata
 - **Version / commit fetched:** tag `3.103`, commit `0c2761b727a1b3a7cffd313c37f0f5163dfc7a63`
 - **Files fetched:**

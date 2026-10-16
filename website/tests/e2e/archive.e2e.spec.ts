@@ -23,9 +23,14 @@ test('12 rows render on page 1, with no `page` parameter in its address', async 
   await expect(page.getByRole('link', { name: 'Older' })).toHaveCount(1)
 })
 
-test('a page number past the last page returns 404', async ({ page }) => {
+test('a page number past the last page returns 404, with exactly one noindex robots tag', async ({
+  page,
+}) => {
   const response = await page.goto('/articles?page=3')
   expect(response?.status()).toBe(404)
+  const robots = page.locator('meta[name="robots"]')
+  await expect(robots).toHaveCount(1)
+  await expect(robots).toHaveAttribute('content', /noindex/)
 })
 
 test('an invalid page value returns 404', async ({ page }) => {

@@ -42,9 +42,14 @@ test('answers 404 for an unknown topic slug', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('This page can’t be found')
 })
 
-test('answers 404 for a page number past the last page', async ({ page }) => {
+test('answers 404 for a page number past the last page, with exactly one noindex robots tag', async ({
+  page,
+}) => {
   const response = await page.goto('/topics/adhyatma?page=2')
   expect(response?.status()).toBe(404)
+  const robots = page.locator('meta[name="robots"]')
+  await expect(robots).toHaveCount(1)
+  await expect(robots).toHaveAttribute('content', /noindex/)
 })
 
 test('`?page=1` redirects to the canonical address with no `page` parameter', async ({ page }) => {

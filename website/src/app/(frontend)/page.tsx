@@ -24,7 +24,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <div className="page column">
+      <div className="page">
         {/* The visible name comes from SiteHeader; this h1 exists for assistive tech alone. */}
         <h1 className="visually-hidden">SageVani</h1>
         <div className={styles.layout}>

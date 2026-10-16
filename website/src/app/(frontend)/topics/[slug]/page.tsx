@@ -5,6 +5,7 @@ import { Pagination } from '@/components/archive/Pagination'
 import { ArticleListItem } from '@/components/article/ArticleListItem'
 import {
   archiveHref,
+  archivePageIsRenderable,
   canonicalArchivePage,
   parseArchiveQuery,
   resolveArchivePage,
@@ -51,6 +52,12 @@ function parsePage(searchParams: ArchiveSearchParams): ParsedArchiveQuery {
   return parseArchiveQuery(searchParams, { topics: [], levels: [] })
 }
 
+// The topic is part of the path, not a query filter: data reads filter by it, but the
+// pagination links carry no filters of their own.
+function topicDataFilters(topicSlug: string): ArchiveFilters {
+  return { topicSlug, shape: null, levelSlug: null }
+}
+
 export async function generateMetadata({
   params,
   searchParams,
@@ -62,7 +69,8 @@ export async function generateMetadata({
   // (src/lib/site/metadata.ts's siteRobots).
   if (!topicView) return {}
   const parsed = parsePage(await searchParams)
-  if (parsed.invalidPage) return {}
+  const dataFilters = topicDataFilters(topicView.topic.slug)
+  if (!(await archivePageIsRenderable(dataFilters, parsed, getArchiveCount))) return {}
   return {
     title: topicView.topic.name,
     description: topicView.topic.question,
@@ -78,14 +86,7 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
 
   const parsed = parsePage(await searchParams)
   const base = topicPath(slug)
-
-  // The topic is part of the path, not a query filter: data reads filter by it, but the
-  // pagination links below carry no filters of their own.
-  const dataFilters: ArchiveFilters = {
-    topicSlug: topicView.topic.slug,
-    shape: null,
-    levelSlug: null,
-  }
+  const dataFilters = topicDataFilters(topicView.topic.slug)
   const linkFilters: ArchiveFilters = { topicSlug: null, shape: null, levelSlug: null }
 
   const resolution = await resolveArchivePage(
