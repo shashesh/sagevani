@@ -121,7 +121,9 @@ export function pageCount(total: number): number {
 }
 
 /** The page a parsed query's `generateMetadata` should treat as canonical: 1 while redirecting there, otherwise the parsed page. */
-export function canonicalArchivePage(parsed: Pick<ParsedArchiveQuery, 'page' | 'needsRedirect'>): number {
+export function canonicalArchivePage(
+  parsed: Pick<ParsedArchiveQuery, 'page' | 'needsRedirect'>,
+): number {
   return parsed.needsRedirect ? 1 : parsed.page
 }
 
@@ -133,9 +135,7 @@ export function canonicalArchivePage(parsed: Pick<ParsedArchiveQuery, 'page' | '
  * cached.ts wrappers that themselves import this module.
  */
 export type ArchiveResolution =
-  | { kind: 'invalid' }
-  | { kind: 'redirect'; href: string }
-  | { kind: 'page'; data: ArchivePage }
+  { kind: 'invalid' } | { kind: 'redirect'; href: string } | { kind: 'page'; data: ArchivePage }
 
 export async function resolveArchivePage(
   base: string,
