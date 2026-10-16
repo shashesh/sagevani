@@ -142,7 +142,10 @@ export const Articles: CollectionConfig = {
     {
       name: 'coverTerm',
       type: 'text',
-      admin: { description: 'Drawn on the generated cover; the title is used when empty.' },
+      admin: {
+        description:
+          'Drawn on the generated cover; the title is used when empty. Latin script with IAST only: the link-preview image renderer can’t shape Devanagari.',
+      },
     },
     {
       name: 'coverImage',

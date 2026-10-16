@@ -11,13 +11,29 @@ import { siteConfig } from '@/lib/site/config'
 import { articlePath } from '@/lib/site/paths'
 import { findArticlePreview } from '@/lib/site/preview'
 
-export const metadata: Metadata = { title: 'Preview', robots: { index: false, follow: false } }
+interface ArticlePreviewPageProps {
+  params: Promise<{ id: string }>
+}
+
+/**
+ * Always noindex, whatever SITE_INDEXING says: a preview is never a page worth indexing (stage 3
+ * design, 4.4). No robots field when the article is missing: the default export below calls
+ * notFound() in that case, and setting robots here would collide with Next's own automatic
+ * noindex for the resulting 404 response (see src/lib/site/metadata.ts's siteRobots).
+ */
+export async function generateMetadata({ params }: ArticlePreviewPageProps): Promise<Metadata> {
+  const { id } = await params
+  const payload = await getPayload({ config })
+  const { user } = await executeAuthStrategies({ headers: await headers(), payload })
+  const article = await findArticlePreview(payload, id, user)
+  return article ? { title: 'Preview', robots: { index: false, follow: false } } : {}
+}
 
 /**
  * An article's latest draft, for staff only (stage 3 design, 4.4). Reading the request's session
  * makes this route dynamic, so it is never cached; public routes never read drafts.
  */
-export default async function ArticlePreviewPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ArticlePreviewPage({ params }: ArticlePreviewPageProps) {
   const { id } = await params
   const payload = await getPayload({ config })
   const { user } = await executeAuthStrategies({ headers: await headers(), payload })

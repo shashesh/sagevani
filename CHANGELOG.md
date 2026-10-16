@@ -1,5 +1,18 @@
 # Change log
 
+## 2026-10-13 — Website stage 3b: the rest of the site
+
+- The landing page at `/` shows the featured article, the Featured picks, the Latest articles and a sidebar with About SageVani, Start here and the topics. The Four questions band links to each topic. Until something is published, the page says so.
+- The archive at `/articles` lists every published article, newest first, 12 to a page, and filters by topic, shape and difficulty. Topic pages at `/topics/[slug]` list each topic's articles in the same way.
+- Start here at `/start-here` shows the Start-here page's body, then its reading list. `/corrections` lists every public correction, newest first, with a link to its article.
+- Fixed pages such as About, How SageVani writes and Privacy have public pages at `/[slug]`. The page editor refuses the slugs that fixed routes use, and `start-here` stays allowed.
+- Added the 404 page, for unknown and unpublished addresses, and the error page, which shows no stack trace and logs the error on the server. Both use the site's design.
+- Link-preview images at `/og/[slug]` draw each article's cover at 1200 × 630. An article with a cover photo gets its photo, cropped to 1200 × 630 as a JPEG.
+- Added the About SageVani text in site settings (`aboutText`), which the landing page's About box shows, falling back to the tagline. One migration adds its column, and it must be applied to staging before the deploy preview builds.
+- The cover term's description now says it must be Latin script with IAST, because link-preview images can't draw Devanagari.
+- The new interface wording is placeholder copy until the owner approves it (stage 3 design, section 9).
+- Nothing is deployed or published yet. The pull request is still to be opened.
+
 ## 2026-10-12 — Website stage 3a: the reading experience
 
 - Published articles have a public page at `/articles/[slug]`, in the "Manuscript" design: Literata, warm paper and a lamp-lit dark theme that follows the device, with a toggle that remembers the choice and never flashes the wrong theme.

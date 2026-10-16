@@ -146,6 +146,7 @@ Importing the site makes Netlify build `master` for production straight away. Fi
    - **Project visibility: Private** for production and for previews, under **Project configuration → General → Visitor access → Project visibility.** Previews connect to the staging database, so only you should see them. Make production public at launch.
 4. When the production deploy finishes, open `/admin` on the site's address and sign in with the production owner account.
 5. Staging is checked through deploy previews. The next pull request you open gets a preview built against staging; open `/admin` there and sign in with the staging owner account.
+6. Check that the deploy log shows `@netlify/plugin-nextjs` 5.16.2 or later. The site needs that version to prerender pages inside route groups on Next 16.3.8 (stage 3 design, 4.3). Netlify installs the latest version unless one is pinned.
 
 ## Until production is on Pro
 

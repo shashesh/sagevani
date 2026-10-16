@@ -1,7 +1,7 @@
 import type { Payload, RequiredDataFromCollectionSlug } from 'payload'
 import sharp from 'sharp'
 
-import type { User } from '../../src/payload-types'
+import type { DifficultyLevel, Topic, User } from '../../src/payload-types'
 import { image, linkTo, paragraph, practice, richText, tradition, verse } from '../helpers/lexical'
 
 type ArticleFields = Partial<RequiredDataFromCollectionSlug<'articles'>> & {
@@ -15,11 +15,23 @@ export const E2E_NAVIGATION = [
   { label: 'About', path: '/about' },
 ]
 
+/** The "Dharma" topic's data (website design 5.1), shared with scenarios that seed it directly. */
+export const DHARMA_TOPIC = {
+  name: 'Dharma',
+  slug: 'dharma',
+  question: 'How shall I live?',
+  order: 1,
+  coverTint: { background: '#e3cfa8', text: '#3d2f1c' },
+}
+
 /**
  * Published articles for the reading, theme, preview and refresh tests, created through the
  * Local API (outside Next, so nothing is refreshed here). Every value is test content.
  */
-export async function seedReading(payload: Payload, owner: User): Promise<void> {
+export async function seedReading(
+  payload: Payload,
+  owner: User,
+): Promise<{ beginner: DifficultyLevel; dharma: Topic }> {
   const beginner = await payload.create({
     collection: 'difficultyLevels',
     data: { name: 'Beginner', order: 1, needsPriorReading: false },
@@ -27,13 +39,7 @@ export async function seedReading(payload: Payload, owner: User): Promise<void> 
   })
   const dharma = await payload.create({
     collection: 'topics',
-    data: {
-      name: 'Dharma',
-      slug: 'dharma',
-      question: 'How shall I live?',
-      order: 1,
-      coverTint: { background: '#e3cfa8', text: '#3d2f1c' },
-    },
+    data: DHARMA_TOPIC,
     overrideAccess: true,
   })
   const data = await sharp({
@@ -82,6 +88,7 @@ export async function seedReading(payload: Payload, owner: User): Promise<void> 
     slug: 'e2e-reading',
     summary: 'A test summary for the reading page.',
     coverTerm: 'karma',
+    coverImage: photo.id,
     background: 'Some helpful background, written for the test.',
     readFirst: [
       { kind: 'internal', article: related.id, reason: 'It sets the scene.' },
@@ -134,6 +141,15 @@ export async function seedReading(payload: Payload, owner: User): Promise<void> 
     topics: [],
   })
 
+  // A Devanagari cover term, for /og/[slug]: the renderer can't shape it, but must not crash
+  // (stage 3 design, 6.5).
+  await publish({
+    title: 'A test title with a Devanagari cover term',
+    slug: 'e2e-devanagari-term',
+    coverTerm: 'कर्मण्येवाधिकारस्ते',
+    topics: [],
+  })
+
   const preview = await publish({ title: 'The live title', slug: 'e2e-preview', topics: [] })
   await payload.update({
     collection: 'articles',
@@ -145,4 +161,6 @@ export async function seedReading(payload: Payload, owner: User): Promise<void> 
   })
 
   await publish({ title: 'Before the edit', slug: 'e2e-publish', topics: [] })
+
+  return { beginner, dharma }
 }

@@ -1,7 +1,7 @@
 # Website stage 3: the public site — design
 
 - Date: 2026-10-11
-- Status: Design approved by the owner, section by section, on 2026-10-11. Written spec approved by the owner the same day
+- Status: Design approved by the owner, section by section, on 2026-10-11. Written spec approved by the owner the same day. Stage 3a is merged ([pull request #14](https://github.com/shashesh/sagevani/pull/14)). Stage 3b is built and tested; its pull request is not yet open
 - Parent spec: [SageVani website design](2026-10-05-sagevani-website-design.md), sections 4, 6, 7, 12, 13 and 16
 - Previous stage: [stage 2 — content model and admin](2026-10-08-stage-2-content-model-design.md), and its plan's notes for stage 3
 - Implementation plans: stage 3a and stage 3b, written one at a time
@@ -232,7 +232,7 @@ Comments (parent spec 6.2, item 9) arrive in stage 4, between the correction not
 
 - `/og/[slug]` draws design A at 1200 × 630 with Next's `ImageResponse`, using the static Literata files (5.2). It runs on the Node runtime.
 - It is cached and refreshed with the pages. An unknown or unpublished slug returns 404.
-- An article with a cover photo uses the photo instead (6.1, metadata).
+- An article with a cover photo gets it cropped to 1200 × 630 and re-encoded as JPEG, drawn by the same route — never the raw photo file (6.1, metadata). This keeps every link preview the right shape and format for platforms that reject AVIF or an unscaled original.
 - **Cover terms are Latin script with IAST.** The renderer can't shape Devanagari, so the `coverTerm` field's description says so.
 
 ## 7. Content model changes
@@ -255,11 +255,23 @@ Comments (parent spec 6.2, item 9) arrive in stage 4, between the correction not
 
 Written now as placeholders and approved or rewritten by the owner, alongside parent spec 18, item 3:
 
-- the landing page's line when nothing is published;
+- the landing page's line when nothing is published: "Nothing has been published here yet.";
 - the headings "Featured", "Latest", "Four questions", "Before you read", "Suggested prior reading", "Sources" and "More from [topic]";
-- the 404 and error page text;
+- the 404 and error page text (listed below under stage 3b);
 - the reader-facing strings that stage 3a added: "Share", "Copy link", "Link copied", "Copy failed", "Supports:", "accessed", "Correction,", "Sources (n)", "Menu", and the theme toggle's "Switch to light theme", "Switch to dark theme" and "Switch theme";
-- the names only screen readers hear: " (done)", " (not done)", " (opens in a new tab)", and the landmark names "Main", "Footer", "Share this article" and "Corrections".
+- the names only screen readers hear: " (done)", " (not done)", " (opens in a new tab)", and the landmark names "Main", "Footer", "Share this article" and "Corrections";
+- the reader-facing strings that stage 3b added, by where they appear:
+  - the 404 page (`src/components/site/NotFoundView.tsx`): the label "404"; the heading "This page can’t be found"; the text "The address may be mistyped, or the page may have moved or been taken down."; the links "Go home" and "Browse the archive"; the document title "Not found";
+  - the error page (`src/components/site/ErrorView.tsx`, shown by `error.tsx` and by `global-error.tsx`): the label "Error"; the heading "Something went wrong"; the text "The page couldn’t be shown. Please try again, or come back later."; the link "Go home". `global-error.tsx` also shows the wordmark "SageVani" on its own, since it can't read the site's chrome;
+  - the corrections page (`src/components/site/CorrectionsView.tsx`): the heading "Corrections"; the empty line "No corrections have been published yet."; the document title "Corrections";
+  - the Start-here page (`src/components/site/StartHereContent.tsx`): the fallback heading and document title "Start here", shown only when no Start-here page is published but the reading list has articles;
+  - the archive (`src/app/(frontend)/articles/page.tsx`): the heading "Articles", the document title "Articles", and the empty line "No articles match these filters yet.";
+  - the topic page (`src/app/(frontend)/topics/[slug]/page.tsx`): the empty line "No articles in this topic yet.";
+  - the archive's filters (`src/components/archive/ArchiveFilters.tsx`): the labels "Topic", "Shape" and "Difficulty"; the first options "All topics", "All shapes" and "Any difficulty"; the button "Apply filters"; the link "Clear filters";
+  - the pagination (`src/components/archive/Pagination.tsx`): "Newer", "Older" and "Page [n] of [m]"; the screen-reader name "Archive pages" for its navigation;
+  - the landing page (`src/app/(frontend)/page.tsx`): the link "All articles →", under Latest;
+  - the landing sidebar (`src/components/landing/LandingSidebar.tsx`): the headings "About SageVani", "Start here" and "Topics"; the link "Read more →" under the About text.
+  - Also in stage 3b, with no new wording: the featured article (`FeaturedArticle.tsx`) and the four-questions band (`FourQuestions.tsx`), whose heading "Four questions" is listed above.
 
 The interface never invents article content, translations or attributions. Every block's text comes from the article.
 

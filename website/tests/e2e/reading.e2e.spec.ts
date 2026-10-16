@@ -1,8 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 
-const WIDTHS = [320, 375, 768, 1024, 1440, 1920]
-const THEMES = ['light', 'dark'] as const
+import { THEMES, WIDTHS } from './viewports'
 
 const loadedTiroFaces = (page: Page): Promise<number> =>
   page.evaluate(async () => {
@@ -69,8 +68,9 @@ test.describe('reading an article', () => {
     await expect(page.getByText('A private note for the test.')).toHaveCount(0)
 
     const more = page.getByRole('region', { name: 'More from Dharma' })
-    await expect(more.getByRole('link', { name: 'A related piece', exact: true })).toBeVisible()
-    await expect(more.getByRole('link', { name: 'A test article to read' })).toHaveCount(0)
+    // The link's accessible name now starts with its label row (topic and shape), so match the title at the end.
+    await expect(more.getByRole('link', { name: /A related piece$/ })).toBeVisible()
+    await expect(more.getByRole('link', { name: /A test article to read$/ })).toHaveCount(0)
 
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/)
 

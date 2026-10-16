@@ -13,14 +13,18 @@ import { THEME_SCRIPT } from '@/lib/site/theme'
 import { literata } from '@/styles/fonts'
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { url, indexing } = siteConfig()
+  const { url } = siteConfig()
   const { tagline } = await getSiteChrome()
   return {
     metadataBase: new URL(url),
     title: { default: 'SageVani', template: '%s · SageVani' },
     description: tagline,
-    // Hidden from search engines until launch (stage 3 design, 4.6).
-    robots: indexing ? undefined : { index: false },
+    // Site-wide noindex until launch (stage 3 design, 4.6) is each page's own concern
+    // (src/lib/site/metadata.ts's siteRobots), not this shared layout's: Next.js reuses a
+    // layout's generateMetadata when resolving a not-found render's metadata (see
+    // (frontend)/not-found.tsx), so a robots field set here would collide with Next's own,
+    // automatic noindex for any response with a status above 400, rendering two
+    // <meta name="robots"> tags on every 404.
   }
 }
 

@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { ArticleView } from '@/components/article/ArticleView'
 import { getArticle, getRelatedArticles } from '@/lib/site/cached'
 import { siteConfig } from '@/lib/site/config'
-import { articleMetadata } from '@/lib/site/metadata'
+import { articleMetadata, siteRobots } from '@/lib/site/metadata'
 import { articlePath } from '@/lib/site/paths'
 import { isSlug } from '@/lib/site/params'
 
@@ -23,7 +23,10 @@ export function generateStaticParams(): { slug: string }[] {
 export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
   const { slug } = await params
   const article = isSlug(slug) ? await getArticle(slug) : null
-  return article ? articleMetadata(article) : {}
+  // No robots field when the article is missing: the page's default export calls notFound()
+  // below, and setting robots here would collide with Next's own automatic noindex for the
+  // resulting 404 response (see src/lib/site/metadata.ts's siteRobots).
+  return article ? { ...articleMetadata(article), robots: siteRobots() } : {}
 }
 
 export default async function ArticlePage({ params }: ArticlePageProps) {

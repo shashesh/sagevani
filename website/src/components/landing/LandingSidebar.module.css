@@ -1,0 +1,44 @@
+.sidebar {
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.heading {
+  font-size: 20px;
+}
+
+.about p {
+  margin-top: 10px;
+  color: var(--ink-soft);
+}
+
+.about a {
+  display: inline-block;
+  margin-top: 12px;
+}
+
+.cards {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.topics {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.count {
+  color: var(--muted);
+}
+
+@media (min-width: 860px) {
+  .sidebar {
+    margin-top: 0;
+  }
+}

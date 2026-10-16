@@ -6,6 +6,7 @@ import type { ArticleCard as Card } from '@/lib/site/types'
 
 import styles from './ArticleCard.module.css'
 import { Cover } from './Cover'
+import { LabelRow } from './LabelRow'
 
 /** The cover, title, summary, reading time and difficulty of an article in a list. */
 export function ArticleCard({ article }: { article: Card }) {
@@ -22,6 +23,7 @@ export function ArticleCard({ article }: { article: Card }) {
           variant="card"
           decorative
         />
+        <LabelRow topics={article.topics} shapeLabel={article.shapeLabel} />
         <h3 className={styles.title}>{article.title}</h3>
       </Link>
       {article.summary && <p className={styles.summary}>{article.summary}</p>}
