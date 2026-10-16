@@ -1,7 +1,8 @@
 import { labelText } from '@/lib/site/format'
+import type { TopicRef } from '@/lib/site/types'
 
 interface LabelRowProps {
-  topics: { name: string }[]
+  topics: Pick<TopicRef, 'name'>[]
   shapeLabel: string | null
 }
 

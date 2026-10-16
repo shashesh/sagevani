@@ -44,7 +44,13 @@ async function photoBytes(url: string): Promise<Buffer | null> {
     }
   }
   const source = await fetch(url)
-  return source.ok ? Buffer.from(await source.arrayBuffer()) : null
+  if (!source.ok) {
+    // Distinguishes a storage outage or a bad bucket ACL (worth noticing) from a genuinely absent
+    // photo, which otherwise both end up as the same 404 with nothing in the server log.
+    console.error('OG cover photo fetch failed', { url, status: source.status })
+    return null
+  }
+  return Buffer.from(await source.arrayBuffer())
 }
 
 /**

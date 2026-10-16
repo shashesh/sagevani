@@ -46,8 +46,13 @@ export function sortCorrections(corrections: readonly SiteCorrection[]): SiteCor
   })
 }
 
-/** Row shape this module reads: just enough to flatten each article's public corrections. */
-type CorrectionsArticleRow = Pick<Article, 'title' | 'slug' | 'publishedAt' | 'corrections'>
+/** The fields this module reads: just enough to flatten each article's public corrections. */
+const CORRECTIONS_ARTICLE_SELECT = {
+  title: true,
+  slug: true,
+  publishedAt: true,
+  corrections: true,
+} as const
 
 /**
  * Every correction marked to show a public note, across published articles, newest first
@@ -60,9 +65,9 @@ export async function findPublicCorrections(payload: Payload): Promise<SiteCorre
     depth: 0,
     where: { 'corrections.showPublicNote': { equals: true } },
     pagination: false,
-    select: { title: true, slug: true, publishedAt: true, corrections: true },
+    select: CORRECTIONS_ARTICLE_SELECT,
   })
-  const flattened = (docs as CorrectionsArticleRow[]).flatMap((row): SiteCorrection[] => {
+  const flattened = docs.flatMap((row): SiteCorrection[] => {
     if (!row.slug) return []
     const title = text(row.title) ?? UNTITLED
     const article = { title, path: articlePath(row.slug), publishedAt: row.publishedAt ?? null }

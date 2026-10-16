@@ -5,8 +5,9 @@ import { Pagination } from '@/components/archive/Pagination'
 import { ArticleListItem } from '@/components/article/ArticleListItem'
 import {
   archiveHref,
-  pageCount,
+  canonicalArchivePage,
   parseArchiveQuery,
+  resolveArchivePage,
   type ArchiveFilters,
   type ArchiveSearchParams,
   type ParsedArchiveQuery,
@@ -62,11 +63,10 @@ export async function generateMetadata({
   if (!topicView) return {}
   const parsed = parsePage(await searchParams)
   if (parsed.invalidPage) return {}
-  const canonicalPage = parsed.needsRedirect ? 1 : parsed.page
   return {
     title: topicView.topic.name,
     description: topicView.topic.question,
-    alternates: { canonical: archiveHref(topicPath(slug), {}, canonicalPage) },
+    alternates: { canonical: archiveHref(topicPath(slug), {}, canonicalArchivePage(parsed)) },
     robots: siteRobots(),
   }
 }
@@ -77,12 +77,7 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
   if (!topicView) notFound()
 
   const parsed = parsePage(await searchParams)
-  if (parsed.invalidPage) notFound()
-
   const base = topicPath(slug)
-  if (parsed.needsRedirect) {
-    permanentRedirect(archiveHref(base, {}, 1))
-  }
 
   // The topic is part of the path, not a query filter: data reads filter by it, but the
   // pagination links below carry no filters of their own.
@@ -93,11 +88,17 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
   }
   const linkFilters: ArchiveFilters = { topicSlug: null, shape: null, levelSlug: null }
 
-  const total = await getArchiveCount(dataFilters)
-  const totalPages = pageCount(total)
-  if (parsed.page !== 1 && parsed.page > totalPages) notFound()
-
-  const articles = await getArchivePage(dataFilters, parsed.page)
+  const resolution = await resolveArchivePage(
+    base,
+    linkFilters,
+    dataFilters,
+    parsed,
+    getArchiveCount,
+    getArchivePage,
+  )
+  if (resolution.kind === 'invalid') notFound()
+  if (resolution.kind === 'redirect') permanentRedirect(resolution.href)
+  const { articles, totalPages, page } = resolution.data
 
   return (
     <div className="page column">
@@ -116,7 +117,7 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
           ))}
         </div>
       )}
-      <Pagination page={parsed.page} totalPages={totalPages} filters={linkFilters} base={base} />
+      <Pagination page={page} totalPages={totalPages} filters={linkFilters} base={base} />
     </div>
   )
 }

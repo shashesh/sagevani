@@ -18,6 +18,9 @@ test('12 rows render on page 1, with no `page` parameter in its address', async 
   await expect(page).toHaveURL(/\/articles$/)
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Articles')
   await expect(page.getByRole('article')).toHaveCount(ARCHIVE_PAGE_SIZE)
+  // Page 1 is the first page: "Newer" is disabled, not a link.
+  await expect(page.getByRole('link', { name: 'Newer' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Older' })).toHaveCount(1)
 })
 
 test('a page number past the last page returns 404', async ({ page }) => {
@@ -43,6 +46,8 @@ test('the second page shows the remaining three articles, and links back to page
   await expect(page.getByRole('article')).toHaveCount(3)
   const newer = page.getByRole('link', { name: 'Newer' })
   await expect(newer).toHaveAttribute('href', '/articles')
+  // Page 2 is the last page: "Older" is disabled, not a link.
+  await expect(page.getByRole('link', { name: 'Older' })).toHaveCount(0)
   await newer.click()
   await expect(page).toHaveURL(/\/articles$/)
 })

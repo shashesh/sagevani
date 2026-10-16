@@ -9,8 +9,9 @@ import { ArticleListItem } from '@/components/article/ArticleListItem'
 import { ARTICLE_SHAPES } from '@/collections/articles/options'
 import {
   archiveHref,
-  pageCount,
+  canonicalArchivePage,
   parseArchiveQuery,
+  resolveArchivePage,
   type ArchiveFilters as ArchiveFiltersType,
   type ArchiveSearchParams,
 } from '@/lib/site/archive'
@@ -49,19 +50,17 @@ export async function generateMetadata({ searchParams }: ArticlesPageProps): Pro
   // redirecting address is never the one indexed either (see src/lib/site/metadata.ts's siteRobots
   // and the article page's generateMetadata for why this must be omitted, not just left falsy).
   if (parsed.invalidPage) return {}
-  const canonicalPage = parsed.needsRedirect ? 1 : parsed.page
   // The canonical address drops every filter: a filtered view is one of many ways to reach the
   // same underlying pages, not a page of its own (stage 3 design, 4.6).
   return {
     title: 'Articles',
-    alternates: { canonical: archiveHref(ARCHIVE_PATH, {}, canonicalPage) },
+    alternates: { canonical: archiveHref(ARCHIVE_PATH, {}, canonicalArchivePage(parsed)) },
     robots: siteRobots(),
   }
 }
 
 export default async function ArticlesPage({ searchParams }: ArticlesPageProps) {
   const { parsed, topics, levels } = await resolveQuery(searchParams)
-  if (parsed.invalidPage) notFound()
 
   const filters: ArchiveFiltersType = {
     topicSlug: parsed.topicSlug,
@@ -69,15 +68,17 @@ export default async function ArticlesPage({ searchParams }: ArticlesPageProps) 
     levelSlug: parsed.levelSlug,
   }
 
-  if (parsed.needsRedirect) {
-    permanentRedirect(archiveHref(ARCHIVE_PATH, filters, 1))
-  }
-
-  const total = await getArchiveCount(filters)
-  const totalPages = pageCount(total)
-  if (parsed.page !== 1 && parsed.page > totalPages) notFound()
-
-  const articles = await getArchivePage(filters, parsed.page)
+  const resolution = await resolveArchivePage(
+    ARCHIVE_PATH,
+    filters,
+    filters,
+    parsed,
+    getArchiveCount,
+    getArchivePage,
+  )
+  if (resolution.kind === 'invalid') notFound()
+  if (resolution.kind === 'redirect') permanentRedirect(resolution.href)
+  const { articles, totalPages, page } = resolution.data
 
   return (
     <div className="page column">
@@ -98,7 +99,7 @@ export default async function ArticlesPage({ searchParams }: ArticlesPageProps) 
           ))}
         </div>
       )}
-      <Pagination page={parsed.page} totalPages={totalPages} filters={filters} />
+      <Pagination page={page} totalPages={totalPages} filters={filters} />
     </div>
   )
 }

@@ -14,12 +14,15 @@ export async function onRequestError(
   context: { routePath?: string; routeType?: string },
 ): Promise<void> {
   const digest = (error as { digest?: unknown } | null)?.digest
-  // No secrets are known at this layer, so only the message is reduced to one leak-free line.
+  // This is the one place that logs every unhandled server-render/route-handler error in
+  // production, including a pg/Payload driver error that might otherwise echo the database's own
+  // connection string, so DATABASE_URL is redacted here too, the same as scripts/*.ts's own
+  // describeError calls.
   console.error('Unhandled server error', {
     path: request.path,
     route: context.routePath,
     routeType: context.routeType,
     digest: typeof digest === 'string' ? digest : undefined,
-    message: describeError(error, []),
+    message: describeError(error, [process.env.DATABASE_URL]),
   })
 }

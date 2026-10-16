@@ -17,7 +17,7 @@ export function generateMetadata(): Metadata {
   return { robots: siteRobots() }
 }
 
-/** The landing page (stage 3 design, 6.2): featured article, Featured picks, Latest and sidebar. */
+/** The landing page (stage 3 design, 6.2): featured article, its featured picks, Latest and sidebar. */
 export default async function HomePage() {
   const landing = await getLanding()
   const { featured, picks, latest, sidebar } = landing

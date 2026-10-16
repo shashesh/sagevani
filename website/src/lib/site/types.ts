@@ -125,7 +125,7 @@ export interface LandingSidebar {
   about: AboutBox
   /** The published articles of the Start-here list, in order. */
   startHere: ArticleCard[]
-  /** All four topics, each with its count of published articles. */
+  /** Every topic, each with its count of published articles. */
   topics: TopicWithCount[]
 }
 

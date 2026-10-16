@@ -1,6 +1,6 @@
 import type { Payload } from 'payload'
 
-import { idOf, isDatabaseId } from '../ids'
+import { idsOf } from '../ids'
 import type { Page } from '../../payload-types'
 import { publishedCardsInOrder } from './articles'
 import { bodyReferences, linkTargets } from './body'
@@ -59,12 +59,8 @@ export async function findStartHere(payload: Payload): Promise<StartHereView> {
       select: { startHere: true },
     }),
   ])
-  // depth 0 should give bare ids already; idOf also handles a populated value, the same rule as
+  // depth 0 should give bare ids already; idsOf also handles a populated value, the same rule as
   // the rest of this module (uniqueIds in body.ts), but keeps the given order instead of deduping.
-  const ids = (settings.startHere ?? []).flatMap((entry) => {
-    const id = idOf(entry)
-    return isDatabaseId(id) ? [Number(id)] : []
-  })
-  const articles = await publishedCardsInOrder(payload, ids)
+  const articles = await publishedCardsInOrder(payload, idsOf(settings.startHere))
   return { page, articles }
 }

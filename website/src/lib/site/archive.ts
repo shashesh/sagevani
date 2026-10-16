@@ -3,7 +3,7 @@ import type { Payload, Where } from 'payload'
 import { ARTICLE_SHAPES } from '../../collections/articles/options'
 import { ARTICLE_CARD_SELECT, toArticleCards } from './articles'
 import { allLevels, allTopics } from './lookups'
-import type { ArticleCard, TopicRef } from './types'
+import type { ArchivePage, ArticleCard, TopicRef } from './types'
 
 export { levelSlug } from './lookups'
 
@@ -120,6 +120,39 @@ export function pageCount(total: number): number {
   return Math.ceil(total / ARCHIVE_PAGE_SIZE)
 }
 
+/** The page a parsed query's `generateMetadata` should treat as canonical: 1 while redirecting there, otherwise the parsed page. */
+export function canonicalArchivePage(parsed: Pick<ParsedArchiveQuery, 'page' | 'needsRedirect'>): number {
+  return parsed.needsRedirect ? 1 : parsed.page
+}
+
+/**
+ * What the archive route (or a topic page reusing it) should do for a parsed query: redirect to
+ * the canonical address, 404, or render a page of articles. Shared by both routes so the
+ * invalid/redirect/404/fetch sequence (stage 3 design, 6.3) is written once instead of duplicated
+ * per route; `getCount`/`getPage` are passed in rather than imported, so this stays free of the
+ * cached.ts wrappers that themselves import this module.
+ */
+export type ArchiveResolution =
+  | { kind: 'invalid' }
+  | { kind: 'redirect'; href: string }
+  | { kind: 'page'; data: ArchivePage }
+
+export async function resolveArchivePage(
+  base: string,
+  linkFilters: Partial<ArchiveFilters>,
+  dataFilters: ArchiveFilters,
+  parsed: ParsedArchiveQuery,
+  getCount: (filters: ArchiveFilters) => Promise<number>,
+  getPage: (filters: ArchiveFilters, page: number) => Promise<ArticleCard[]>,
+): Promise<ArchiveResolution> {
+  if (parsed.invalidPage) return { kind: 'invalid' }
+  if (parsed.needsRedirect) return { kind: 'redirect', href: archiveHref(base, linkFilters, 1) }
+  const totalPages = pageCount(await getCount(dataFilters))
+  if (parsed.page !== 1 && parsed.page > totalPages) return { kind: 'invalid' }
+  const articles = await getPage(dataFilters, parsed.page)
+  return { kind: 'page', data: { articles, page: parsed.page, totalPages } }
+}
+
 /** A topic's id for its slug, or null for an unknown slug or no slug. Pure, so a slug collision is testable without a database. */
 export function resolveTopicId(
   topics: readonly Pick<TopicRef, 'id' | 'slug'>[],
@@ -142,7 +175,14 @@ export function resolveLevelId(
   return levels.find((level) => level.slug === slug)?.id ?? null
 }
 
-/** The `where` clause for the archive's filters: a topic and a level resolve to their database id first (stage 3 design, 6.3). */
+/**
+ * The `where` clause for the archive's filters: a topic and a level resolve to their database id
+ * first (stage 3 design, 6.3). A slug that resolves to no id falls back to the unreachable id -1
+ * rather than skipping the clause: callers only ever pass a slug already checked against
+ * `allTopics`/`allLevels` (parseArchiveQuery), so this only fires on a lookup/cache inconsistency
+ * (e.g. a topic deleted between that check and this query), and even then the result is an empty
+ * page, not a crash or a wrongly-unfiltered one.
+ */
 async function archiveWhere(payload: Payload, filters: ArchiveFilters): Promise<Where> {
   const and: Where[] = []
   if (filters.topicSlug) {

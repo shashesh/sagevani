@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test'
 
+import { useScenario } from './scenario'
+
+// A scenario switch changes seeded data; a retry can't start clean.
+test.describe.configure({ retries: 0 })
+
 test.describe('the corrections page', () => {
   test('lists the public correction, linking to its article, and hides the private one', async ({
     page,
@@ -25,5 +30,22 @@ test.describe('the corrections page', () => {
     await expect(link).toHaveAttribute('href', '/corrections')
     await link.click()
     await expect(page).toHaveURL('/corrections')
+  })
+
+  test.describe('with nothing published', () => {
+    test.beforeAll(async () => {
+      await useScenario('empty')
+    })
+
+    test.afterAll(async () => {
+      // Every other test file assumes `standard`; always restore it, even if a test above failed.
+      await useScenario('standard')
+    })
+
+    test('answers 200 with one line of placeholder text, not a 404', async ({ page }) => {
+      const response = await page.goto('/corrections')
+      expect(response?.status()).toBe(200)
+      await expect(page.getByText('No corrections have been published yet.')).toBeVisible()
+    })
   })
 })

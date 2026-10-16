@@ -1,6 +1,6 @@
 import type { Payload } from 'payload'
 
-import { idOf, isDatabaseId } from '../ids'
+import { idsOf, singleId } from '../ids'
 import { ARTICLE_CARD_SELECT, toArticleCards, type ArticleRow } from './articles'
 import { text } from './format'
 import { findPublishedPage } from './pages'
@@ -13,20 +13,6 @@ export const LANDING_NEWEST = 10
 
 /** Up to how many of the newest articles the Latest section shows (stage 3 design, 6.2). */
 export const LANDING_LATEST_LIMIT = 6
-
-/** The raw ids a landing-page list field gives (featuredPicks, startHere), in order, dropping anything malformed. */
-function idsOf(values: readonly unknown[] | null | undefined): number[] {
-  return (values ?? []).flatMap((value) => {
-    const id = idOf(value)
-    return isDatabaseId(id) ? [Number(id)] : []
-  })
-}
-
-/** A single relationship field's id (featuredArticle), or null when absent or malformed. */
-function singleId(value: unknown): number | null {
-  const id = idOf(value)
-  return isDatabaseId(id) ? Number(id) : null
-}
 
 export interface SelectLandingInput {
   /** Site settings' chosen featured article, or null when none is set. */

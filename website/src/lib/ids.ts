@@ -29,3 +29,17 @@ export function isDatabaseId(value: unknown): boolean {
     Number(value) <= MAX_DATABASE_ID
   )
 }
+
+/** A single relationship field's id, or null when absent, malformed, or not a database id. */
+export function singleId(value: unknown): number | null {
+  const id = idOf(value)
+  return isDatabaseId(id) ? Number(id) : null
+}
+
+/** A list relationship field's ids, in order, dropping anything malformed or not a database id. */
+export function idsOf(values: readonly unknown[] | null | undefined): number[] {
+  return (values ?? []).flatMap((value) => {
+    const id = singleId(value)
+    return id === null ? [] : [id]
+  })
+}
