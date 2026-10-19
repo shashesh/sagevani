@@ -20,4 +20,4 @@ These requirements will be tested once the website exists.
 
 ## Develop
 
-The app is a Payload CMS 3 + Next.js 16 project in this folder. See [environments](docs/environments.md) for local setup, variables, and staging/production setup.
+The app is a Payload CMS 3 + Next.js 16 project in this folder. See [environments](docs/environments.md) for local setup, variables, and hosted setup.

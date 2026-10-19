@@ -121,6 +121,24 @@
   - Web-push reminders (Q-12).
   - The offline spike (part 2) and our own sync (part 3).
 
+## D-007 — One environment: production only
+
+- Date: 2026-10-19
+- Status: Confirmed by owner
+- Question: Should the website keep separate staging and production Supabase projects and Netlify contexts, or run a single environment?
+- Decision:
+  - **One Supabase project, one Netlify site.** The `sagevani-staging` Supabase project and the `sagevani-staging` Netlify site become the only environment, renamed to drop "staging." There is no second, free-plan project held back from Pro.
+  - **Deploy previews and branch deploys read and build against this same project.** A pull request's preview is live against real data, not a separate copy.
+  - **Migrations still aren't automatic on non-production builds.** Previews and branch deploys still only build; the owner still applies a pull request's migrations by hand first, against this one project, before checking its preview (environments guide).
+  - **Local development is unaffected.** `npm run dev` still runs against the local Docker Postgres database; this decision only removes the hosted staging tier.
+- Reason: The owner chose to simplify operations rather than maintain two hosted projects and keep their environment variables in sync.
+- Owner approval: Owner's instruction in the website build session, 2026-10-19.
+- Documents affected: [environments guide](../../website/docs/environments.md), `netlify.toml`, [operations tasks](../operations/tasks.md), website README.
+- Supersedes:
+  - D-005's "Supabase Pro when the site is launch-ready. Production stays on the free plan until then. Staging stays on the free plan," and its "Separate organizations" consequence.
+- Pending:
+  - Whether a second project is reintroduced later if live-data risk from preview builds becomes a problem.
+
 ## New decision template
 
 - ID and title:
