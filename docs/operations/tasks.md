@@ -39,9 +39,9 @@ This Markdown task list is a proposed maintenance method.
 - [x] Build website stage 2 (content model and admin): [pull request #13](https://github.com/shashesh/sagevani/pull/13), merged on 2026-10-11.
 - [x] Plan website stage 3 (the public site): [design](../../website/docs/specs/2026-10-11-stage-3-public-site-design.md), [3a plan](../../website/docs/plans/2026-10-11-stage-3a-reading-experience.md).
 - [x] Build website stage 3a (the reading experience): [pull request #14](https://github.com/shashesh/sagevani/pull/14), merged on 2026-10-13.
-- [ ] Owner: set `SITE_URL` in Netlify for production and previews (environments guide) before stage 3a merges.
+- [x] Owner: set `SITE_URL` in Netlify for every hosted context (environments guide). Done 2026-10-19, as part of setting up the hosted environment ([D-007](../governance/decisions.md#d-007--one-environment-production-only) merged staging and production into one project first).
 - [ ] Build website stage 3b (the rest of the site: landing, archive, topic, Start here and fixed pages, `/corrections`, the 404 and error pages, link-preview images, the About field and reserved page slugs). Built and tested; the pull request is not yet open.
-- [ ] Owner: apply the `20261013_124323_stage_3b_about_text` migration to staging before the stage 3b deploy preview builds (environments guide, section 3).
+- [x] Owner: apply the `20261013_124323_stage_3b_about_text` migration before the stage 3b deploy preview builds (environments guide, section 2). Applied 2026-10-19.
 - [ ] Owner: review and approve, or rewrite, the placeholder interface copy listed in section 9 of the [stage 3 design](../../website/docs/specs/2026-10-11-stage-3-public-site-design.md).
 - [ ] Owner: on the stage 3b deploy preview, check that `/og/[slug]` draws its text in the real Literata font, not a silently substituted system font. This is a known risk: `outputFileTracingIncludes` in `next.config.ts` takes effect only under `next build --webpack`, not under this Next version's Turbopack build.
 - [ ] Owner: on the stage 3b deploy preview, check that the deploy log shows `@netlify/plugin-nextjs` 5.16.2 or later (environments guide, step 6).

@@ -1,11 +1,12 @@
 # Change log
 
-## 2026-10-19 — Staging and Netlify set up
+## 2026-10-19 — Hosted environment set up
 
-- Supabase `sagevani-staging` created in `us-east-2` (Ohio), with its media bucket, migrations applied, and schema hardened.
-- The staging owner account exists.
-- Netlify site `sagevani-staging` linked to this repository, with the staging environment variables set for deploy previews and branch deploys.
-- This entry's pull request checks that a deploy preview builds against staging.
+- Supabase `sagevani` created in `us-east-2` (Ohio), with its media bucket, migrations applied, and schema hardened. Started as a separate staging project; [D-007](docs/governance/decisions.md#d-007--one-environment-production-only) collapsed staging and production into this one project, renamed.
+- The owner account exists.
+- Netlify site `sagevani` linked to this repository, with environment variables set for every hosted context.
+- Found and fixed: `@netlify/plugin-nextjs` wasn't actually running on real Netlify CI builds, only on local CLI runs, so `.next` was deployed as a raw static folder with no functions and every route 404'd. Now pinned explicitly in `netlify.toml`.
+- This entry's pull request checks that a deploy preview builds and serves real pages, including `/admin`.
 
 ## 2026-10-13 — Website stage 3b: the rest of the site
 
