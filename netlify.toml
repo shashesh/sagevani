@@ -13,3 +13,9 @@
 
 [context.production]
   command = "npm run deploy:build"
+
+# Explicit, since auto-detection doesn't reliably trigger this plugin with a custom
+# publish path set above. Without it, Netlify deploys the raw .next folder with no
+# functions, and every route 404s.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
