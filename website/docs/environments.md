@@ -195,3 +195,7 @@ Five failed sign-ins lock an account for 15 minutes. A reset ends the current lo
 ## Later hardening
 
 The migrations and the running site both connect as Supabase's `postgres` role. A tighter setup would give the site its own database role that can read and write the `payload` tables but can't change the schema. Stage 1 doesn't set this up.
+
+## Setup verified
+
+Staging (`sagevani-staging`) and its Netlify deploy preview wiring were set up and confirmed working on 2026-10-19.
