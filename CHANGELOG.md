@@ -1,5 +1,12 @@
 # Change log
 
+## 2026-10-19 — Staging and Netlify set up
+
+- Supabase `sagevani-staging` created in `us-east-2` (Ohio), with its media bucket, migrations applied, and schema hardened.
+- The staging owner account exists.
+- Netlify site `sagevani-staging` linked to this repository, with the staging environment variables set for deploy previews and branch deploys.
+- This entry's pull request checks that a deploy preview builds against staging.
+
 ## 2026-10-13 — Website stage 3b: the rest of the site
 
 - The landing page at `/` shows the featured article, the Featured picks, the Latest articles and a sidebar with About SageVani, Start here and the topics. The Four questions band links to each topic. Until something is published, the page says so.
