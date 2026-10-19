@@ -189,4 +189,4 @@ The migrations and the running site both connect as Supabase's `postgres` role. 
 
 ## Setup history
 
-- 2026-10-19: a staging project and a production project were set up and verified separately. [D-007](../../docs/governance/decisions.md#d-007--one-environment-production-only) later collapsed them into the single hosted project described above; the original staging project and Netlify site are now `sagevani`, renamed.
+- 2026-10-19: a staging project and a production project were set up and verified separately. [D-007](../../docs/governance/decisions.md#d-007--one-environment-production-only) later collapsed them into the single hosted project described above; the original staging project and Netlify site are now `sagevani`, renamed. The full pivot, including the Netlify rename and a fix for `DATABASE_CA_CERT` getting truncated by a CLI quirk, was verified by a deploy preview.
