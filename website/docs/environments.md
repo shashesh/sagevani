@@ -198,4 +198,4 @@ The migrations and the running site both connect as Supabase's `postgres` role. 
 
 ## Setup verified
 
-Staging (`sagevani-staging`) and its Netlify deploy preview wiring were set up and confirmed working on 2026-10-19.
+Staging (`sagevani-staging`) and its Netlify deploy preview wiring were set up and confirmed working on 2026-10-19. `SITE_URL` is required in the preview/branch-deploy contexts too, not just production.
