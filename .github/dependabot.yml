@@ -3,11 +3,14 @@ updates:
   # --- website (npm) ---
   #
   # One update entry per package-ecosystem/directory pair (Dependabot
-  # rejects duplicates of that pair). Major bumps stay ungrouped so each
-  # lands as its own PR for review, held back only by the small flat
-  # default-days cooldown. Minor/patch bumps are grouped by release
+  # rejects duplicates of that pair). Most major bumps stay ungrouped so
+  # each lands as its own PR for review, held back only by the small
+  # flat default-days cooldown; minor/patch bumps are grouped by release
   # train and held back longer via semver-minor-days/semver-patch-days,
-  # so they don't show up the moment a release drops.
+  # so they don't show up the moment a release drops. The payload and
+  # vitest groups are the exception: their sibling packages must match
+  # the core package's version exactly, so those two groups bundle every
+  # semver level together, majors included (see groups below).
   - package-ecosystem: npm
     directory: /website
     schedule:
@@ -20,13 +23,19 @@ updates:
       semver-minor-days: 21
       semver-patch-days: 10
     groups:
+      # These two groups have no `update-types` filter: the sibling
+      # packages must match the core package's version exactly (this is
+      # what broke #25/#26 for payload and #32 for vitest), so they're
+      # grouped on every semver level, majors included, not just minor/patch.
       payload:
         patterns:
           - "payload"
           - "@payloadcms/*"
-        update-types:
-          - "minor"
-          - "patch"
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "vite"
       react-next:
         patterns:
           - "react"
@@ -38,10 +47,8 @@ updates:
         update-types:
           - "minor"
           - "patch"
-      test-tooling:
+      playwright-tooling:
         patterns:
-          - "vitest"
-          - "@vitest/*"
           - "@playwright/test"
           - "@axe-core/playwright"
           - "vite-tsconfig-paths"
