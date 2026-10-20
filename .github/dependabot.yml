@@ -4,10 +4,10 @@ updates:
   #
   # One update entry per package-ecosystem/directory pair (Dependabot
   # rejects duplicates of that pair). Major bumps stay ungrouped so each
-  # lands as its own PR for review. Minor/patch bumps are grouped by
-  # release train, and `cooldown` holds them back for a few weeks so they
-  # don't show up the moment a release drops - majors have no cooldown,
-  # so they still surface right away.
+  # lands as its own PR for review, held back only by the small flat
+  # default-days cooldown. Minor/patch bumps are grouped by release
+  # train and held back longer via semver-minor-days/semver-patch-days,
+  # so they don't show up the moment a release drops.
   - package-ecosystem: npm
     directory: /website
     schedule:
