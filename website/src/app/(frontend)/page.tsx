@@ -5,8 +5,9 @@ import { ArticleCard } from '@/components/article/ArticleCard'
 import { ArticleListItem } from '@/components/article/ArticleListItem'
 import { FeaturedArticle } from '@/components/landing/FeaturedArticle'
 import { FourQuestions } from '@/components/landing/FourQuestions'
+import { Hero } from '@/components/landing/Hero'
 import { LandingSidebar } from '@/components/landing/LandingSidebar'
-import { getLanding } from '@/lib/site/cached'
+import { getLanding, getSiteChrome } from '@/lib/site/cached'
 import { siteRobots } from '@/lib/site/metadata'
 import { ARCHIVE_PATH } from '@/lib/site/paths'
 
@@ -19,14 +20,13 @@ export function generateMetadata(): Metadata {
 
 /** The landing page (stage 3 design, 6.2): featured article, its featured picks, Latest and sidebar. */
 export default async function HomePage() {
-  const landing = await getLanding()
+  const [landing, chrome] = await Promise.all([getLanding(), getSiteChrome()])
   const { featured, picks, latest, sidebar } = landing
 
   return (
     <>
+      <Hero tagline={chrome.tagline} />
       <div className="page">
-        {/* The visible name comes from SiteHeader; this h1 exists for assistive tech alone. */}
-        <h1 className="visually-hidden">SageVani</h1>
         <div className={styles.layout}>
           <div>
             {featured ? (
