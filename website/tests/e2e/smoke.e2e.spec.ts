@@ -1,9 +1,15 @@
 import { expect, test } from '@playwright/test'
 
-test('home page shows the SageVani name', async ({ page }) => {
+// Mirrors DEFAULT_TAGLINE in src/globals/SiteSettings.ts (same note as landing.e2e.spec.ts: this
+// file runs directly in Playwright's own process, which can't resolve that module's next/cache
+// import outside Next's own bundler).
+const DEFAULT_TAGLINE = 'Where silence learns to speak.'
+
+test('home page shows the SageVani name and tagline', async ({ page }) => {
   await page.goto('/')
   await expect(page).toHaveTitle('SageVani')
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('SageVani')
+  await expect(page.getByRole('link', { name: 'SageVani', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(DEFAULT_TAGLINE)
 })
 
 test('admin asks for an email to sign in or create the first account', async ({ page }) => {
