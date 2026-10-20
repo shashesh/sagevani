@@ -88,7 +88,9 @@ jobs:
 
   e2e:
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    # Pinned below ubuntu-latest: Playwright 1.58.2 doesn't yet support
+    # installing browsers on the ubuntu26.04 image ubuntu-latest moved to.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
