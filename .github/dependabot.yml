@@ -1,16 +1,88 @@
 version: 2
 updates:
+  # --- website (npm) ---
+
+  # Major versions: one PR per dependency, every week, for manual review.
   - package-ecosystem: npm
     directory: /website
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "major-version"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
+
+  # Minor/patch versions: low-risk, bundled by release train, once a month.
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "minor-patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       payload:
         patterns:
           - "payload"
           - "@payloadcms/*"
+      react-next:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "next"
+          - "eslint-config-next"
+          - "@types/react"
+          - "@types/react-dom"
+      test-tooling:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@playwright/test"
+          - "@axe-core/playwright"
+          - "vite-tsconfig-paths"
+      lint-and-types:
+        patterns:
+          - "eslint"
+          - "eslint-*"
+          - "prettier"
+          - "typescript"
+          - "typescript-native"
+          - "@types/*"
+      everything-else:
+        patterns:
+          - "*"
+
+  # --- GitHub Actions ---
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    labels:
+      - "dependencies"
+      - "major-version"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - "dependencies"
+      - "minor-patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      actions:
+        patterns:
+          - "*"
