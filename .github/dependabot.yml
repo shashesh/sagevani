@@ -1,8 +1,13 @@
 version: 2
 updates:
   # --- website (npm) ---
-
-  # Major versions: one PR per dependency, every week, for manual review.
+  #
+  # One update entry per package-ecosystem/directory pair (Dependabot
+  # rejects duplicates of that pair). Major bumps stay ungrouped so each
+  # lands as its own PR for review. Minor/patch bumps are grouped by
+  # release train, and `cooldown` holds them back for a few weeks so they
+  # don't show up the moment a release drops - majors have no cooldown,
+  # so they still surface right away.
   - package-ecosystem: npm
     directory: /website
     schedule:
@@ -10,28 +15,18 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
-      - "major-version"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
-
-  # Minor/patch versions: low-risk, bundled by release train, once a month.
-  - package-ecosystem: npm
-    directory: /website
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "minor-patch"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+    cooldown:
+      default-days: 3
+      semver-minor-days: 21
+      semver-patch-days: 10
     groups:
       payload:
         patterns:
           - "payload"
           - "@payloadcms/*"
+        update-types:
+          - "minor"
+          - "patch"
       react-next:
         patterns:
           - "react"
@@ -40,6 +35,9 @@ updates:
           - "eslint-config-next"
           - "@types/react"
           - "@types/react-dom"
+        update-types:
+          - "minor"
+          - "patch"
       test-tooling:
         patterns:
           - "vitest"
@@ -47,6 +45,9 @@ updates:
           - "@playwright/test"
           - "@axe-core/playwright"
           - "vite-tsconfig-paths"
+        update-types:
+          - "minor"
+          - "patch"
       lint-and-types:
         patterns:
           - "eslint"
@@ -55,34 +56,33 @@ updates:
           - "typescript"
           - "typescript-native"
           - "@types/*"
+        update-types:
+          - "minor"
+          - "patch"
       everything-else:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   # --- GitHub Actions ---
-
+  #
+  # `cooldown`'s semver-*-days keys aren't supported for this ecosystem,
+  # so only the flat default-days applies; grouping still keeps minor/patch
+  # actions bumps bundled while majors land individually.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     labels:
       - "dependencies"
-      - "major-version"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
-
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: monthly
-    labels:
-      - "dependencies"
-      - "minor-patch"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
