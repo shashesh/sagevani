@@ -32,7 +32,7 @@ test.describe('the landing page with nothing published', () => {
   }) => {
     const response = await page.goto('/')
     expect(response?.status()).toBe(200)
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('SageVani')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(DEFAULT_TAGLINE)
     await expect(page.getByRole('heading', { name: 'Featured', exact: true })).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Latest', exact: true })).toHaveCount(0)
     await expect(page.getByText('Nothing has been published here yet.')).toBeVisible()
@@ -65,9 +65,12 @@ test.describe('the landing page with six published articles', () => {
     await useScenario('six')
   })
 
-  test('shows the featured article once, as an h2', async ({ page }) => {
+  test('shows the featured article once, as an h2, under the tagline as the page h1', async ({
+    page,
+  }) => {
     const response = await page.goto('/')
     expect(response?.status()).toBe(200)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(DEFAULT_TAGLINE)
     await expect(
       page.getByRole('heading', { level: 2, name: 'Six-scenario test article 1' }),
     ).toBeVisible()
