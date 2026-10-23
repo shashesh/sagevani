@@ -1,14 +1,12 @@
 import type { MigrateDownArgs, MigrateUpArgs } from '@payloadcms/db-postgres'
 
 // A starting header/footer navigation (stage 3 design, 5.4): with none set, the header shows only
-// the wordmark and the theme toggle. About and Contact point at Pages documents the owner still
-// has to write; the links 404 until those are published. The owner's to edit from here (add,
-// reorder, remove) in Site settings.
+// the wordmark and the theme toggle. Only routes that resolve today are seeded; About and Contact
+// are left out until their Pages documents are written and published. The owner can edit this
+// (add, reorder, remove) from Site settings.
 const NAVIGATION = [
   { label: 'Start here', path: '/start-here' },
   { label: 'Articles', path: '/articles' },
-  { label: 'About', path: '/about' },
-  { label: 'Contact', path: '/contact' },
 ]
 
 export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
